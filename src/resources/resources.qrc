@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="tab-close.svg">tab-close.svg</file>
+        <file alias="tab-close-hover.svg">tab-close-hover.svg</file>
+    </qresource>
+</RCC>
