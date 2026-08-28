@@ -50,6 +50,8 @@ set(CORE_SOURCES
     src/core/AppSettings.cpp
     src/core/AppLauncher.h
     src/core/AppLauncher.cpp
+    src/core/PortalBackend.h
+    src/core/PortalBackend.cpp
 )
 
 set(UI_SOURCES

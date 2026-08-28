@@ -8,6 +8,7 @@
 #include "MainWindow.h"
 #include "ThemeManager.h"
 #include "FilePickerDialog.h"
+#include "PortalBackend.h"
 
 int main(int argc, char *argv[]) {
     // Set Linux kernel process name
@@ -36,24 +37,45 @@ int main(int argc, char *argv[]) {
     parser.addHelpOption();
     parser.addVersionOption();
 
-    QCommandLineOption saveOption({"s", "save-file"}, QObject::tr("Open in Save File dialog mode"), QObject::tr("default_filename"));
-    QCommandLineOption openOption({"o", "open-file"}, QObject::tr("Open in Open File dialog mode"));
-    QCommandLineOption folderOption({"d", "choose-folder", "select-folder"}, QObject::tr("Open in Choose Folder dialog mode"));
-    QCommandLineOption filterOption({"f", "filter"}, QObject::tr("File type filter for dialog mode"), QObject::tr("filter"));
+    QCommandLineOption portalOption("portal", QObject::tr("Run as XDG Desktop Portal FileChooser service"));
+    QCommandLineOption saveOption({"s", "save-file"}, QObject::tr("Open in Save File dialog mode (optionally pass filename/path)"));
+    QCommandLineOption openOption({"o", "open-file"}, QObject::tr("Open in Open File dialog mode (optionally pass path)"));
+    QCommandLineOption folderOption({"d", "choose-folder", "select-folder"}, QObject::tr("Open in Choose Folder dialog mode (optionally pass path)"));
+    QCommandLineOption filterOption({"f", "filter"}, QObject::tr("File type filter for dialog mode (e.g. *.png)"), QObject::tr("filter"));
+    parser.addOption(portalOption);
     parser.addOption(saveOption);
     parser.addOption(openOption);
     parser.addOption(folderOption);
     parser.addOption(filterOption);
-    parser.addPositionalArgument(QObject::tr("paths"), QObject::tr("Directory paths to open"), QObject::tr("[paths...]"));
+    parser.addPositionalArgument(QObject::tr("paths"), QObject::tr("Target paths or default filename"), QObject::tr("[paths...]"));
     parser.process(app);
+
+    if (parser.isSet(portalOption)) {
+        app.setQuitOnLastWindowClosed(false);
+        PortalBackend portal;
+        if (!portal.registerService()) {
+            return 1;
+        }
+        return app.exec();
+    }
 
     QString filter = parser.value(filterOption);
     const QStringList positional = parser.positionalArguments();
     QString initialPath = positional.isEmpty() ? QString() : positional.first();
 
     if (parser.isSet(saveOption)) {
-        QString defaultName = parser.value(saveOption);
-        FilePickerDialog dlg(PickerMode::SaveFile, initialPath, defaultName);
+        QString defaultName = "Untitled";
+        QString folderPath;
+        if (!initialPath.isEmpty()) {
+            QFileInfo fi(initialPath);
+            if (fi.isDir()) {
+                folderPath = fi.absoluteFilePath();
+            } else {
+                defaultName = fi.fileName();
+                folderPath = fi.absolutePath();
+            }
+        }
+        FilePickerDialog dlg(PickerMode::SaveFile, folderPath, defaultName);
         if (!filter.isEmpty()) dlg.setFilter(filter);
         if (dlg.exec() == QDialog::Accepted) {
             std::cout << qUtf8Printable(dlg.selectedPath()) << std::endl;

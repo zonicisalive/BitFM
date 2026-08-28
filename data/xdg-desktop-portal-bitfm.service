@@ -1,0 +1,12 @@
+[Unit]
+Description=Portal service (BitFM implementation)
+PartOf=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.impl.portal.desktop.bitfm
+ExecStart=bitfm --portal
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target
