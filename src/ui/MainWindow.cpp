@@ -112,15 +112,48 @@ void MainWindow::setupUi() {
 
     m_mainSplitter->addWidget(m_contentSplitter);
 
-    // 3. Right Column: File Inspector Panel (Collapsible, F4)
-    m_inspector = new FileInspectorWidget(this);
     m_mainSplitter->addWidget(m_inspector);
-    m_inspector->hide(); // Hidden by default, toggled with F4
 
-    m_mainSplitter->setSizes({ 220, 1040, 0 });
+    // Restore Saved Window Geometry & State
+    QByteArray geom = AppSettings::instance().windowGeometry();
+    if (!geom.isEmpty()) {
+        restoreGeometry(geom);
+    }
+    QByteArray wState = AppSettings::instance().windowState();
+    if (!wState.isEmpty()) {
+        restoreState(wState);
+    }
+
+    // Restore Splitter Sizes
+    QList<int> mainSizes = AppSettings::instance().mainSplitterSizes();
+    if (mainSizes.size() == 3 && (mainSizes[0] > 0 || mainSizes[1] > 0)) {
+        m_mainSplitter->setSizes(mainSizes);
+    } else {
+        m_mainSplitter->setSizes({ 220, 1040, 0 });
+    }
     m_mainSplitter->setStretchFactor(0, 0);
     m_mainSplitter->setStretchFactor(1, 1);
     m_mainSplitter->setStretchFactor(2, 0);
+
+    // Restore Dual Pane & Inspector States
+    if (AppSettings::instance().isDualPaneEnabled()) {
+        m_secondaryPane->setVisible(true);
+        QList<int> paneSizes = AppSettings::instance().panesSplitterSizes();
+        if (paneSizes.size() == 2 && paneSizes[0] > 0 && paneSizes[1] > 0) {
+            m_panesSplitter->setSizes(paneSizes);
+        } else {
+            m_panesSplitter->setSizes({ 500, 500 });
+        }
+    } else {
+        m_secondaryPane->hide();
+        m_panesSplitter->setSizes({ 1000, 0 });
+    }
+
+    if (AppSettings::instance().isInspectorVisible()) {
+        m_inspector->setVisible(true);
+    } else {
+        m_inspector->hide();
+    }
 
     bool isRoot = (geteuid() == 0 || qgetenv("USER") == "root");
 
@@ -1142,7 +1175,13 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     AppSettings::instance().setWindowState(saveState());
     AppSettings::instance().setMainSplitterSizes(m_mainSplitter->sizes());
     AppSettings::instance().setPanesSplitterSizes(m_panesSplitter->sizes());
+    AppSettings::instance().setDualPaneEnabled(m_secondaryPane && m_secondaryPane->isVisible());
+    AppSettings::instance().setInspectorVisible(m_inspector && m_inspector->isVisible());
+    AppSettings::instance().setZoomLevel(m_zoomSlider->value());
     if (m_primaryPane && m_primaryPane->currentTab()) {
+        if (m_primaryPane->currentTab()->fileView()) {
+            AppSettings::instance().setViewMode(static_cast<int>(m_primaryPane->currentTab()->fileView()->viewMode()));
+        }
         AppSettings::instance().setLastDirectory(m_primaryPane->currentTab()->currentPath());
     }
     QMainWindow::closeEvent(event);

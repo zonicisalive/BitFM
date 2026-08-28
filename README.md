@@ -1,4 +1,4 @@
-# ⚡ BitFM — The Next-Gen Linux File Manager
+# BitFM — The Next-Gen Linux File Manager
 
 <div align="center">
 
@@ -11,43 +11,43 @@
 ![Wayland](https://img.shields.io/badge/Wayland-Native-orange.svg?style=for-the-badge&logo=wayland)
 ![License](https://img.shields.io/badge/License-GPL--3.0-purple.svg?style=for-the-badge)
 
-**A blazing-fast, modern, and modular Linux file manager engineered with C++ and Qt.**  
+**A fast, modern, and modular Linux file manager engineered with C++ and Qt.**  
 *Crafted for speed, pixel-perfect aesthetics, and seamless integration on Wayland (Niri, Hyprland, Sway, GNOME, KDE Plasma, Cosmic) & X11.*
 
 </div>
 
 ---
 
-## 🌟 Highlights & Features
+## Features & Capabilities
 
-- **🏎️ Blazing Fast C++ Performance**: Zero overhead asynchronous directory loading, asynchronous recursive search, and low-latency file operations.
-- **⊞ 3-Way Instant View Engine**:
+- **High-Performance C++ Core**: Zero-overhead asynchronous directory loading, non-blocking recursive search, and low-latency file operations.
+- **Three View Modes**:
   - **Icon Grid (`Ctrl+1`)**: Modern card-style grid with edge-to-edge justification, centered icons, symlink emblems, and 3-line file metadata.
   - **Detailed List (`Ctrl+2`)**: Full-featured tabular view with interactive resizable columns, sorting indicators, and date/size formatting.
   - **Compact View (`Ctrl+3`)**: Flowing multi-column horizontal list with scalable icons, dynamic row heights, and zoom support.
-- **🎨 Interactive Theme Controller Studio (`Ctrl+Shift+T`)**:
+- **Theme Controller Studio (`Ctrl+Shift+T`)**:
   - **10 Built-in Presets**: *Modern GNOME (Adwaita Dark)*, *OLED Pitch Black*, *Midnight Cyberpunk*, *Nord Frost*, *Gruvbox Warm Dark*, *Dracula Gothic*, *Rosé Pine*, *GitHub Dark*, *Catppuccin Mocha*, *Pure Light*.
-  - **Accent Color Studio**: 9 instant presets + custom RGB/HEX color picker.
-  - **⚡ Live External Theme Sync**: Live inotify watcher on `~/.config/BitFM/theme.conf` and `~/.config/BitFM/theme.json` to dynamically update colors in real time.
-- **📦 Native XDG Desktop Portal File Chooser**:
-  - Seamlessly handles system-wide **Save File** and **Open File** dialogs for web browsers (Firefox, Chrome, Brave) and desktop apps via D-Bus portal activation (`bitfm --portal`).
-- **🔍 Instant Filter & Deep Recursive Search (`Ctrl+F`)**:
+  - **Accent Color Studio**: 9 instant presets with custom RGB/HEX color picker.
+  - **Live External Theme Sync**: Inotify watcher on `~/.config/BitFM/theme.conf` and `~/.config/BitFM/theme.json` to dynamically synchronize colors in real time.
+- **Native XDG Desktop Portal File Chooser**:
+  - Handles system-wide Save File and Open File dialogs for web browsers (Firefox, Chrome, Brave) and desktop apps via D-Bus portal activation (`bitfm --portal`).
+- **Instant Filter & Recursive Search (`Ctrl+F`)**:
   - **Instant In-Folder Filter**: Zero-latency file filtering as you type.
-  - **Async Subdirectory Scanner**: Multi-threaded background recursive search without UI stutter. Supports plain text and Regex.
-- **🎬 Live File Inspector (`F4`)**:
-  - **Video Previews**: Generates crisp thumbnail frames with duration info.
-  - **PDF First-Page Rendering**: High-fidelity document previews.
+  - **Async Subdirectory Scanner**: Multi-threaded background recursive search supporting plain text and regular expressions without UI stutter.
+- **Live File Inspector (`F4`)**:
+  - **Video Previews**: Generates thumbnail frames with duration info.
+  - **PDF Rendering**: High-fidelity first-page document previews.
   - **Audio Inspection**: Extracts bitrate, sample rate, and track duration.
   - **Checksum Calculation**: Fast asynchronous SHA-256 hash generation.
-- **⚡ Dual-Pane (`F3`) & Tabs (`Ctrl+T`)**: Browse independent directories side-by-side with full drag-and-drop and clipboard synchronization.
-- **💻 Integrated Terminal Drawer (`F12`)**: Dropdown terminal embedded right inside the window, automatically synchronized to your active directory.
-- **👁️ Spacebar Quick Look (`Space`)**: Instant floating preview popup for videos, PDFs, images, and source code.
-- **🚀 Open With Desktop App Integration**: Scan and launch any installed XDG `.desktop` application with smart MIME type recommendations and custom commands.
-- **🔐 Storage & Hardware Integration**: Smart partition filtering (hides system partitions), interactive LUKS/BitLocker encrypted drive unlocking, and remote GVFS server mounts (SFTP, SMB, FTP, WebDAV).
+- **Dual-Pane (`F3`) & Tabbed Navigation (`Ctrl+T`)**: Browse independent directories side-by-side with full drag-and-drop and clipboard synchronization.
+- **Integrated Terminal Drawer (`F12`)**: Dropdown terminal embedded inside the window, automatically synchronized to your active directory.
+- **Quick Look Floating Preview (`Space`)**: Instant floating preview popup for videos, PDFs, images, and source code.
+- **Open With Desktop Integration**: Scan and launch any installed XDG application with smart MIME type recommendations and custom commands.
+- **Storage & Hardware Integration**: Smart partition filtering, interactive LUKS/BitLocker encrypted drive unlocking, and remote GVFS server mounts (SFTP, SMB, FTP, WebDAV).
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |
@@ -81,7 +81,7 @@
 
 ---
 
-## 🛠️ Build & Installation
+## Build & Installation
 
 ### 1. Install Dependencies
 
@@ -142,10 +142,10 @@ make -j$(nproc)
 
 ---
 
-## ⚙️ Configuration & Theming
+## Configuration & Theming
 
 ### 1. Session Preferences
-Saved to `~/.config/BitFM/bitfm.conf` (view modes, zoom levels, window geometry, splitters).
+Saved automatically to `~/.config/BitFM/bitfm.conf` (view modes, zoom levels, window geometry, splitters).
 
 ### 2. External Theme Synchronization
 BitFM monitors `~/.config/BitFM/theme.conf` and `~/.config/BitFM/theme.json` in real time. External theme managers or scripts can write color definitions:
@@ -166,6 +166,6 @@ foreground=#e2e2e0
 
 ---
 
-## 📄 License
+## License
 
 Distributed under the **GPL-3.0 License**. See `LICENSE` for more information.
