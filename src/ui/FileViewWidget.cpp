@@ -6,6 +6,9 @@
 #include "FilePropertiesDialog.h"
 #include "AboutDialog.h"
 #include "AppSettings.h"
+#include "OpenWithDialog.h"
+#include "AppLauncher.h"
+#include "FilePickerDialog.h"
 #include <QVBoxLayout>
 #include <QHeaderView>
 #include <QDesktopServices>
@@ -879,7 +882,32 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
                 connect(openAct, &QAction::triggered, this, [this, path = selected.first()]() {
                     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
                 });
+
+                // "Open With..." Submenu
+                QMenu *openWithMenu = menu.addMenu(QIcon::fromTheme("system-run", QIcon::fromTheme("application-x-executable")), tr("Open With"));
+                QList<DesktopApp> recApps = AppLauncher::instance().getRecommendedApps(selected.first(), 4);
+                for (const DesktopApp &app : recApps) {
+                    auto *act = openWithMenu->addAction(app.icon(), app.name);
+                    connect(act, &QAction::triggered, this, [app, selected]() {
+                        AppLauncher::instance().launchApp(app, selected);
+                    });
+                }
+                if (!recApps.isEmpty()) {
+                    openWithMenu->addSeparator();
+                }
+                auto *otherAppAct = openWithMenu->addAction(QIcon::fromTheme("applications-other", QIcon::fromTheme("preferences-desktop-default-applications")), tr("Other Application…"));
+                connect(otherAppAct, &QAction::triggered, this, [this, selected]() {
+                    OpenWithDialog dlg(selected, this);
+                    dlg.exec();
+                });
             }
+        } else {
+            // Multiple files selected
+            auto *openWithAct = menu.addAction(QIcon::fromTheme("system-run", QIcon::fromTheme("application-x-executable")), tr("Open With…"));
+            connect(openWithAct, &QAction::triggered, this, [this, selected]() {
+                OpenWithDialog dlg(selected, this);
+                dlg.exec();
+            });
         }
 
         menu.addSeparator();
@@ -887,6 +915,24 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         auto *copyAct = menu.addAction(QIcon::fromTheme("edit-copy"),  tr("Copy (Ctrl+C)"));
         connect(cutAct,  &QAction::triggered, this, &FileViewWidget::onCutAction);
         connect(copyAct, &QAction::triggered, this, &FileViewWidget::onCopyAction);
+
+        QMenu *transferMenu = menu.addMenu(QIcon::fromTheme("edit-copy"), tr("Copy / Move To…"));
+        auto *copyToAct = transferMenu->addAction(QIcon::fromTheme("edit-copy"), tr("Copy To…"));
+        auto *moveToAct = transferMenu->addAction(QIcon::fromTheme("edit-cut"), tr("Move To…"));
+        connect(copyToAct, &QAction::triggered, this, [this, selected]() {
+            FilePickerDialog dlg(PickerMode::ChooseFolder, m_sourceModel->currentDirectory(), QString(), this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QString dest = dlg.selectedPath();
+                if (!dest.isEmpty()) m_fileOps.copyFiles(selected, dest, this);
+            }
+        });
+        connect(moveToAct, &QAction::triggered, this, [this, selected]() {
+            FilePickerDialog dlg(PickerMode::ChooseFolder, m_sourceModel->currentDirectory(), QString(), this);
+            if (dlg.exec() == QDialog::Accepted) {
+                QString dest = dlg.selectedPath();
+                if (!dest.isEmpty()) m_fileOps.moveFiles(selected, dest, this);
+            }
+        });
 
         if (hasClipboardFiles()) {
             bool isCut = false;

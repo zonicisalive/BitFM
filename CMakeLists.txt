@@ -48,6 +48,8 @@ set(CORE_SOURCES
     src/core/UserEnvironment.h
     src/core/AppSettings.h
     src/core/AppSettings.cpp
+    src/core/AppLauncher.h
+    src/core/AppLauncher.cpp
 )
 
 set(UI_SOURCES
@@ -83,6 +85,10 @@ set(UI_SOURCES
     src/ui/UnlockDeviceDialog.cpp
     src/ui/AboutDialog.h
     src/ui/AboutDialog.cpp
+    src/ui/OpenWithDialog.h
+    src/ui/OpenWithDialog.cpp
+    src/ui/FilePickerDialog.h
+    src/ui/FilePickerDialog.cpp
     src/ui/FileViewWidget.h
     src/ui/FileViewWidget.cpp
     src/ui/DirectoryViewTab.h
