@@ -1295,54 +1295,7 @@ static QMimeData* createClipboardMimeData(const QStringList &paths, bool isCut) 
     mime->setData("application/x-kde-cutselection", isCut ? QByteArray("1") : QByteArray("0"));
     mime->setText(paths.join("\n"));
 
-    // If single image file is copied, attach image data so Discord/Slack/Telegram/browsers paste the actual image
-    if (paths.size() == 1) {
-        QString path = paths.first();
-        QString ext = QFileInfo(path).suffix().toLower();
-        if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "webp" || ext == "gif" || ext == "bmp") {
-            QFile file(path);
-            if (file.open(QIODevice::ReadOnly)) {
-                QByteArray rawData = file.readAll();
-                if (ext == "png") {
-                    mime->setData("image/png", rawData);
-                } else if (ext == "jpg" || ext == "jpeg") {
-                    mime->setData("image/jpeg", rawData);
-                }
-                QImage img;
-                if (img.loadFromData(rawData)) {
-                    mime->setImageData(img);
-                    if (ext != "png") {
-                        QByteArray pngData;
-                        QBuffer buffer(&pngData);
-                        buffer.open(QIODevice::WriteOnly);
-                        img.save(&buffer, "PNG");
-                        mime->setData("image/png", pngData);
-                    }
-                }
-            }
-        }
-    }
-
     return mime;
-}
-
-static void copyToWaylandUriList(const QStringList &paths) {
-    if (qgetenv("WAYLAND_DISPLAY").isEmpty() || !QFile::exists("/usr/bin/wl-copy")) return;
-
-    QStringList uriLines;
-    for (const QString &p : paths) {
-        uriLines.append(QUrl::fromLocalFile(p).toString());
-    }
-    QString payload = uriLines.join("\n") + "\n";
-
-    QProcess *proc = new QProcess();
-    QObject::connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                     proc, &QObject::deleteLater);
-    proc->start("/usr/bin/wl-copy", { "-t", "text/uri-list" });
-    if (proc->waitForStarted(1000)) {
-        proc->write(payload.toUtf8());
-        proc->closeWriteChannel();
-    }
 }
 
 void FileViewWidget::onCopyAction() {
@@ -1353,11 +1306,6 @@ void FileViewWidget::onCopyAction() {
     m_isCutOperation = false;
 
     QGuiApplication::clipboard()->setMimeData(createClipboardMimeData(selected, false), QClipboard::Clipboard);
-    if (QGuiApplication::clipboard()->supportsSelection()) {
-        QGuiApplication::clipboard()->setMimeData(createClipboardMimeData(selected, false), QClipboard::Selection);
-    }
-
-    copyToWaylandUriList(selected);
 
     emit statusMessageRequested(tr("Copied %1 item(s) to clipboard").arg(selected.size()));
 }
@@ -1370,11 +1318,6 @@ void FileViewWidget::onCutAction() {
     m_isCutOperation = true;
 
     QGuiApplication::clipboard()->setMimeData(createClipboardMimeData(selected, true), QClipboard::Clipboard);
-    if (QGuiApplication::clipboard()->supportsSelection()) {
-        QGuiApplication::clipboard()->setMimeData(createClipboardMimeData(selected, true), QClipboard::Selection);
-    }
-
-    copyToWaylandUriList(selected);
 
     emit statusMessageRequested(tr("Cut %1 item(s)").arg(selected.size()));
 }
@@ -1488,7 +1431,8 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                 else onTrashAction();
                 return true;
             } else if (ke->key() == Qt::Key_F2) {
-                onRenameAction();
+                if (ke->modifiers() & Qt::ShiftModifier) onBatchRenameAction();
+                else onRenameAction();
                 return true;
             }
         }
@@ -1508,4 +1452,37 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
         }
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void FileViewWidget::keyPressEvent(QKeyEvent *event) {
+    bool isCtrl = (event->modifiers() & Qt::ControlModifier);
+    bool isShift = (event->modifiers() & Qt::ShiftModifier);
+    if (event->matches(QKeySequence::Copy) || (isCtrl && event->key() == Qt::Key_C)) {
+        onCopyAction();
+        event->accept();
+        return;
+    } else if (event->matches(QKeySequence::Cut) || (isCtrl && event->key() == Qt::Key_X)) {
+        onCutAction();
+        event->accept();
+        return;
+    } else if (event->matches(QKeySequence::Paste) || (isCtrl && event->key() == Qt::Key_V)) {
+        onPasteAction();
+        event->accept();
+        return;
+    } else if (event->matches(QKeySequence::SelectAll) || (isCtrl && event->key() == Qt::Key_A)) {
+        selectAll();
+        event->accept();
+        return;
+    } else if (event->key() == Qt::Key_Delete) {
+        if (isShift) onDeletePermanentlyAction();
+        else onTrashAction();
+        event->accept();
+        return;
+    } else if (event->key() == Qt::Key_F2) {
+        if (isShift) onBatchRenameAction();
+        else onRenameAction();
+        event->accept();
+        return;
+    }
+    QWidget::keyPressEvent(event);
 }

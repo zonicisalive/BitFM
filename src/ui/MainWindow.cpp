@@ -33,22 +33,6 @@ MainWindow::MainWindow(QWidget *parent)
     setupMenuBar();
     setupGlobalShortcuts();
 
-    // Restore saved window geometry & state
-    QByteArray geom = AppSettings::instance().windowGeometry();
-    if (!geom.isEmpty()) {
-        restoreGeometry(geom);
-    }
-    QByteArray state = AppSettings::instance().windowState();
-    if (!state.isEmpty()) {
-        restoreState(state);
-    }
-
-    // Restore splitter sizes
-    QList<int> mainSizes = AppSettings::instance().mainSplitterSizes();
-    if (mainSizes.size() == 3) {
-        m_mainSplitter->setSizes(mainSizes);
-    }
-
     onPaneActivated(m_primaryPane);
 }
 
@@ -112,6 +96,8 @@ void MainWindow::setupUi() {
 
     m_mainSplitter->addWidget(m_contentSplitter);
 
+    // 3. Right Column: File Inspector Panel (Collapsible, F4)
+    m_inspector = new FileInspectorWidget(this);
     m_mainSplitter->addWidget(m_inspector);
 
     // Restore Saved Window Geometry & State
@@ -390,7 +376,8 @@ void MainWindow::setupMenuBar() {
     QMenu *editMenu = mb->addMenu(tr("&Edit"));
 
     QAction *actCut = editMenu->addAction(QIcon::fromTheme("edit-cut"), tr("Cu&t"));
-    actCut->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_X));
+    actCut->setShortcut(QKeySequence::Cut);
+    actCut->setShortcutContext(Qt::WindowShortcut);
     connect(actCut, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
             activePane()->currentTab()->fileView()->onCutAction();
@@ -398,7 +385,8 @@ void MainWindow::setupMenuBar() {
     });
 
     QAction *actCopy = editMenu->addAction(QIcon::fromTheme("edit-copy"), tr("&Copy"));
-    actCopy->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_C));
+    actCopy->setShortcut(QKeySequence::Copy);
+    actCopy->setShortcutContext(Qt::WindowShortcut);
     connect(actCopy, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
             activePane()->currentTab()->fileView()->onCopyAction();
@@ -406,7 +394,8 @@ void MainWindow::setupMenuBar() {
     });
 
     QAction *actPaste = editMenu->addAction(QIcon::fromTheme("edit-paste"), tr("&Paste"));
-    actPaste->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_V));
+    actPaste->setShortcut(QKeySequence::Paste);
+    actPaste->setShortcutContext(Qt::WindowShortcut);
     connect(actPaste, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
             activePane()->currentTab()->fileView()->onPasteAction();
@@ -416,7 +405,8 @@ void MainWindow::setupMenuBar() {
     editMenu->addSeparator();
 
     QAction *actSelectAll = editMenu->addAction(QIcon::fromTheme("edit-select-all"), tr("Select &All"));
-    actSelectAll->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_A));
+    actSelectAll->setShortcut(QKeySequence::SelectAll);
+    actSelectAll->setShortcutContext(Qt::WindowShortcut);
     connect(actSelectAll, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
             activePane()->currentTab()->fileView()->selectAll();
@@ -427,6 +417,7 @@ void MainWindow::setupMenuBar() {
 
     QAction *actRename = editMenu->addAction(QIcon::fromTheme("edit-rename"), tr("&Rename..."));
     actRename->setShortcut(QKeySequence(Qt::Key_F2));
+    actRename->setShortcutContext(Qt::WindowShortcut);
     connect(actRename, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
             activePane()->currentTab()->fileView()->onRenameAction();
@@ -435,6 +426,7 @@ void MainWindow::setupMenuBar() {
 
     QAction *actBatchRename = editMenu->addAction(QIcon::fromTheme("edit-rename"), tr("&Batch Rename..."));
     actBatchRename->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F2));
+    actBatchRename->setShortcutContext(Qt::WindowShortcut);
     connect(actBatchRename, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
             activePane()->currentTab()->fileView()->onBatchRenameAction();
@@ -442,7 +434,8 @@ void MainWindow::setupMenuBar() {
     });
 
     QAction *actTrash = editMenu->addAction(QIcon::fromTheme("user-trash"), tr("Move to &Trash"));
-    actTrash->setShortcut(QKeySequence(Qt::Key_Delete));
+    actTrash->setShortcut(QKeySequence::Delete);
+    actTrash->setShortcutContext(Qt::WindowShortcut);
     connect(actTrash, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
             activePane()->currentTab()->fileView()->onTrashAction();
@@ -451,6 +444,7 @@ void MainWindow::setupMenuBar() {
 
     QAction *actDelete = editMenu->addAction(QIcon::fromTheme("edit-delete"), tr("&Delete Permanently"));
     actDelete->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Delete));
+    actDelete->setShortcutContext(Qt::WindowShortcut);
     connect(actDelete, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
             activePane()->currentTab()->fileView()->onDeletePermanentlyAction();
@@ -829,49 +823,6 @@ void MainWindow::setupGlobalShortcuts() {
     new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O), this, SLOT(toggleSplitOrientation()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this, SLOT(toggleDualPane()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_K), this, SLOT(openQuickSwitcher()));
-
-    // File Operations on Active Tab
-    new QShortcut(QKeySequence::Copy, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onCopyAction();
-        }
-    });
-
-    new QShortcut(QKeySequence::Cut, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onCutAction();
-        }
-    });
-
-    new QShortcut(QKeySequence::Paste, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onPasteAction();
-        }
-    });
-
-    new QShortcut(QKeySequence::SelectAll, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->selectAll();
-        }
-    });
-
-    new QShortcut(QKeySequence::Delete, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onTrashAction();
-        }
-    });
-
-    new QShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Delete), this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onDeletePermanentlyAction();
-        }
-    });
-
-    new QShortcut(QKeySequence(Qt::Key_F2), this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onRenameAction();
-        }
-    });
 
     // Quick Copy & Move between split panes
     new QShortcut(QKeySequence(Qt::Key_F5), this, [this]() {
