@@ -495,11 +495,20 @@ QStringList FileViewWidget::selectedPaths() const {
         ? static_cast<QAbstractItemView*>(m_tableView)
         : static_cast<QAbstractItemView*>(m_listView);
 
-    QModelIndexList selectedRows = view->selectionModel()->selectedRows();
-    for (const QModelIndex &proxyIdx : selectedRows) {
+    if (!view || !view->selectionModel()) return paths;
+
+    QModelIndexList selected = view->selectionModel()->selectedIndexes();
+    QSet<int> seenRows;
+    for (const QModelIndex &proxyIdx : selected) {
+        if (!proxyIdx.isValid()) continue;
+        if (seenRows.contains(proxyIdx.row())) continue;
+        seenRows.insert(proxyIdx.row());
+
         QModelIndex srcIdx = m_proxyModel->mapToSource(proxyIdx);
         const FileItem *item = m_sourceModel->itemForIndex(srcIdx);
-        if (item) paths.append(item->absolutePath);
+        if (item && !item->absolutePath.isEmpty() && !paths.contains(item->absolutePath)) {
+            paths.append(item->absolutePath);
+        }
     }
     return paths;
 }
@@ -535,8 +544,14 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         : static_cast<QAbstractItemView*>(m_listView);
 
     QModelIndex index = view->indexAt(pos);
-    QStringList selected = selectedPaths();
+    if (index.isValid() && view->selectionModel()) {
+        if (!view->selectionModel()->isSelected(index)) {
+            view->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            view->setCurrentIndex(index);
+        }
+    }
 
+    QStringList selected = selectedPaths();
     QMenu menu(this);
 
     if (index.isValid() && !selected.isEmpty()) {
