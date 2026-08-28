@@ -35,6 +35,10 @@ public slots:
     void closeCurrentTab();
     void openSearchInActivePane();
     void navigateActivePane(const QString &path);
+    void showItemInFolder(const QString &filePath);
+    void showItems(const QStringList &uris);
+    void showFolders(const QStringList &uris);
+    void showItemProperties(const QStringList &uris);
     void addCurrentPathToBookmarks();
     void copyToOtherPane();
     void moveToOtherPane();

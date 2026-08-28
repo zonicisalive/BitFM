@@ -29,6 +29,12 @@
   - **10 Built-in Presets**: *Modern GNOME (Adwaita Dark)*, *OLED Pitch Black*, *Midnight Cyberpunk*, *Nord Frost*, *Gruvbox Warm Dark*, *Dracula Gothic*, *Rosé Pine*, *GitHub Dark*, *Catppuccin Mocha*, *Pure Light*.
   - **Accent Color Studio**: 9 instant presets with custom RGB/HEX color picker.
   - **Live External Theme Sync**: Inotify watcher on `~/.config/BitFM/theme.conf` and `~/.config/BitFM/theme.json` to dynamically synchronize colors in real time.
+- **Smart Clipboard & Cut Feedback**:
+  - **Visual Cut Dimming**: Cut files (`Ctrl+X`) are dynamically rendered with ghosted translucency across Grid, List, and Compact views until pasted or cancelled.
+  - **Clean Single-Payload Wayland Clipboard**: Formats standard `text/uri-list` and file paths without polluting clipboard managers.
+- **D-Bus File Manager Specification (`org.freedesktop.FileManager1`)**:
+  - **Browser "Show in Folder" Highlighting**: Seamless integration with Firefox, Chrome, Brave, Chromium, and desktop apps. Automatically focuses the window, navigates to the target directory, selects the downloaded file, and scrolls to center it.
+  - **CLI File Targeting**: Run `bitfm --select <file>` or `bitfm /path/to/file` to instantly focus and highlight files in existing or new windows.
 - **Native XDG Desktop Portal File Chooser**:
   - Handles system-wide Save File and Open File dialogs for web browsers (Firefox, Chrome, Brave) and desktop apps via D-Bus portal activation (`bitfm --portal`).
 - **Instant Filter & Recursive Search (`Ctrl+F`)**:

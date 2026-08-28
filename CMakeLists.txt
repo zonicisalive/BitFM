@@ -52,6 +52,8 @@ set(CORE_SOURCES
     src/core/AppLauncher.cpp
     src/core/PortalBackend.h
     src/core/PortalBackend.cpp
+    src/core/FileManager1Service.h
+    src/core/FileManager1Service.cpp
 )
 
 set(UI_SOURCES

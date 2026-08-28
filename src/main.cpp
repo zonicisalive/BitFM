@@ -3,12 +3,17 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QDir>
+#include <QUrl>
 #include <iostream>
 #include <sys/prctl.h>
+#include <QDBusInterface>
+#include <QDBusConnectionInterface>
 #include "MainWindow.h"
 #include "ThemeManager.h"
 #include "FilePickerDialog.h"
 #include "PortalBackend.h"
+#include "FileManager1Service.h"
+#include "UserEnvironment.h"
 
 int main(int argc, char *argv[]) {
     // Set Linux kernel process name
@@ -40,11 +45,15 @@ int main(int argc, char *argv[]) {
     parser.addVersionOption();
 
     QCommandLineOption portalOption("portal", QObject::tr("Run as XDG Desktop Portal FileChooser service"));
+    QCommandLineOption gappOption("gapplication-service", QObject::tr("Run as D-Bus service"));
+    QCommandLineOption selectOption("select", QObject::tr("Select the specified files in folder"));
     QCommandLineOption saveOption({"s", "save-file"}, QObject::tr("Open in Save File dialog mode (optionally pass filename/path)"));
     QCommandLineOption openOption({"o", "open-file"}, QObject::tr("Open in Open File dialog mode (optionally pass path)"));
     QCommandLineOption folderOption({"d", "choose-folder", "select-folder"}, QObject::tr("Open in Choose Folder dialog mode (optionally pass path)"));
     QCommandLineOption filterOption({"f", "filter"}, QObject::tr("File type filter for dialog mode (e.g. *.png)"), QObject::tr("filter"));
     parser.addOption(portalOption);
+    parser.addOption(gappOption);
+    parser.addOption(selectOption);
     parser.addOption(saveOption);
     parser.addOption(openOption);
     parser.addOption(folderOption);
@@ -61,8 +70,42 @@ int main(int argc, char *argv[]) {
         return app.exec();
     }
 
-    QString filter = parser.value(filterOption);
     const QStringList positional = parser.positionalArguments();
+
+    // Check if an existing BitFM FileManager1 instance is already running
+    QDBusConnection session = QDBusConnection::sessionBus();
+    if (!parser.isSet(gappOption) && !parser.isSet(saveOption) && !parser.isSet(openOption) && !parser.isSet(folderOption)) {
+        if (session.isConnected() && session.interface() && session.interface()->isServiceRegistered("org.freedesktop.FileManager1")) {
+            QDBusInterface iface("org.freedesktop.FileManager1", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1", session);
+            if (iface.isValid()) {
+                QStringList uris;
+                if (parser.isSet(selectOption)) {
+                    for (const QString &p : positional) uris.append(QUrl::fromLocalFile(p).toString());
+                    iface.call("ShowItems", uris, QString());
+                    return 0;
+                } else if (!positional.isEmpty()) {
+                    QString p = positional.first();
+                    if (p.startsWith("file://")) p = QUrl(p).toLocalFile();
+                    QFileInfo fi(p);
+                    if (fi.exists() && fi.isFile()) {
+                        uris.append(QUrl::fromLocalFile(fi.absoluteFilePath()).toString());
+                        iface.call("ShowItems", uris, QString());
+                        return 0;
+                    } else if (fi.exists() && fi.isDir()) {
+                        uris.append(QUrl::fromLocalFile(fi.absoluteFilePath()).toString());
+                        iface.call("ShowFolders", uris, QString());
+                        return 0;
+                    }
+                } else {
+                    uris.append(QUrl::fromLocalFile(UserEnvironment::realUserHome()).toString());
+                    iface.call("ShowFolders", uris, QString());
+                    return 0;
+                }
+            }
+        }
+    }
+
+    QString filter = parser.value(filterOption);
     QString initialPath = positional.isEmpty() ? QString() : positional.first();
 
     if (parser.isSet(saveOption)) {
@@ -102,13 +145,33 @@ int main(int argc, char *argv[]) {
     }
 
     MainWindow window;
-    if (!positional.isEmpty()) {
+    FileManager1Service fmService(&window);
+    fmService.registerService();
+
+    if (parser.isSet(selectOption)) {
+        window.showItems(positional);
+    } else if (!positional.isEmpty()) {
         QString p = positional.first();
-        if (QDir(p).exists()) {
+        if (p.startsWith("file://")) {
+            p = QUrl(p).toLocalFile();
+        }
+        QFileInfo fi(p);
+        if (fi.exists()) {
+            if (fi.isDir()) {
+                window.navigateActivePane(fi.absoluteFilePath());
+            } else {
+                window.showItemInFolder(fi.absoluteFilePath());
+            }
+        } else if (QDir(p).exists()) {
             window.navigateActivePane(QDir(p).absolutePath());
         }
     }
-    window.show();
+
+    if (parser.isSet(gappOption) && positional.isEmpty() && !parser.isSet(selectOption)) {
+        app.setQuitOnLastWindowClosed(false);
+    } else {
+        window.show();
+    }
 
     return app.exec();
 }

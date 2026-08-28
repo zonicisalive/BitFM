@@ -36,12 +36,18 @@
 
 class FileRowDelegate : public QStyledItemDelegate {
 public:
-    explicit FileRowDelegate(QTableView *tableView, QObject *parent = nullptr)
-        : QStyledItemDelegate(parent), m_tableView(tableView) {}
+    explicit FileRowDelegate(QTableView *tableView, FileViewWidget *fileView, QObject *parent = nullptr)
+        : QStyledItemDelegate(parent), m_tableView(tableView), m_fileView(fileView) {}
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing, true);
+
+        QString filePath = index.data(FileSystemModel::PathRole).toString();
+        bool isCut = m_fileView && m_fileView->isPathCut(filePath);
+        if (isCut) {
+            painter->setOpacity(0.42);
+        }
 
         bool isSelected = option.state & QStyle::State_Selected;
         bool isHovered = (index.row() == m_hoveredRow);
@@ -165,6 +171,7 @@ public:
 
 private:
     QTableView *m_tableView;
+    FileViewWidget *m_fileView = nullptr;
     int m_hoveredRow = -1;
 };
 
@@ -201,12 +208,19 @@ static QString formatRelativeDate(const QDateTime &dt) {
 
 class FileGridDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    explicit FileGridDelegate(FileViewWidget *fileView, QObject *parent = nullptr)
+        : QStyledItemDelegate(parent), m_fileView(fileView) {}
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setRenderHint(QPainter::TextAntialiasing, true);
+
+        QString filePath = index.data(FileSystemModel::PathRole).toString();
+        bool isCut = m_fileView && m_fileView->isPathCut(filePath);
+        if (isCut) {
+            painter->setOpacity(0.42);
+        }
 
         bool isSelected = option.state & QStyle::State_Selected;
         bool isHovered  = option.state & QStyle::State_MouseOver;
@@ -251,7 +265,6 @@ public:
         }
 
         // Color tag dot
-        QString filePath = index.data(FileSystemModel::PathRole).toString();
         QColor tagColor = TagManager::instance().getTagColor(filePath);
         if (tagColor.isValid()) {
             painter->setBrush(tagColor);
@@ -312,16 +325,26 @@ public:
         if (!iconSize.isValid() || iconSize.width() < 24) iconSize = QSize(60, 60);
         return QSize(iconSize.width() + 44, iconSize.height() + 70);
     }
+
+private:
+    FileViewWidget *m_fileView = nullptr;
 };
 
 class FileCompactDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    explicit FileCompactDelegate(FileViewWidget *fileView, QObject *parent = nullptr)
+        : QStyledItemDelegate(parent), m_fileView(fileView) {}
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing, true);
         painter->setRenderHint(QPainter::TextAntialiasing, true);
+
+        QString filePath = index.data(FileSystemModel::PathRole).toString();
+        bool isCut = m_fileView && m_fileView->isPathCut(filePath);
+        if (isCut) {
+            painter->setOpacity(0.42);
+        }
 
         bool isSelected = option.state & QStyle::State_Selected;
         bool isHovered  = option.state & QStyle::State_MouseOver;
@@ -365,7 +388,6 @@ public:
         }
 
         // Color tag dot
-        QString filePath = index.data(FileSystemModel::PathRole).toString();
         QColor tagColor = TagManager::instance().getTagColor(filePath);
         if (tagColor.isValid()) {
             painter->setBrush(tagColor);
@@ -396,11 +418,16 @@ public:
         int h = option.decorationSize.isValid() ? option.decorationSize.height() + 10 : 32;
         return QSize(220, h);
     }
+
+private:
+    FileViewWidget *m_fileView = nullptr;
 };
 
 FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *proxyModel, QWidget *parent)
     : QWidget(parent), m_sourceModel(model), m_proxyModel(proxyModel)
 {
+    connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, this, &FileViewWidget::updateViews);
+
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -562,6 +589,24 @@ QStringList FileViewWidget::getClipboardPaths(bool *outIsCut) const {
     return paths;
 }
 
+bool FileViewWidget::isPathCut(const QString &path) const {
+    if (path.isEmpty()) return false;
+    bool isCut = false;
+    QStringList clip = getClipboardPaths(&isCut);
+    if (!isCut || clip.isEmpty()) return false;
+    QString clean = QDir::cleanPath(path);
+    for (const QString &p : clip) {
+        if (QDir::cleanPath(p) == clean) return true;
+    }
+    return false;
+}
+
+void FileViewWidget::updateViews() {
+    if (m_tableView && m_tableView->viewport()) m_tableView->viewport()->update();
+    if (m_listView && m_listView->viewport()) m_listView->viewport()->update();
+    if (m_compactView && m_compactView->viewport()) m_compactView->viewport()->update();
+}
+
 void FileViewWidget::setupTableView() {
     m_tableView = new QTableView(this);
     m_tableView->setModel(m_proxyModel);
@@ -577,7 +622,7 @@ void FileViewWidget::setupTableView() {
     m_tableView->viewport()->setMouseTracking(true);
     m_tableView->setIconSize(QSize(20, 20));
 
-    m_rowDelegate = new FileRowDelegate(m_tableView, this);
+    m_rowDelegate = new FileRowDelegate(m_tableView, this, this);
     m_tableView->setItemDelegate(m_rowDelegate);
 
     m_tableView->horizontalHeader()->setMinimumSectionSize(60);
@@ -655,7 +700,7 @@ void FileViewWidget::setupCompactView() {
 
     m_compactView->setIconSize(QSize(22, 22));
     m_compactView->setContextMenuPolicy(Qt::CustomContextMenu);
-    m_compactView->setItemDelegate(new FileCompactDelegate(m_compactView));
+    m_compactView->setItemDelegate(new FileCompactDelegate(this, m_compactView));
 
     m_compactView->setDragEnabled(true);
     m_compactView->setAcceptDrops(true);
@@ -693,7 +738,7 @@ void FileViewWidget::setupListView() {
 
     m_listView->setIconSize(QSize(m_currentGridSize, m_currentGridSize));
     m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
-    m_listView->setItemDelegate(new FileGridDelegate(m_listView));
+    m_listView->setItemDelegate(new FileGridDelegate(this, m_listView));
 
     m_listView->setDragEnabled(true);
     m_listView->setAcceptDrops(true);
@@ -825,9 +870,65 @@ QStringList FileViewWidget::selectedPaths() const {
 }
 
 void FileViewWidget::selectAll() {
-    if (m_viewMode == ViewMode::DetailedList) m_tableView->selectAll();
+    if (m_viewMode == ViewMode::DetailedList && m_tableView) m_tableView->selectAll();
     else if (m_viewMode == ViewMode::Compact && m_compactView) m_compactView->selectAll();
     else if (m_listView) m_listView->selectAll();
+}
+
+QAbstractItemView* FileViewWidget::currentActiveView() const {
+    if (m_viewMode == ViewMode::DetailedList) return m_tableView;
+    if (m_viewMode == ViewMode::Compact && m_compactView) return m_compactView;
+    return m_listView;
+}
+
+void FileViewWidget::selectFile(const QString &filePath) {
+    selectFiles(QStringList{ filePath });
+}
+
+void FileViewWidget::selectFiles(const QStringList &filePaths) {
+    if (filePaths.isEmpty()) return;
+
+    QAbstractItemView *view = currentActiveView();
+    if (!view || !view->selectionModel() || !m_proxyModel || !m_sourceModel) return;
+
+    QItemSelection selection;
+    QModelIndex firstFoundIndex;
+
+    QSet<QString> targetNames;
+    QSet<QString> targetPaths;
+    for (const QString &p : filePaths) {
+        QString clean = QDir::cleanPath(p);
+        targetPaths.insert(clean);
+        targetNames.insert(QFileInfo(clean).fileName());
+    }
+
+    int totalRows = m_proxyModel->rowCount();
+    for (int row = 0; row < totalRows; ++row) {
+        QModelIndex proxyIdx = m_proxyModel->index(row, 0);
+        QModelIndex srcIdx = m_proxyModel->mapToSource(proxyIdx);
+        const FileItem *item = m_sourceModel->itemForIndex(srcIdx);
+        if (!item) continue;
+
+        if (targetPaths.contains(QDir::cleanPath(item->absolutePath)) || targetNames.contains(item->name)) {
+            QModelIndex rightIdx = (m_viewMode == ViewMode::DetailedList)
+                ? m_proxyModel->index(row, m_proxyModel->columnCount() - 1)
+                : proxyIdx;
+            selection.select(proxyIdx, rightIdx);
+            if (!firstFoundIndex.isValid()) {
+                firstFoundIndex = proxyIdx;
+            }
+        }
+    }
+
+    if (!selection.isEmpty() && firstFoundIndex.isValid()) {
+        view->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+        view->setCurrentIndex(firstFoundIndex);
+        view->scrollTo(firstFoundIndex, QAbstractItemView::PositionAtCenter);
+        m_pendingSelectPaths.clear();
+        emit fileSelectionChanged(selectedPaths());
+    } else {
+        m_pendingSelectPaths = filePaths;
+    }
 }
 
 FileSystemModel* FileViewWidget::sourceModel() const { return m_sourceModel; }
@@ -1306,6 +1407,7 @@ void FileViewWidget::onCopyAction() {
     m_isCutOperation = false;
 
     QGuiApplication::clipboard()->setMimeData(createClipboardMimeData(selected, false), QClipboard::Clipboard);
+    updateViews();
 
     emit statusMessageRequested(tr("Copied %1 item(s) to clipboard").arg(selected.size()));
 }
@@ -1318,6 +1420,7 @@ void FileViewWidget::onCutAction() {
     m_isCutOperation = true;
 
     QGuiApplication::clipboard()->setMimeData(createClipboardMimeData(selected, true), QClipboard::Clipboard);
+    updateViews();
 
     emit statusMessageRequested(tr("Cut %1 item(s)").arg(selected.size()));
 }
@@ -1341,6 +1444,7 @@ void FileViewWidget::onPasteAction() {
             QGuiApplication::clipboard()->clear();
             m_clipboardPaths.clear();
             m_isCutOperation = false;
+            updateViews();
             m_sourceModel->refresh();
             emit statusMessageRequested(tr("Moved %1 item(s) to %2").arg(srcPaths.size()).arg(QFileInfo(destDir).fileName()));
         }

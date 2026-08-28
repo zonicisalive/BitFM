@@ -32,6 +32,8 @@ public:
 
 public slots:
     void navigateTo(const QString &path, bool recordHistory = true);
+    void navigateToAndSelect(const QString &filePath);
+    void navigateToAndSelect(const QStringList &filePaths);
     void navigateBack();
     void navigateForward();
     void navigateUp();
@@ -89,4 +91,5 @@ private:
     QTimer m_searchDebounceTimer;
     QString m_lastSearchPattern;
     bool m_lastSearchRegex = false;
+    QStringList m_pendingSelectPaths;
 };

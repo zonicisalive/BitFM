@@ -28,9 +28,13 @@ public:
 
     QStringList selectedPaths() const;
     void selectAll();
+    void selectFile(const QString &filePath);
+    void selectFiles(const QStringList &filePaths);
 
     bool hasClipboardFiles() const;
+    bool isPathCut(const QString &path) const;
     QStringList getClipboardPaths(bool *outIsCut = nullptr) const;
+    void updateViews();
 
     FileSystemModel* sourceModel() const;
     FileFilterProxyModel* proxyModel() const;
@@ -95,10 +99,11 @@ private:
     QListView *m_listView;
     QListView *m_compactView = nullptr;
     FileRowDelegate *m_rowDelegate = nullptr;
-    FileGridDelegate *m_gridDelegate = nullptr;
+    QAbstractItemView* currentActiveView() const;
 
     // Clipboard state
     QStringList m_clipboardPaths;
+    QStringList m_pendingSelectPaths;
     bool m_isCutOperation = false;
     bool m_inUpdateGrid = false;
 };

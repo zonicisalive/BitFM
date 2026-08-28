@@ -1075,6 +1075,62 @@ void MainWindow::navigateActivePane(const QString &path) {
     activePane()->navigateTo(path);
 }
 
+void MainWindow::showItemInFolder(const QString &filePath) {
+    showItems(QStringList{ filePath });
+}
+
+void MainWindow::showItems(const QStringList &uris) {
+    QStringList localPaths;
+    for (const QString &u : uris) {
+        if (u.startsWith("file://")) {
+            localPaths.append(QUrl(u).toLocalFile());
+        } else {
+            localPaths.append(u);
+        }
+    }
+    if (localPaths.isEmpty()) return;
+
+    if (activePane() && activePane()->currentTab()) {
+        activePane()->currentTab()->navigateToAndSelect(localPaths);
+    }
+
+    show();
+    setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+    raise();
+    activateWindow();
+}
+
+void MainWindow::showFolders(const QStringList &uris) {
+    QStringList localPaths;
+    for (const QString &u : uris) {
+        if (u.startsWith("file://")) {
+            localPaths.append(QUrl(u).toLocalFile());
+        } else {
+            localPaths.append(u);
+        }
+    }
+    if (localPaths.isEmpty()) return;
+
+    if (activePane() && activePane()->currentTab()) {
+        activePane()->currentTab()->navigateTo(localPaths.first());
+    }
+
+    show();
+    setWindowState((windowState() & ~Qt::WindowMinimized) | Qt::WindowActive);
+    raise();
+    activateWindow();
+}
+
+void MainWindow::showItemProperties(const QStringList &uris) {
+    if (uris.isEmpty()) return;
+    QString path = uris.first();
+    if (path.startsWith("file://")) {
+        path = QUrl(path).toLocalFile();
+    }
+    FilePropertiesDialog dlg(path, this);
+    dlg.exec();
+}
+
 void MainWindow::addCurrentPathToBookmarks() {
     QString current = activePane()->currentPath();
     m_sidebar->addBookmark(current);

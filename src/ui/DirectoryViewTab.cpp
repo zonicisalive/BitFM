@@ -313,6 +313,27 @@ void DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
     emit tabTitleChanged(currentFolderName());
 }
 
+void DirectoryViewTab::navigateToAndSelect(const QString &filePath) {
+    navigateToAndSelect(QStringList{ filePath });
+}
+
+void DirectoryViewTab::navigateToAndSelect(const QStringList &filePaths) {
+    if (filePaths.isEmpty()) return;
+
+    QString first = filePaths.first();
+    if (first.startsWith("file://")) {
+        first = QUrl(first).toLocalFile();
+    }
+    QFileInfo fi(first);
+    QString targetDir = fi.isDir() ? fi.absoluteFilePath() : fi.absolutePath();
+
+    m_pendingSelectPaths = filePaths;
+    navigateTo(targetDir);
+    if (m_fileView) {
+        m_fileView->selectFiles(filePaths);
+    }
+}
+
 void DirectoryViewTab::navigateBack() {
     if (m_backStack.isEmpty()) return;
     m_forwardStack.push(m_currentPath);
@@ -398,6 +419,10 @@ void DirectoryViewTab::updateNavigationButtons() {
 
 void DirectoryViewTab::onDirectoryLoaded(const QString &, int itemCount) {
     m_errorBanner->hideMessage();
+    if (!m_pendingSelectPaths.isEmpty() && m_fileView) {
+        m_fileView->selectFiles(m_pendingSelectPaths);
+        m_pendingSelectPaths.clear();
+    }
     if (m_searchBar->isActive()) {
         if (m_fileModel->isSearching()) {
             m_proxyModel->setSearchPattern(QString());
