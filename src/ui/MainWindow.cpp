@@ -21,6 +21,7 @@
 #include "AboutDialog.h"
 #include "FilePropertiesDialog.h"
 #include "ConnectServerDialog.h"
+#include "ThemeControllerDialog.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -185,35 +186,17 @@ void MainWindow::setupUi() {
     m_diskUsageBar->setValue(0);
     m_diskUsageBar->setFixedSize(68, 7);
     m_diskUsageBar->setTextVisible(false);
-    m_diskUsageBar->setStyleSheet(QString(
-        "QProgressBar {"
-        "  border: none;"
-        "  border-radius: 3.5px;"
-        "  background: %1;"
-        "}"
-        "QProgressBar::chunk {"
-        "  background: %2;"
-        "  border-radius: 3.5px;"
-        "}"
-    ).arg(ThemeManager::BG_OVERLAY)
-     .arg(ThemeManager::ACCENT));
     bar->addPermanentWidget(m_diskUsageBar);
 
     m_statusDiskSpace = new QLabel(this);
-    m_statusDiskSpace->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent; padding-left: 6px;")
-        .arg(ThemeManager::TEXT_SECONDARY));
     bar->addPermanentWidget(m_statusDiskSpace);
 
     // Separator dot
     QLabel *sep2 = new QLabel("·", this);
-    sep2->setStyleSheet(QString("color: %1; font-size: 14px; background: transparent; padding: 0 6px;")
-        .arg(ThemeManager::TEXT_MUTED));
     bar->addPermanentWidget(sep2);
 
     // Zoom Slider label
     QLabel *zoomLabel = new QLabel("  ⊞", this);
-    zoomLabel->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent;")
-        .arg(ThemeManager::TEXT_MUTED));
     bar->addPermanentWidget(zoomLabel);
 
     m_zoomSlider = new QSlider(Qt::Horizontal, this);
@@ -221,17 +204,45 @@ void MainWindow::setupUi() {
     m_zoomSlider->setValue(AppSettings::instance().zoomLevel());
     m_zoomSlider->setFixedWidth(84);
     m_zoomSlider->setToolTip(tr("Icon Grid Size"));
-    m_zoomSlider->setStyleSheet(QString(
-        "QSlider::groove:horizontal { height: 4px; background: %1; border-radius: 2px; }"
-        "QSlider::sub-page:horizontal { background: %2; border-radius: 2px; }"
-        "QSlider::handle:horizontal { background: %2; border: none; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }"
-        "QSlider::handle:horizontal:hover { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; }"
-    ).arg(ThemeManager::BORDER).arg(ThemeManager::ACCENT));
     bar->addPermanentWidget(m_zoomSlider);
 
     QLabel *spacer = new QLabel(" ", this);
     spacer->setStyleSheet("background: transparent;");
     bar->addPermanentWidget(spacer);
+
+    auto updateStatusBarStyles = [this, sep1, sep2, zoomLabel]() {
+        m_diskUsageBar->setStyleSheet(QString(
+            "QProgressBar {"
+            "  border: none;"
+            "  border-radius: 3.5px;"
+            "  background: %1;"
+            "}"
+            "QProgressBar::chunk {"
+            "  background: %2;"
+            "  border-radius: 3.5px;"
+            "}"
+        ).arg(ThemeManager::BG_OVERLAY, ThemeManager::ACCENT));
+
+        m_statusDiskSpace->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent; padding-left: 6px;")
+            .arg(ThemeManager::TEXT_SECONDARY));
+
+        sep1->setStyleSheet(QString("color: %1; font-size: 14px; background: transparent; padding: 0 6px;")
+            .arg(ThemeManager::TEXT_MUTED));
+        sep2->setStyleSheet(QString("color: %1; font-size: 14px; background: transparent; padding: 0 6px;")
+            .arg(ThemeManager::TEXT_MUTED));
+        zoomLabel->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent;")
+            .arg(ThemeManager::TEXT_MUTED));
+
+        m_zoomSlider->setStyleSheet(QString(
+            "QSlider::groove:horizontal { height: 4px; background: %1; border-radius: 2px; }"
+            "QSlider::sub-page:horizontal { background: %2; border-radius: 2px; }"
+            "QSlider::handle:horizontal { background: %2; border: none; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }"
+            "QSlider::handle:horizontal:hover { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; }"
+        ).arg(ThemeManager::BORDER, ThemeManager::ACCENT));
+    };
+
+    updateStatusBarStyles();
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, updateStatusBarStyles);
 
     connect(m_zoomSlider, &QSlider::valueChanged, this, &MainWindow::onZoomSliderChanged);
 
@@ -647,13 +658,35 @@ void MainWindow::setupMenuBar() {
 
     viewMenu->addSeparator();
 
-    // Theme Submenu
+    // Theme Controller & Submenu
+    QAction *actThemeCtrl = viewMenu->addAction(QIcon::fromTheme("preferences-desktop-theme", QIcon::fromTheme("applications-graphics")), tr("Theme Controller 🎨…"));
+    actThemeCtrl->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
+    connect(actThemeCtrl, &QAction::triggered, this, &MainWindow::openThemeController);
+
     QMenu *themeMenu = viewMenu->addMenu(QIcon::fromTheme("preferences-desktop-theme", QIcon::fromTheme("applications-graphics")), tr("Theme 🎨"));
+    auto *actThemeCtrlSub = themeMenu->addAction(QIcon::fromTheme("preferences-desktop-theme"), tr("Theme Controller Studio…"));
+    actThemeCtrlSub->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
+    connect(actThemeCtrlSub, &QAction::triggered, this, &MainWindow::openThemeController);
+    themeMenu->addSeparator();
+
     QActionGroup *themeGroup = new QActionGroup(themeMenu);
+
+    auto *actExtSync = themeMenu->addAction(tr("⚡ Sync Custom / External Theme"));
+    actExtSync->setCheckable(true);
+    if (ThemeManager::instance().isExternalSyncEnabled()) actExtSync->setChecked(true);
+    themeGroup->addAction(actExtSync);
+    connect(actExtSync, &QAction::triggered, this, []() {
+        ThemeManager::instance().setThemeMode(ThemeMode::ExternalSync);
+    });
+
+    themeMenu->addSeparator();
+
     for (const QString &tName : ThemeManager::availableThemes()) {
         auto *act = themeMenu->addAction(tName);
         act->setCheckable(true);
-        if (tName == ThemeManager::instance().currentThemeName()) act->setChecked(true);
+        if (!ThemeManager::instance().isExternalSyncEnabled() && tName == ThemeManager::instance().currentThemeName()) {
+            act->setChecked(true);
+        }
         themeGroup->addAction(act);
         connect(act, &QAction::triggered, this, [tName]() {
             ThemeManager::instance().setThemeByName(tName);
@@ -1111,6 +1144,11 @@ void MainWindow::moveToOtherPane() {
         if (otherPane()->currentTab()) otherPane()->currentTab()->refresh();
         statusBar()->showMessage(tr("Moved %1 items to other pane").arg(selected.size()), 3000);
     }
+}
+
+void MainWindow::openThemeController() {
+    ThemeControllerDialog dlg(this);
+    dlg.exec();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {

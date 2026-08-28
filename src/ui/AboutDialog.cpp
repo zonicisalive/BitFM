@@ -171,8 +171,9 @@ QWidget* AboutDialog::createAboutTab() {
 
     // Large App Icon
     QLabel *iconLabel = new QLabel(tab);
-    QIcon appIcon = QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder"));
-    iconLabel->setPixmap(appIcon.pixmap(72, 72));
+    QIcon appIcon(":/icons/bitfm.png");
+    if (appIcon.isNull()) appIcon = QIcon::fromTheme("bitfm", QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder")));
+    iconLabel->setPixmap(appIcon.pixmap(80, 80));
     iconLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(iconLabel);
 

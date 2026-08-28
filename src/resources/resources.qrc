@@ -2,5 +2,6 @@
     <qresource prefix="/icons">
         <file alias="tab-close.svg">tab-close.svg</file>
         <file alias="tab-close-hover.svg">tab-close-hover.svg</file>
+        <file alias="bitfm.png">bitfm.png</file>
     </qresource>
 </RCC>

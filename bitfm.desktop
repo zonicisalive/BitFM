@@ -3,13 +3,13 @@ Name=BitFM
 GenericName=File Manager
 Comment=Fast, modern native Linux file manager with tabbed browsing and terminal drawer
 Exec=bitfm %U
-Icon=system-file-manager
+Icon=bitfm
 Terminal=false
 Type=Application
 StartupNotify=true
 StartupWMClass=bitfm
 Categories=System;FileTools;FileManager;Qt;
-MimeType=inode/directory;
+MimeType=inode/directory;x-scheme-handler/file;x-directory/normal;
 Keywords=folder;manager;explore;disk;filesystem;wayland;files;file;bitfm;
 
 Actions=NewWindow;Root;

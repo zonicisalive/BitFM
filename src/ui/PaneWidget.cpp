@@ -128,9 +128,9 @@ void PaneWidget::setupUi() {
             "QTabBar::tab {"
             "  background: transparent;"
             "  color: %4;"
-            "  padding: 0 12px 0 14px;"
+            "  padding: 0 14px;"
             "  height: 30px;"
-            "  min-width: 95px;"
+            "  min-width: 90px;"
             "  max-width: 220px;"
             "  border: 1px solid transparent;"
             "  border-radius: 7px;"
@@ -139,7 +139,7 @@ void PaneWidget::setupUi() {
             "  font-weight: 500;"
             "}"
             "QTabBar::tab:selected {"
-            "  color: %6;"
+            "  color: %5;"
             "  font-weight: 600;"
             "  background: %1;"
             "  border: 1px solid %3;"
@@ -158,7 +158,7 @@ void PaneWidget::setupUi() {
         .arg(ThemeManager::BG_SURFACE)      // %2 tab bar bg
         .arg(ThemeManager::BORDER)          // %3 bottom border
         .arg(ThemeManager::TEXT_SECONDARY)  // %4 unselected tab text
-        .arg(ThemeManager::ACCENT)          // %5 selected tab text + indicator
+        .arg(ThemeManager::ACCENT)          // %5 selected tab text / accent
         .arg(ThemeManager::TEXT_PRIMARY)    // %6 hover text
         .arg(ThemeManager::BG_HOVER)        // %7 hover bg
         );

@@ -5,6 +5,11 @@
 #include <QString>
 #include <QStringList>
 
+enum class ThemeMode {
+    Builtin = 0,
+    ExternalSync = 1
+};
+
 enum class AppTheme {
     ModernGNOME = 0,
     OLEDBlack,
@@ -53,6 +58,25 @@ public:
     static QStringList availableThemes();
     static ThemeColors getThemeColors(AppTheme theme);
     static QString getModernStyleSheet(const ThemeColors &c);
+
+    // Theme Mode: Built-in Presets vs External File Sync
+    ThemeMode themeMode() const;
+    void setThemeMode(ThemeMode mode);
+    bool isExternalSyncEnabled() const;
+
+    void setCustomAccent(const QString &accentHex);
+    QString customAccent() const;
+    bool hasCustomAccent() const;
+    void resetCustomAccent();
+
+    // External Theme File Controller & Live Sync
+    bool loadThemeFromFile(const QString &filePath);
+    void applyCustomTheme(const ThemeColors &c);
+    void setupExternalThemeWatcher();
+    void checkAndReloadExternalTheme();
+    static QString externalThemeJsonPath();
+    static QString externalThemeConfPath();
+    static QString externalStyleCssPath();
 
     // Dynamic color tokens tracking the active theme
     static QString BG_BASE;

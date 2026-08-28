@@ -6,6 +6,10 @@
 #include <QIcon>
 #include <QDir>
 #include <QSettings>
+#include <QFileSystemWatcher>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QTimer>
 
 // Initialize static color variables
 QString ThemeManager::BG_BASE       = "#000000";
@@ -293,14 +297,18 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  color: %2;"
         "  font-size: 13px;"
         "}"
+        "QMainWindow::separator {"
+        "  background-color: %3;"
+        "  width: 1px; height: 1px;"
+        "}"
 
         /* ─── Menu Bar ─── */
         "QMenuBar {"
         "  background-color: %5;"
         "  color: %2;"
         "  border-bottom: 1px solid %3;"
-        "  padding: 2px 6px;"
-        "  font-size: 13px;"
+        "  padding: 3px 6px;"
+        "  font-size: 12.5px;"
         "}"
         "QMenuBar::item {"
         "  background: transparent;"
@@ -311,7 +319,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "}"
         "QMenuBar::item:selected {"
         "  background-color: %6;"
-        "  color: #ffffff;"
+        "  color: %2;"
         "}"
         "QMenuBar::item:pressed {"
         "  background-color: %9;"
@@ -332,7 +340,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  background-color: %5;"
         "  border: none;"
         "  border-bottom: 1px solid %3;"
-        "  padding: 4px 10px;"
+        "  padding: 4px 8px;"
         "  spacing: 4px;"
         "}"
         "QToolBar::separator {"
@@ -346,9 +354,10 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  background-color: transparent;"
         "  color: %2;"
         "  border: 1px solid transparent;"
-        "  border-radius: 8px;"
-        "  padding: 6px 10px;"
-        "  font-size: 13px;"
+        "  border-radius: 7px;"
+        "  padding: 5px 9px;"
+        "  font-size: 12.5px;"
+        "  font-weight: 500;"
         "}"
         "QToolButton:hover, QPushButton:hover {"
         "  background-color: %6;"
@@ -356,18 +365,17 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "}"
         "QToolButton:pressed, QPushButton:pressed {"
         "  background-color: %7;"
-        "  color: %8;"
         "}"
         "QToolButton:checked {"
         "  background-color: %9;"
-        "  color: %8;"
+        "  color: #ffffff;"
         "  border: 1px solid %4;"
         "}"
         "QPushButton[class='accent'] {"
         "  background-color: %4;"
         "  color: %1;"
         "  font-weight: 600;"
-        "  border-radius: 8px;"
+        "  border-radius: 7px;"
         "  border: none;"
         "}"
         "QPushButton[class='accent']:hover {"
@@ -414,8 +422,8 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  border: none;"
         "}"
         "QListView::item, QTreeView::item {"
-        "  padding: 4px 8px;"
-        "  border-radius: 8px;"
+        "  padding: 5px 8px;"
+        "  border-radius: 7px;"
         "  border: none;"
         "}"
         "QListView::item:hover, QTreeView::item:hover {"
@@ -424,7 +432,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "QListView::item:selected, QTreeView::item:selected {"
         "  background-color: %9;"
         "  color: %2;"
-        "  border-radius: 8px;"
+        "  border-radius: 7px;"
         "}"
 
         /* ─── Header ─── */
@@ -435,13 +443,12 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "QHeaderView::section {"
         "  background-color: %1;"
         "  color: %12;"
-        "  padding: 8px 12px;"
+        "  padding: 7px 12px;"
         "  border: none;"
         "  border-bottom: 1px solid %3;"
         "  font-weight: 600;"
         "  font-size: 11px;"
-        "  text-transform: uppercase;"
-        "  letter-spacing: 0.6px;"
+        "  letter-spacing: 0.5px;"
         "}"
         "QHeaderView::section:hover {"
         "  background-color: %6;"
@@ -451,17 +458,17 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         /* ─── Slim Scrollbars ─── */
         "QScrollBar:vertical {"
         "  background: transparent;"
-        "  width: 7px;"
+        "  width: 6px;"
         "  margin: 2px 1px;"
-        "  border-radius: 4px;"
+        "  border-radius: 3px;"
         "}"
         "QScrollBar::handle:vertical {"
         "  background: %3;"
-        "  min-height: 32px;"
-        "  border-radius: 4px;"
+        "  min-height: 28px;"
+        "  border-radius: 3px;"
         "}"
         "QScrollBar::handle:vertical:hover {"
-        "  background: %12;"
+        "  background: %4;"
         "}"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,"
         "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {"
@@ -470,17 +477,17 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "}"
         "QScrollBar:horizontal {"
         "  background: transparent;"
-        "  height: 7px;"
+        "  height: 6px;"
         "  margin: 1px 2px;"
-        "  border-radius: 4px;"
+        "  border-radius: 3px;"
         "}"
         "QScrollBar::handle:horizontal {"
         "  background: %3;"
-        "  min-width: 32px;"
-        "  border-radius: 4px;"
+        "  min-width: 28px;"
+        "  border-radius: 3px;"
         "}"
         "QScrollBar::handle:horizontal:hover {"
-        "  background: %12;"
+        "  background: %4;"
         "}"
         "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,"
         "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {"
@@ -494,10 +501,14 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  color: %12;"
         "  border-top: 1px solid %3;"
         "  font-size: 12px;"
-        "  padding: 3px 14px;"
+        "  padding: 2px 12px;"
+        "  min-height: 26px;"
         "}"
         "QStatusBar::item {"
         "  border: none;"
+        "}"
+        "QStatusBar QLabel {"
+        "  color: %12;"
         "}"
 
         /* ─── Context Menu ─── */
@@ -505,23 +516,23 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  background-color: %5;"
         "  color: %2;"
         "  border: 1px solid %3;"
-        "  border-radius: 12px;"
-        "  padding: 6px 4px;"
-        "  font-size: 13px;"
+        "  border-radius: 10px;"
+        "  padding: 5px 3px;"
+        "  font-size: 12.5px;"
         "}"
         "QMenu::item {"
-        "  padding: 6px 20px 6px 28px;"
-        "  border-radius: 8px;"
-        "  margin: 2px 4px;"
+        "  padding: 6px 18px 6px 26px;"
+        "  border-radius: 6px;"
+        "  margin: 1px 3px;"
         "  background-color: transparent;"
         "}"
         "QMenu::icon {"
-        "  padding-left: 8px;"
+        "  padding-left: 6px;"
         "}"
         "QMenu::item:selected {"
-        "  background-color: %9;"
-        "  color: #ffffff;"
-        "  font-weight: 500;"
+        "  background-color: %4;"
+        "  color: %1;"
+        "  font-weight: 600;"
         "}"
         "QMenu::item:disabled {"
         "  color: %12;"
@@ -529,7 +540,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "QMenu::separator {"
         "  height: 1px;"
         "  background-color: %3;"
-        "  margin: 4px 8px;"
+        "  margin: 4px 6px;"
         "}"
         "QMenu::right-arrow {"
         "  margin-right: 8px;"
@@ -566,7 +577,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
 
         /* ─── Slider ─── */
         "QSlider::groove:horizontal {"
-        "  height: 3px;"
+        "  height: 4px;"
         "  background: %3;"
         "  border-radius: 2px;"
         "}"
@@ -574,13 +585,14 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  background: %4;"
         "  border: none;"
         "  width: 12px; height: 12px;"
-        "  margin: -5px 0;"
+        "  margin: -4px 0;"
         "  border-radius: 6px;"
         "}"
         "QSlider::handle:horizontal:hover {"
         "  background: %8;"
         "  width: 14px; height: 14px;"
-        "  margin: -6px 0;"
+        "  margin: -5px 0;"
+        "  border-radius: 7px;"
         "}"
         "QSlider::sub-page:horizontal {"
         "  background: %4;"
@@ -594,6 +606,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  border-radius: 5px;"
         "  text-align: center;"
         "  color: %2;"
+        "  font-size: 11px;"
         "}"
         "QProgressBar::chunk {"
         "  background-color: %4;"
@@ -606,7 +619,8 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  color: %2;"
         "  border: 1px solid %3;"
         "  border-radius: 7px;"
-        "  padding: 4px 10px;"
+        "  padding: 5px 10px;"
+        "  font-size: 12.5px;"
         "}"
         "QComboBox:hover {"
         "  border: 1px solid %4;"
@@ -623,13 +637,46 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  selection-background-color: %9;"
         "}"
 
+        /* ─── CheckBox & RadioButton ─── */
+        "QCheckBox, QRadioButton {"
+        "  color: %2;"
+        "  spacing: 8px;"
+        "  font-size: 12.5px;"
+        "}"
+        "QCheckBox::indicator {"
+        "  width: 16px; height: 16px;"
+        "  border: 1px solid %3;"
+        "  border-radius: 4px;"
+        "  background: %10;"
+        "}"
+        "QCheckBox::indicator:hover {"
+        "  border-color: %4;"
+        "}"
+        "QCheckBox::indicator:checked {"
+        "  background: %4;"
+        "  border-color: %4;"
+        "}"
+        "QRadioButton::indicator {"
+        "  width: 16px; height: 16px;"
+        "  border: 1px solid %3;"
+        "  border-radius: 8px;"
+        "  background: %10;"
+        "}"
+        "QRadioButton::indicator:hover {"
+        "  border-color: %4;"
+        "}"
+        "QRadioButton::indicator:checked {"
+        "  background: %4;"
+        "  border-color: %4;"
+        "}"
+
         /* ─── Tooltip ─── */
         "QToolTip {"
         "  background-color: %10;"
         "  color: %2;"
         "  border: 1px solid %3;"
         "  border-radius: 6px;"
-        "  padding: 4px 8px;"
+        "  padding: 5px 9px;"
         "  font-size: 12px;"
         "}"
     )
@@ -647,13 +694,63 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
     .arg(c.textSecondary);   // %12
 }
 
+void ThemeManager::setCustomAccent(const QString &accentHex) {
+    QSettings settings;
+    if (accentHex.isEmpty()) {
+        settings.remove("appearance/custom_accent");
+    } else {
+        settings.setValue("appearance/custom_accent", accentHex);
+    }
+    setTheme(m_currentTheme);
+}
+
+QString ThemeManager::customAccent() const {
+    QSettings settings;
+    return settings.value("appearance/custom_accent").toString();
+}
+
+bool ThemeManager::hasCustomAccent() const {
+    return !customAccent().isEmpty();
+}
+
+void ThemeManager::resetCustomAccent() {
+    setCustomAccent(QString());
+}
+
+ThemeMode ThemeManager::themeMode() const {
+    QSettings settings;
+    int mode = settings.value("appearance/theme_mode", static_cast<int>(ThemeMode::ExternalSync)).toInt();
+    return static_cast<ThemeMode>(mode);
+}
+
+void ThemeManager::setThemeMode(ThemeMode mode) {
+    QSettings settings;
+    settings.setValue("appearance/theme_mode", static_cast<int>(mode));
+    if (mode == ThemeMode::ExternalSync) {
+        checkAndReloadExternalTheme();
+    } else {
+        setTheme(m_currentTheme);
+    }
+}
+
+bool ThemeManager::isExternalSyncEnabled() const {
+    return themeMode() == ThemeMode::ExternalSync;
+}
+
 void ThemeManager::setTheme(AppTheme theme) {
     m_currentTheme = theme;
     ThemeColors c = getThemeColors(theme);
+    QString custom = customAccent();
+    if (!custom.isEmpty() && QColor(custom).isValid()) {
+        c.accent = custom;
+        c.borderFocus = custom;
+        c.accentPress = QColor(custom).darker(120).name();
+    }
     updateStaticColors(c);
 
     QSettings settings;
     settings.setValue("appearance/theme", c.name);
+    settings.setValue("appearance/theme_mode", static_cast<int>(ThemeMode::Builtin));
 
     if (qApp) {
         QPalette pal;
@@ -724,9 +821,237 @@ void ThemeManager::applyTheme(QApplication &app) {
             for (const QString &p : iconPaths) {
                 if (QDir(p + "/" + c).exists()) {
                     QIcon::setThemeName(c);
-                    return;
+                    break;
                 }
             }
         }
     }
+
+    instance().setupExternalThemeWatcher();
+    instance().checkAndReloadExternalTheme();
+}
+
+QString ThemeManager::externalThemeJsonPath() {
+    return QDir::homePath() + "/.config/BitFM/theme.json";
+}
+
+QString ThemeManager::externalThemeConfPath() {
+    return QDir::homePath() + "/.config/BitFM/theme.conf";
+}
+
+QString ThemeManager::externalStyleCssPath() {
+    return QDir::homePath() + "/.config/BitFM/style.css";
+}
+
+void ThemeManager::applyCustomTheme(const ThemeColors &c) {
+    updateStaticColors(c);
+
+    if (qApp) {
+        QPalette pal;
+        pal.setColor(QPalette::Window,          QColor(c.bgBase));
+        pal.setColor(QPalette::WindowText,      QColor(c.textPrimary));
+        pal.setColor(QPalette::Base,            QColor(c.bgBase));
+        pal.setColor(QPalette::AlternateBase,   QColor(c.bgSurface));
+        pal.setColor(QPalette::ToolTipBase,     QColor(c.bgOverlay));
+        pal.setColor(QPalette::ToolTipText,     QColor(c.textPrimary));
+        pal.setColor(QPalette::Text,            QColor(c.textPrimary));
+        pal.setColor(QPalette::Button,          QColor(c.bgSurface));
+        pal.setColor(QPalette::ButtonText,      QColor(c.textPrimary));
+        pal.setColor(QPalette::BrightText,      QColor(c.isDark ? "#ffffff" : "#000000"));
+        pal.setColor(QPalette::Highlight,       QColor(c.bgSelection));
+        pal.setColor(QPalette::HighlightedText, QColor(c.textPrimary));
+        pal.setColor(QPalette::Link,            QColor(c.accent));
+        pal.setColor(QPalette::LinkVisited,     QColor(c.accentPress));
+        pal.setColor(QPalette::Mid,             QColor(c.border));
+        pal.setColor(QPalette::Midlight,        QColor(c.bgOverlay));
+        pal.setColor(QPalette::Dark,            QColor(c.bgBase));
+        pal.setColor(QPalette::Shadow,          QColor(c.isDark ? "#080808" : "#e0e0e0"));
+
+        QString baseCss = getModernStyleSheet(c);
+
+        QString cssPath = externalStyleCssPath();
+        if (QFileInfo::exists(cssPath)) {
+            QFile cssFile(cssPath);
+            if (cssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                baseCss += "\n/* User style.css */\n" + QString::fromUtf8(cssFile.readAll());
+            }
+        }
+
+        qApp->setPalette(pal);
+        qApp->setStyleSheet(baseCss);
+    }
+
+    emit themeChanged(m_currentTheme);
+}
+
+bool ThemeManager::loadThemeFromFile(const QString &filePath) {
+    if (!QFileInfo::exists(filePath)) return false;
+
+    ThemeColors c = getThemeColors(m_currentTheme);
+
+    if (filePath.endsWith(".json", Qt::CaseInsensitive)) {
+        QFile f(filePath);
+        if (!f.open(QIODevice::ReadOnly)) return false;
+        QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+        if (!doc.isObject()) return false;
+        QJsonObject o = doc.object();
+
+        if (o.contains("name")) c.name = o["name"].toString();
+        if (o.contains("is_dark")) c.isDark = o["is_dark"].toBool();
+        
+        if (o.contains("bg_base")) c.bgBase = o["bg_base"].toString();
+        else if (o.contains("background")) c.bgBase = o["background"].toString();
+        else if (o.contains("bg")) c.bgBase = o["bg"].toString();
+
+        if (o.contains("bg_surface")) c.bgSurface = o["bg_surface"].toString();
+        else if (o.contains("surface")) c.bgSurface = o["surface"].toString();
+
+        if (o.contains("bg_overlay")) c.bgOverlay = o["bg_overlay"].toString();
+        else if (o.contains("overlay")) c.bgOverlay = o["overlay"].toString();
+
+        if (o.contains("bg_hover")) c.bgHover = o["bg_hover"].toString();
+        else if (o.contains("hover")) c.bgHover = o["hover"].toString();
+
+        if (o.contains("bg_selection")) c.bgSelection = o["bg_selection"].toString();
+        else if (o.contains("selection")) c.bgSelection = o["selection"].toString();
+
+        if (o.contains("accent")) c.accent = o["accent"].toString();
+        else if (o.contains("primary")) c.accent = o["primary"].toString();
+
+        if (o.contains("accent_press")) c.accentPress = o["accent_press"].toString();
+        else if (o.contains("accent")) c.accentPress = QColor(c.accent).darker(120).name();
+
+        if (o.contains("text_primary")) c.textPrimary = o["text_primary"].toString();
+        else if (o.contains("foreground")) c.textPrimary = o["foreground"].toString();
+        else if (o.contains("text")) c.textPrimary = o["text"].toString();
+
+        if (o.contains("text_secondary")) c.textSecondary = o["text_secondary"].toString();
+        if (o.contains("text_muted")) c.textMuted = o["text_muted"].toString();
+        if (o.contains("border")) c.border = o["border"].toString();
+        if (o.contains("border_focus")) c.borderFocus = o["border_focus"].toString();
+        else c.borderFocus = c.accent;
+
+        applyCustomTheme(c);
+        return true;
+    } else if (filePath.endsWith(".conf", Qt::CaseInsensitive) || filePath.endsWith(".ini", Qt::CaseInsensitive)) {
+        QFile file(filePath);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return false;
+        QTextStream in(&file);
+        QMap<QString, QString> kv;
+        while (!in.atEnd()) {
+            QString line = in.readLine().trimmed();
+            if (line.isEmpty() || line.startsWith('#') || line.startsWith(';') || line.startsWith('[')) continue;
+            int eq = line.indexOf('=');
+            if (eq > 0) {
+                QString key = line.left(eq).trimmed().toLower();
+                QString val = line.mid(eq + 1).trimmed();
+                if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith('\'') && val.endsWith('\''))) {
+                    val = val.mid(1, val.length() - 2);
+                }
+                kv[key] = val;
+            }
+        }
+
+        if (kv.contains("name")) c.name = kv["name"];
+        if (kv.contains("is_dark")) c.isDark = (kv["is_dark"].toLower() == "true" || kv["is_dark"] == "1");
+
+        if (kv.contains("bg_base")) c.bgBase = kv["bg_base"];
+        else if (kv.contains("background")) c.bgBase = kv["background"];
+        else if (kv.contains("bg")) c.bgBase = kv["bg"];
+
+        if (kv.contains("bg_surface")) c.bgSurface = kv["bg_surface"];
+        else if (kv.contains("surface")) c.bgSurface = kv["surface"];
+
+        if (kv.contains("bg_overlay")) c.bgOverlay = kv["bg_overlay"];
+        else if (kv.contains("overlay")) c.bgOverlay = kv["overlay"];
+
+        if (kv.contains("bg_hover")) c.bgHover = kv["bg_hover"];
+        else if (kv.contains("hover")) c.bgHover = kv["hover"];
+
+        if (kv.contains("bg_selection")) c.bgSelection = kv["bg_selection"];
+        else if (kv.contains("selection")) c.bgSelection = kv["selection"];
+
+        if (kv.contains("accent")) c.accent = kv["accent"];
+        else if (kv.contains("primary")) c.accent = kv["primary"];
+
+        if (kv.contains("accent_press")) c.accentPress = kv["accent_press"];
+        else if (kv.contains("accent")) c.accentPress = QColor(c.accent).darker(120).name();
+
+        if (kv.contains("text_primary")) c.textPrimary = kv["text_primary"];
+        else if (kv.contains("foreground")) c.textPrimary = kv["foreground"];
+        else if (kv.contains("text")) c.textPrimary = kv["text"];
+
+        if (kv.contains("text_secondary")) c.textSecondary = kv["text_secondary"];
+        if (kv.contains("text_muted")) c.textMuted = kv["text_muted"];
+        if (kv.contains("border")) c.border = kv["border"];
+        if (kv.contains("border_focus")) c.borderFocus = kv["border_focus"];
+        else c.borderFocus = c.accent;
+
+        applyCustomTheme(c);
+        return true;
+    }
+    return false;
+}
+
+void ThemeManager::checkAndReloadExternalTheme() {
+    if (!isExternalSyncEnabled()) return;
+
+    QString jsonP = externalThemeJsonPath();
+    QString confP = externalThemeConfPath();
+    QString cssP  = externalStyleCssPath();
+
+    QFileInfo jsonInfo(jsonP);
+    QFileInfo confInfo(confP);
+
+    bool loaded = false;
+    if (jsonInfo.exists() && confInfo.exists()) {
+        if (jsonInfo.lastModified() >= confInfo.lastModified()) {
+            loaded = loadThemeFromFile(jsonP);
+        } else {
+            loaded = loadThemeFromFile(confP);
+        }
+    } else if (jsonInfo.exists()) {
+        loaded = loadThemeFromFile(jsonP);
+    } else if (confInfo.exists()) {
+        loaded = loadThemeFromFile(confP);
+    }
+
+    if (!loaded && QFileInfo::exists(cssP)) {
+        applyCustomTheme(getThemeColors(m_currentTheme));
+    }
+}
+
+void ThemeManager::setupExternalThemeWatcher() {
+    QString configDir = QDir::homePath() + "/.config/BitFM";
+    QDir().mkpath(configDir);
+
+    QString jsonPath = externalThemeJsonPath();
+    QString confPath = externalThemeConfPath();
+    QString cssPath  = externalStyleCssPath();
+
+    auto *watcher = new QFileSystemWatcher(this);
+    watcher->addPath(configDir);
+    if (QFileInfo::exists(jsonPath)) watcher->addPath(jsonPath);
+    if (QFileInfo::exists(confPath)) watcher->addPath(confPath);
+    if (QFileInfo::exists(cssPath)) watcher->addPath(cssPath);
+
+    auto *reloadTimer = new QTimer(this);
+    reloadTimer->setSingleShot(true);
+    reloadTimer->setInterval(50);
+    connect(reloadTimer, &QTimer::timeout, this, [this, watcher, configDir, jsonPath, confPath, cssPath]() {
+        if (QFileInfo::exists(jsonPath) && !watcher->files().contains(jsonPath)) watcher->addPath(jsonPath);
+        if (QFileInfo::exists(confPath) && !watcher->files().contains(confPath)) watcher->addPath(confPath);
+        if (QFileInfo::exists(cssPath) && !watcher->files().contains(cssPath)) watcher->addPath(cssPath);
+
+        checkAndReloadExternalTheme();
+    });
+
+    connect(watcher, &QFileSystemWatcher::fileChanged, this, [reloadTimer](const QString &) {
+        reloadTimer->start();
+    });
+    connect(watcher, &QFileSystemWatcher::directoryChanged, this, [reloadTimer](const QString &) {
+        reloadTimer->start();
+    });
+
+    checkAndReloadExternalTheme();
 }

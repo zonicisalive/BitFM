@@ -38,6 +38,7 @@ public slots:
     void addCurrentPathToBookmarks();
     void copyToOtherPane();
     void moveToOtherPane();
+    void openThemeController();
     void onZoomSliderChanged(int value);
     void updateStatusBar();
 

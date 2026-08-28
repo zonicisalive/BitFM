@@ -30,7 +30,9 @@ int main(int argc, char *argv[]) {
     ThemeManager::applyTheme(app);
 
     // Set default application icon
-    app.setWindowIcon(QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder")));
+    QIcon appIcon(":/icons/bitfm.png");
+    if (appIcon.isNull()) appIcon = QIcon::fromTheme("bitfm", QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder")));
+    app.setWindowIcon(appIcon);
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QObject::tr("BitFM — Modern Linux File Manager & File Chooser"));

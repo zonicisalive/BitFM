@@ -87,6 +87,8 @@ set(UI_SOURCES
     src/ui/UnlockDeviceDialog.cpp
     src/ui/AboutDialog.h
     src/ui/AboutDialog.cpp
+    src/ui/ThemeControllerDialog.h
+    src/ui/ThemeControllerDialog.cpp
     src/ui/OpenWithDialog.h
     src/ui/OpenWithDialog.cpp
     src/ui/FilePickerDialog.h
