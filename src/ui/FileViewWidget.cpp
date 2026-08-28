@@ -916,24 +916,6 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         connect(cutAct,  &QAction::triggered, this, &FileViewWidget::onCutAction);
         connect(copyAct, &QAction::triggered, this, &FileViewWidget::onCopyAction);
 
-        QMenu *transferMenu = menu.addMenu(QIcon::fromTheme("edit-copy"), tr("Copy / Move To…"));
-        auto *copyToAct = transferMenu->addAction(QIcon::fromTheme("edit-copy"), tr("Copy To…"));
-        auto *moveToAct = transferMenu->addAction(QIcon::fromTheme("edit-cut"), tr("Move To…"));
-        connect(copyToAct, &QAction::triggered, this, [this, selected]() {
-            FilePickerDialog dlg(PickerMode::ChooseFolder, m_sourceModel->currentDirectory(), QString(), this);
-            if (dlg.exec() == QDialog::Accepted) {
-                QString dest = dlg.selectedPath();
-                if (!dest.isEmpty()) m_fileOps.copyFiles(selected, dest, this);
-            }
-        });
-        connect(moveToAct, &QAction::triggered, this, [this, selected]() {
-            FilePickerDialog dlg(PickerMode::ChooseFolder, m_sourceModel->currentDirectory(), QString(), this);
-            if (dlg.exec() == QDialog::Accepted) {
-                QString dest = dlg.selectedPath();
-                if (!dest.isEmpty()) m_fileOps.moveFiles(selected, dest, this);
-            }
-        });
-
         if (hasClipboardFiles()) {
             bool isCut = false;
             QStringList clipPaths = getClipboardPaths(&isCut);
