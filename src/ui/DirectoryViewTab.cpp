@@ -138,13 +138,15 @@ void DirectoryViewTab::setupUi() {
 void DirectoryViewTab::setupToolBar() {
     m_toolBar->setFixedHeight(44);
 
-    // Navigation group (Clean GNOME-style Back, Forward, and Home)
-    m_actBack    = m_toolBar->addAction(QIcon::fromTheme("go-previous"), tr("Back (Alt+Left)"),    this, &DirectoryViewTab::navigateBack);
-    m_actForward = m_toolBar->addAction(QIcon::fromTheme("go-next"),     tr("Forward (Alt+Right)"), this, &DirectoryViewTab::navigateForward);
+    // Navigation group (Clean GNOME-style Back, Forward, Up/Parent, and Home)
+    m_actBack    = m_toolBar->addAction(QIcon::fromTheme("go-previous", QIcon::fromTheme("back")), tr("Back (Alt+Left)"),    this, &DirectoryViewTab::navigateBack);
+    m_actForward = m_toolBar->addAction(QIcon::fromTheme("go-next", QIcon::fromTheme("forward")),     tr("Forward (Alt+Right)"), this, &DirectoryViewTab::navigateForward);
+    m_actUp      = m_toolBar->addAction(QIcon::fromTheme("go-up", QIcon::fromTheme("up")),             tr("Parent Folder (Alt+Up)"), this, &DirectoryViewTab::navigateUp);
     m_actHome    = m_toolBar->addAction(QIcon::fromTheme("go-home", QIcon::fromTheme("user-home")), tr("Home (Alt+Home)"), this, &DirectoryViewTab::navigateHome);
 
     m_actBack->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Left));
     m_actForward->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Right));
+    m_actUp->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Up));
     m_actHome->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Home));
 
     m_toolBar->addSeparator();

@@ -156,28 +156,12 @@ void MainWindow::setupUi() {
 
     // Status bar setup
     QStatusBar *bar = statusBar();
-    bar->setStyleSheet(QString(
-        "QStatusBar {"
-        "  background: %1;"
-        "  color: %2;"
-        "  border-top: 1px solid %3;"
-        "  font-size: 12px;"
-        "  padding: 0 12px;"
-        "}"
-        "QStatusBar::item { border: none; }"
-    ).arg(ThemeManager::BG_SURFACE)
-     .arg(ThemeManager::TEXT_SECONDARY)
-     .arg(ThemeManager::BORDER));
 
     m_statusItemCount = new QLabel(this);
-    m_statusItemCount->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;")
-        .arg(ThemeManager::TEXT_SECONDARY));
     bar->addWidget(m_statusItemCount, 1);
 
     // Separator dot
     QLabel *sep1 = new QLabel("·", this);
-    sep1->setStyleSheet(QString("color: %1; font-size: 14px; background: transparent; padding: 0 6px;")
-        .arg(ThemeManager::TEXT_MUTED));
     bar->addPermanentWidget(sep1);
 
     // Mini Disk Usage Bar
@@ -223,6 +207,8 @@ void MainWindow::setupUi() {
             "}"
         ).arg(ThemeManager::BG_OVERLAY, ThemeManager::ACCENT));
 
+        m_statusItemCount->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;")
+            .arg(ThemeManager::TEXT_SECONDARY));
         m_statusDiskSpace->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent; padding-left: 6px;")
             .arg(ThemeManager::TEXT_SECONDARY));
 

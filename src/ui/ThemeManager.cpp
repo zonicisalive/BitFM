@@ -35,8 +35,10 @@ ThemeManager& ThemeManager::instance() {
 
 ThemeManager::ThemeManager() {
     QSettings settings;
+    int savedMode = settings.value("appearance/theme_mode", static_cast<int>(ThemeMode::Builtin)).toInt();
     QString saved = settings.value("appearance/theme", "Modern GNOME (Adwaita Dark)").toString();
     setThemeByName(saved);
+    settings.setValue("appearance/theme_mode", savedMode);
 }
 
 QStringList ThemeManager::availableThemes() {
@@ -501,14 +503,22 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  color: %12;"
         "  border-top: 1px solid %3;"
         "  font-size: 12px;"
-        "  padding: 2px 12px;"
+        "  padding: 2px 10px;"
         "  min-height: 26px;"
         "}"
         "QStatusBar::item {"
         "  border: none;"
+        "  background: transparent;"
         "}"
         "QStatusBar QLabel {"
         "  color: %12;"
+        "  background: transparent;"
+        "}"
+        "QSizeGrip {"
+        "  background: transparent;"
+        "  width: 14px;"
+        "  height: 14px;"
+        "  margin: 0px 4px;"
         "}"
 
         /* ─── Context Menu ─── */
@@ -802,7 +812,12 @@ QString ThemeManager::currentThemeName() const {
 
 void ThemeManager::applyTheme(QApplication &app) {
     Q_UNUSED(app);
-    instance().setTheme(instance().currentTheme());
+
+    if (instance().isExternalSyncEnabled()) {
+        instance().checkAndReloadExternalTheme();
+    } else {
+        instance().setTheme(instance().currentTheme());
+    }
 
     // Ensure comprehensive icon search paths
     QStringList iconPaths = QIcon::themeSearchPaths();
@@ -828,7 +843,6 @@ void ThemeManager::applyTheme(QApplication &app) {
     }
 
     instance().setupExternalThemeWatcher();
-    instance().checkAndReloadExternalTheme();
 }
 
 QString ThemeManager::externalThemeJsonPath() {

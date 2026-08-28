@@ -2,6 +2,10 @@
 
 <div align="center">
 
+<img src="src/resources/bitfm.png" width="128" height="128" alt="BitFM App Icon" />
+
+<br/>
+
 ![BitFM](https://img.shields.io/badge/C%2B%2B-20-blue.svg?style=for-the-badge&logo=cplusplus)
 ![Qt](https://img.shields.io/badge/Qt-6%20%2F%205-green.svg?style=for-the-badge&logo=qt)
 ![Wayland](https://img.shields.io/badge/Wayland-Native-orange.svg?style=for-the-badge&logo=wayland)
