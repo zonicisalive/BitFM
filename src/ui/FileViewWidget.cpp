@@ -28,6 +28,8 @@
 #include <QBuffer>
 #include <QImage>
 #include "UserEnvironment.h"
+#include <QTimer>
+#include <QScrollBar>
 
 class FileRowDelegate : public QStyledItemDelegate {
 public:
@@ -163,6 +165,37 @@ private:
     int m_hoveredRow = -1;
 };
 
+static QString formatRelativeDate(const QDateTime &dt) {
+    if (!dt.isValid()) return QString();
+    QDateTime now = QDateTime::currentDateTime();
+    qint64 secs = dt.secsTo(now);
+    if (secs < 0) return dt.toString("yyyy-MM-dd");
+    if (secs < 60) return QObject::tr("Just now");
+    if (secs < 3600) return QObject::tr("%1 mins ago").arg(secs / 60);
+
+    QDate fileDate = dt.date();
+    QDate today = now.date();
+    if (fileDate == today) {
+        return QObject::tr("Today, %1").arg(dt.toString("h:mm AP"));
+    }
+    if (fileDate == today.addDays(-1)) {
+        return QObject::tr("Yesterday, %1").arg(dt.toString("h:mm AP"));
+    }
+    if (fileDate > today.addDays(-7)) {
+        return QObject::tr("%1 days ago").arg(fileDate.daysTo(today));
+    }
+    if (fileDate > today.addDays(-30)) {
+        int weeks = fileDate.daysTo(today) / 7;
+        return weeks <= 1 ? QObject::tr("Last week") : QObject::tr("%1 weeks ago").arg(weeks);
+    }
+    if (fileDate > today.addDays(-365)) {
+        int months = fileDate.daysTo(today) / 30;
+        return months <= 1 ? QObject::tr("Last month") : QObject::tr("%1 months ago").arg(months);
+    }
+    int years = fileDate.daysTo(today) / 365;
+    return years <= 1 ? QObject::tr("Last year") : QObject::tr("%1 years ago").arg(years);
+}
+
 class FileGridDelegate : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
@@ -170,55 +203,195 @@ public:
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setRenderHint(QPainter::TextAntialiasing, true);
 
         bool isSelected = option.state & QStyle::State_Selected;
-        bool isHovered = option.state & QStyle::State_MouseOver;
+        bool isHovered  = option.state & QStyle::State_MouseOver;
 
-        QRect rect = option.rect;
+        QRect cell = option.rect;
+        QRect card = cell.adjusted(3, 3, -3, -3);   // 3px inset for the rounded card
 
-        // Background highlight
+        // Background hover/selection card
         if (isSelected || isHovered) {
             QColor bg = isSelected ? QColor(ThemeManager::BG_SELECTION) : QColor(ThemeManager::BG_HOVER);
             QPainterPath path;
-            path.addRoundedRect(rect.adjusted(3, 3, -3, -3), 10, 10);
+            path.addRoundedRect(card, 8, 8);
             painter->fillPath(path, bg);
             if (isSelected) {
                 painter->strokePath(path, QPen(QColor(ThemeManager::ACCENT), 1.2));
             }
         }
 
-        // Centered Icon
-        QIcon icon = qvariant_cast<QIcon>(index.data(Qt::DecorationRole));
+        // Icon — centered horizontally, 6px from top of card
         QSize iconSize = option.decorationSize;
-        if (!iconSize.isValid() || iconSize.width() < 16) iconSize = QSize(64, 64);
+        if (!iconSize.isValid() || iconSize.width() < 24) iconSize = QSize(60, 60);
 
-        int iconX = rect.left() + (rect.width() - iconSize.width()) / 2;
-        int iconY = rect.top() + 6;
+        QIcon icon = qvariant_cast<QIcon>(index.data(Qt::DecorationRole));
+        int iconX = card.left() + (card.width() - iconSize.width()) / 2;
+        int iconY = card.top() + 6;
         QRect iconRect(iconX, iconY, iconSize.width(), iconSize.height());
-
         if (!icon.isNull()) {
             icon.paint(painter, iconRect, Qt::AlignCenter);
         }
 
-        // Centered Text
-        QString text = index.data(Qt::DisplayRole).toString();
-        int textTop = iconRect.bottom() + 4;
-        QRect textRect(rect.left() + 4, textTop, rect.width() - 8, rect.bottom() - textTop - 2);
+        // Symlink badge
+        bool isSymlink = index.data(FileSystemModel::IsSymlinkRole).toBool();
+        if (isSymlink) {
+            QRect badgeRect(iconRect.right() - 12, iconRect.top() - 2, 14, 14);
+            painter->setBrush(QColor(20, 20, 25, 210));
+            painter->setPen(QPen(QColor(255,255,255,90), 1));
+            painter->drawRoundedRect(badgeRect, 3, 3);
+            painter->setPen(QColor("#ffffff"));
+            QFont bf = painter->font(); bf.setBold(false); bf.setPointSize(8);
+            painter->setFont(bf);
+            painter->drawText(badgeRect, Qt::AlignCenter, "↗");
+        }
 
-        painter->setPen(isSelected ? QColor("#ffffff") : QColor(ThemeManager::TEXT_PRIMARY));
-        QString elided = painter->fontMetrics().elidedText(text, Qt::ElideMiddle, textRect.width());
-        painter->drawText(textRect, Qt::AlignHCenter | Qt::AlignTop, elided);
-
-        // Color Tag dot
+        // Color tag dot
         QString filePath = index.data(FileSystemModel::PathRole).toString();
         QColor tagColor = TagManager::instance().getTagColor(filePath);
         if (tagColor.isValid()) {
             painter->setBrush(tagColor);
             painter->setPen(Qt::NoPen);
-            painter->drawEllipse(QPoint(iconRect.right() - 2, iconRect.top() + 4), 4, 4);
+            painter->drawEllipse(QPoint(iconRect.left() + 4, iconRect.top() + 4), 4, 4);
+        }
+
+        // Text area below icon
+        int textTop   = iconRect.bottom() + 5;
+        int textLeft  = card.left() + 4;
+        int textWidth = card.width() - 8;
+
+        // Line 1: Filename
+        QFont nameFont = painter->font();
+        nameFont.setBold(false); nameFont.setPointSize(9);
+        painter->setFont(nameFont);
+        painter->setPen(isSelected ? QColor("#ffffff") : QColor(ThemeManager::TEXT_PRIMARY));
+        QString name = index.data(Qt::DisplayRole).toString();
+        int nameH = painter->fontMetrics().height();
+        QRect nameRect(textLeft, textTop, textWidth, nameH);
+        painter->drawText(nameRect, Qt::AlignHCenter | Qt::AlignTop,
+                          painter->fontMetrics().elidedText(name, Qt::ElideMiddle, textWidth));
+
+        // Line 2: Type
+        int line2Top = nameRect.bottom() + 2;
+        QFont subFont = painter->font(); subFont.setPointSize(8);
+        painter->setFont(subFont);
+        painter->setPen(isSelected ? QColor("#e0e0e0") : QColor(ThemeManager::TEXT_SECONDARY));
+        bool isDir = index.data(FileSystemModel::IsDirectoryRole).toBool();
+        QString typeStr = isSymlink ? (isDir ? QObject::tr("Link to Folder") : QObject::tr("Link to File"))
+                        : (isDir ? QObject::tr("Folder")
+                        : index.data(FileSystemModel::MimeCommentRole).toString());
+        if (typeStr.isEmpty()) typeStr = QObject::tr("File");
+        int subH = painter->fontMetrics().height();
+        painter->drawText(QRect(textLeft, line2Top, textWidth, subH),
+                          Qt::AlignHCenter | Qt::AlignTop,
+                          painter->fontMetrics().elidedText(typeStr, Qt::ElideRight, textWidth));
+
+        // Line 3: Date
+        int line3Top = line2Top + subH + 1;
+        QFont dateFont = painter->font(); dateFont.setPointSize(7);
+        painter->setFont(dateFont);
+        painter->setPen(isSelected ? QColor("#cccccc") : QColor(ThemeManager::TEXT_MUTED));
+        QDateTime dt = index.data(FileSystemModel::LastModifiedRole).toDateTime();
+        QString relDate = formatRelativeDate(dt);
+        if (!relDate.isEmpty()) {
+            int dateH = painter->fontMetrics().height();
+            painter->drawText(QRect(textLeft, line3Top, textWidth, dateH),
+                              Qt::AlignHCenter | Qt::AlignTop,
+                              painter->fontMetrics().elidedText(relDate, Qt::ElideRight, textWidth));
         }
 
         painter->restore();
+    }
+
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &) const override {
+        QSize iconSize = option.decorationSize;
+        if (!iconSize.isValid() || iconSize.width() < 24) iconSize = QSize(60, 60);
+        return QSize(iconSize.width() + 44, iconSize.height() + 70);
+    }
+};
+
+class FileCompactDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setRenderHint(QPainter::TextAntialiasing, true);
+
+        bool isSelected = option.state & QStyle::State_Selected;
+        bool isHovered  = option.state & QStyle::State_MouseOver;
+
+        QRect cell = option.rect;
+        QRect card = cell.adjusted(2, 2, -2, -2);
+
+        if (isSelected || isHovered) {
+            QColor bg = isSelected ? QColor(ThemeManager::BG_SELECTION) : QColor(ThemeManager::BG_HOVER);
+            QPainterPath path;
+            path.addRoundedRect(card, 6, 6);
+            painter->fillPath(path, bg);
+            if (isSelected) {
+                painter->strokePath(path, QPen(QColor(ThemeManager::ACCENT), 1.0));
+            }
+        }
+
+        // Scalable icon on left
+        QSize iconSize = option.decorationSize;
+        if (!iconSize.isValid() || iconSize.width() < 16) iconSize = QSize(22, 22);
+        int iconW = iconSize.width();
+        int iconH = iconSize.height();
+        QRect iconRect(card.left() + 6, card.top() + (card.height() - iconH) / 2, iconW, iconH);
+        QIcon icon = qvariant_cast<QIcon>(index.data(Qt::DecorationRole));
+        if (!icon.isNull()) {
+            icon.paint(painter, iconRect, Qt::AlignCenter);
+        }
+
+        // Symlink badge
+        bool isSymlink = index.data(FileSystemModel::IsSymlinkRole).toBool();
+        if (isSymlink) {
+            int bSize = qBound(10, iconH / 2, 14);
+            QRect badgeRect(iconRect.right() - bSize + 2, iconRect.top() - 1, bSize, bSize);
+            painter->setBrush(QColor(20, 20, 25, 210));
+            painter->setPen(QPen(QColor(255, 255, 255, 90), 1));
+            painter->drawRoundedRect(badgeRect, 2, 2);
+            painter->setPen(QColor("#ffffff"));
+            QFont bf = painter->font(); bf.setBold(false); bf.setPointSize(qMax(6, bSize - 4));
+            painter->setFont(bf);
+            painter->drawText(badgeRect, Qt::AlignCenter, "↗");
+        }
+
+        // Color tag dot
+        QString filePath = index.data(FileSystemModel::PathRole).toString();
+        QColor tagColor = TagManager::instance().getTagColor(filePath);
+        if (tagColor.isValid()) {
+            painter->setBrush(tagColor);
+            painter->setPen(Qt::NoPen);
+            painter->drawEllipse(QPoint(iconRect.left() + 2, iconRect.top() + 2), 3, 3);
+        }
+
+        // Filename text on right of icon
+        int textLeft = iconRect.right() + 8;
+        int textWidth = card.right() - textLeft - 6;
+        QRect textRect(textLeft, card.top(), textWidth, card.height());
+
+        QFont nameFont = painter->font();
+        nameFont.setBold(false);
+        int ptSize = (iconH >= 36) ? 10 : ((iconH <= 18) ? 8 : 9);
+        nameFont.setPointSize(ptSize);
+        painter->setFont(nameFont);
+        painter->setPen(isSelected ? QColor("#ffffff") : QColor(ThemeManager::TEXT_PRIMARY));
+
+        QString name = index.data(Qt::DisplayRole).toString();
+        painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter,
+                          painter->fontMetrics().elidedText(name, Qt::ElideMiddle, textWidth));
+
+        painter->restore();
+    }
+
+    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &) const override {
+        int h = option.decorationSize.isValid() ? option.decorationSize.height() + 10 : 32;
+        return QSize(220, h);
     }
 };
 
@@ -232,6 +405,7 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
     m_stackedWidget = new QStackedWidget(this);
     setupTableView();
     setupListView();
+    setupCompactView();
 
     auto updateStyles = [this]() {
         m_tableView->setStyleSheet(QString(
@@ -262,11 +436,11 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
             "  background-color: %1;"
             "  border: none;"
             "  outline: 0;"
-            "  padding: 10px;"
+            "  padding: 4px 6px;"
             "}"
             "QListView::item {"
             "  border-radius: 8px;"
-            "  padding: 6px;"
+            "  padding: 2px;"
             "  color: %2;"
             "}"
             "QListView::item:hover {"
@@ -459,18 +633,63 @@ void FileViewWidget::setupTableView() {
     m_tableView->viewport()->installEventFilter(this);
 }
 
+void FileViewWidget::setupCompactView() {
+    m_compactView = new QListView(this);
+    m_compactView->setModel(m_proxyModel);
+    m_compactView->setViewMode(QListView::IconMode);
+    m_compactView->setFlow(QListView::LeftToRight);
+    m_compactView->setResizeMode(QListView::Adjust);
+    m_compactView->setWrapping(true);
+    m_compactView->setUniformItemSizes(true);
+    m_compactView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_compactView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_compactView->setMovement(QListView::Static);
+    m_compactView->setSpacing(0);
+    m_compactView->setWordWrap(false);
+
+    m_compactView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_compactView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    m_compactView->setIconSize(QSize(22, 22));
+    m_compactView->setContextMenuPolicy(Qt::CustomContextMenu);
+    m_compactView->setItemDelegate(new FileCompactDelegate(m_compactView));
+
+    m_compactView->setDragEnabled(true);
+    m_compactView->setAcceptDrops(true);
+    m_compactView->setDropIndicatorShown(true);
+    m_compactView->setDragDropMode(QAbstractItemView::DragDrop);
+
+    connect(m_compactView, &QListView::doubleClicked, this, &FileViewWidget::onItemDoubleClicked);
+    connect(m_compactView->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &FileViewWidget::onSelectionChanged);
+    connect(m_compactView, &QListView::customContextMenuRequested,
+            this, &FileViewWidget::onCustomContextMenuRequested);
+
+    m_compactView->installEventFilter(this);
+    m_compactView->viewport()->installEventFilter(this);
+
+    m_stackedWidget->addWidget(m_compactView);
+}
+
 void FileViewWidget::setupListView() {
     m_listView = new QListView(this);
     m_listView->setModel(m_proxyModel);
     m_listView->setViewMode(QListView::IconMode);
+    m_listView->setFlow(QListView::LeftToRight);
     m_listView->setResizeMode(QListView::Adjust);
+    m_listView->setWrapping(true);
+    m_listView->setUniformItemSizes(true);
     m_listView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_listView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_listView->setSpacing(12);
-    m_listView->setIconSize(QSize(64, 64));
-    m_listView->setGridSize(QSize(100, 110));
-    m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_listView->setMovement(QListView::Static);
+    m_listView->setSpacing(0);
+    m_listView->setWordWrap(true);
+
+    m_listView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_listView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    m_listView->setIconSize(QSize(m_currentGridSize, m_currentGridSize));
+    m_listView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_listView->setItemDelegate(new FileGridDelegate(m_listView));
 
     m_listView->setDragEnabled(true);
@@ -486,34 +705,103 @@ void FileViewWidget::setupListView() {
 
     m_listView->installEventFilter(this);
     m_listView->viewport()->installEventFilter(this);
+
+    m_stackedWidget->addWidget(m_listView);
 }
 
 void FileViewWidget::setViewMode(ViewMode mode) {
     m_viewMode = mode;
     if (mode == ViewMode::DetailedList) {
         m_stackedWidget->setCurrentWidget(m_tableView);
+    } else if (mode == ViewMode::Compact) {
+        m_stackedWidget->setCurrentWidget(m_compactView);
+        updateGridGeometry();
     } else {
         m_stackedWidget->setCurrentWidget(m_listView);
+        updateGridGeometry();
     }
 }
 
 ViewMode FileViewWidget::viewMode() const { return m_viewMode; }
 
 void FileViewWidget::setGridIconSize(int size) {
-    m_currentGridSize = qBound(32, size, 160);
+    m_currentGridSize = qBound(32, size, 128);
     m_listView->setIconSize(QSize(m_currentGridSize, m_currentGridSize));
-    m_listView->setGridSize(QSize(m_currentGridSize + 36, m_currentGridSize + 46));
+    if (m_compactView) {
+        int compactIcon = qBound(16, m_currentGridSize / 2, 48);
+        m_compactView->setIconSize(QSize(compactIcon, compactIcon));
+    }
+    updateGridGeometry();
 }
 
 int FileViewWidget::gridIconSize() const {
     return m_currentGridSize;
 }
 
+void FileViewWidget::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    updateGridGeometry();
+}
+
+void FileViewWidget::showEvent(QShowEvent *event) {
+    QWidget::showEvent(event);
+    updateGridGeometry();
+}
+
+void FileViewWidget::updateGridGeometry() {
+    if (m_inUpdateGrid) return;
+    m_inUpdateGrid = true;
+
+    if (m_listView) {
+        int vw = m_listView->viewport() ? m_listView->viewport()->width() : 0;
+        if (vw <= 30) {
+            int sbW = (m_listView->verticalScrollBar() && m_listView->verticalScrollBar()->isVisible())
+                          ? m_listView->verticalScrollBar()->width() : 0;
+            vw = qMax(50, width() - sbW);
+        }
+
+        if (vw > 30) {
+            int minColW = m_currentGridSize + 32;
+            int usableW = qMax(50, vw - 24);
+            int cols = qMax(1, usableW / minColW);
+            int cellW = usableW / cols;
+            int cellH = m_currentGridSize + 70;
+
+            m_listView->setSpacing(0);
+            m_listView->setGridSize(QSize(cellW, cellH));
+        }
+    }
+
+    if (m_compactView) {
+        int cvw = m_compactView->viewport() ? m_compactView->viewport()->width() : 0;
+        if (cvw <= 30) {
+            int sbW = (m_compactView->verticalScrollBar() && m_compactView->verticalScrollBar()->isVisible())
+                          ? m_compactView->verticalScrollBar()->width() : 0;
+            cvw = qMax(50, width() - sbW);
+        }
+
+        if (cvw > 30) {
+            int compactIcon = qBound(16, m_currentGridSize / 2, 48);
+            int compactRowH = compactIcon + 10;
+            int minColW = compactIcon + 175;
+            int usableW = qMax(50, cvw - 24);
+            int cols = qMax(1, usableW / minColW);
+            int cellW = usableW / cols;
+
+            m_compactView->setSpacing(0);
+            m_compactView->setGridSize(QSize(cellW, compactRowH));
+        }
+    }
+
+    m_inUpdateGrid = false;
+}
+
 QStringList FileViewWidget::selectedPaths() const {
     QStringList paths;
-    QAbstractItemView *view = (m_viewMode == ViewMode::DetailedList)
-        ? static_cast<QAbstractItemView*>(m_tableView)
-        : static_cast<QAbstractItemView*>(m_listView);
+    QAbstractItemView *view = nullptr;
+    if (m_viewMode == ViewMode::DetailedList) view = m_tableView;
+    else if (m_viewMode == ViewMode::Compact) view = m_compactView;
+    else view = m_listView;
 
     if (!view || !view->selectionModel()) return paths;
 
@@ -535,7 +823,8 @@ QStringList FileViewWidget::selectedPaths() const {
 
 void FileViewWidget::selectAll() {
     if (m_viewMode == ViewMode::DetailedList) m_tableView->selectAll();
-    else m_listView->selectAll();
+    else if (m_viewMode == ViewMode::Compact && m_compactView) m_compactView->selectAll();
+    else if (m_listView) m_listView->selectAll();
 }
 
 FileSystemModel* FileViewWidget::sourceModel() const { return m_sourceModel; }
@@ -559,9 +848,12 @@ void FileViewWidget::onSelectionChanged(const QItemSelection &, const QItemSelec
 }
 
 void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
-    QAbstractItemView *view = (m_viewMode == ViewMode::DetailedList)
-        ? static_cast<QAbstractItemView*>(m_tableView)
-        : static_cast<QAbstractItemView*>(m_listView);
+    QAbstractItemView *view = nullptr;
+    if (m_viewMode == ViewMode::DetailedList) view = m_tableView;
+    else if (m_viewMode == ViewMode::Compact) view = m_compactView;
+    else view = m_listView;
+
+    if (!view) return;
 
     QModelIndex index = view->indexAt(pos);
     if (index.isValid() && view->selectionModel()) {
@@ -1133,6 +1425,7 @@ void FileViewWidget::dropEvent(QDropEvent *event) {
 bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_tableView || watched == m_tableView->viewport() ||
         watched == m_listView || watched == m_listView->viewport() ||
+        watched == m_compactView || (m_compactView && watched == m_compactView->viewport()) ||
         watched == this || watched == m_stackedWidget)
     {
         if (event->type() == QEvent::Wheel) {
@@ -1180,6 +1473,10 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
             if (m_rowDelegate) m_rowDelegate->setHoveredRow(idx.isValid() ? idx.row() : -1);
         } else if (event->type() == QEvent::Leave) {
             if (m_rowDelegate) m_rowDelegate->setHoveredRow(-1);
+        }
+    } else if (watched == m_listView->viewport() || (m_compactView && watched == m_compactView->viewport())) {
+        if (event->type() == QEvent::Resize) {
+            updateGridGeometry();
         }
     }
     return QWidget::eventFilter(watched, event);

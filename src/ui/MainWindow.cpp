@@ -217,7 +217,7 @@ void MainWindow::setupUi() {
     bar->addPermanentWidget(zoomLabel);
 
     m_zoomSlider = new QSlider(Qt::Horizontal, this);
-    m_zoomSlider->setRange(40, 140);
+    m_zoomSlider->setRange(32, 96);
     m_zoomSlider->setValue(AppSettings::instance().zoomLevel());
     m_zoomSlider->setFixedWidth(84);
     m_zoomSlider->setToolTip(tr("Icon Grid Size"));
@@ -596,7 +596,7 @@ void MainWindow::setupMenuBar() {
     QAction *actResetZoom = viewMenu->addAction(QIcon::fromTheme("zoom-original"), tr("Normal Size"));
     actResetZoom->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
     connect(actResetZoom, &QAction::triggered, this, [this]() {
-        m_zoomSlider->setValue(56);
+        m_zoomSlider->setValue(48);
     });
 
     viewMenu->addSeparator();
@@ -620,6 +620,8 @@ void MainWindow::setupMenuBar() {
 
     if (AppSettings::instance().viewMode() == static_cast<int>(ViewMode::IconGrid)) {
         actGrid->setChecked(true);
+    } else if (AppSettings::instance().viewMode() == static_cast<int>(ViewMode::Compact)) {
+        actCompact->setChecked(true);
     } else {
         actList->setChecked(true);
     }
@@ -638,9 +640,8 @@ void MainWindow::setupMenuBar() {
     });
     connect(actCompact, &QAction::triggered, this, [this]() {
         if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->setViewMode(ViewMode::DetailedList);
-            AppSettings::instance().setViewMode(static_cast<int>(ViewMode::DetailedList));
-            AppSettings::instance().setZoomLevel(40);
+            activePane()->currentTab()->fileView()->setViewMode(ViewMode::Compact);
+            AppSettings::instance().setViewMode(static_cast<int>(ViewMode::Compact));
         }
     });
 

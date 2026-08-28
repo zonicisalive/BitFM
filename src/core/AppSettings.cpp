@@ -10,7 +10,7 @@ AppSettings::AppSettings() {
     QSettings settings;
     m_viewMode = settings.value("view/mode", 0).toInt();
     m_showHidden = settings.value("view/showHidden", false).toBool();
-    m_zoomLevel = settings.value("view/zoomLevel", 56).toInt();
+    m_zoomLevel = qBound(32, settings.value("view/zoomLevel", 48).toInt(), 96);
     m_sortColumn = settings.value("view/sortColumn", 0).toInt();
     m_sortOrder = static_cast<Qt::SortOrder>(settings.value("view/sortOrder", static_cast<int>(Qt::AscendingOrder)).toInt());
     m_lastDir = settings.value("navigation/lastDirectory", QString()).toString();

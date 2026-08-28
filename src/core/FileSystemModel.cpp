@@ -117,6 +117,12 @@ QVariant FileSystemModel::data(const QModelIndex &index, int role) const {
         case MimeTypeRole:
             return item.mimeTypeName;
 
+        case MimeCommentRole:
+            return item.mimeComment.isEmpty() ? (item.isDirectory ? tr("Folder") : tr("File")) : item.mimeComment;
+
+        case FormattedSizeRole:
+            return item.formattedSize;
+
         default:
             return QVariant();
     }
@@ -396,7 +402,7 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
         QDir::Filters filters = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System;
         if (showHidden) filters |= QDir::Hidden;
 
-        QDirIterator it(rootPath, filters, QDirIterator::Subdirectories | QDirIterator::FollowSymlinks);
+        QDirIterator it(rootPath, filters, QDirIterator::Subdirectories);
         QMimeDatabase mimeDb;
         QRegularExpression rx;
         if (isRegex) {

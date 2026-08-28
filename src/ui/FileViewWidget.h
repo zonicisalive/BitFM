@@ -47,6 +47,10 @@ protected:
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+
+    void updateGridGeometry();
 
 public slots:
     void onRenameAction();
@@ -77,6 +81,7 @@ private slots:
 private:
     void setupTableView();
     void setupListView();
+    void setupCompactView();
 
     FileSystemModel *m_sourceModel;
     FileFilterProxyModel *m_proxyModel;
@@ -87,10 +92,12 @@ private:
     QStackedWidget *m_stackedWidget;
     QTableView *m_tableView;
     QListView *m_listView;
+    QListView *m_compactView = nullptr;
     FileRowDelegate *m_rowDelegate = nullptr;
     FileGridDelegate *m_gridDelegate = nullptr;
 
     // Clipboard state
     QStringList m_clipboardPaths;
     bool m_isCutOperation = false;
+    bool m_inUpdateGrid = false;
 };

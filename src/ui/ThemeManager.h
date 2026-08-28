@@ -6,7 +6,8 @@
 #include <QStringList>
 
 enum class AppTheme {
-    OLEDBlack = 0,
+    ModernGNOME = 0,
+    OLEDBlack,
     CyberpunkMidnight,
     NordFrost,
     GruvboxWarm,

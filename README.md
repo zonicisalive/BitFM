@@ -1,70 +1,151 @@
-# Modern File Manager (Qt 6 + Wayland)
+# ⚡ BitFM — The Next-Gen Linux File Manager
 
-A fast, lightweight, and modular Linux file manager built with modern C++20 and Qt 6, designed specifically for Wayland compositors (Hyprland, Sway, GNOME, KDE Plasma, Cosmic, etc.) with X11 fallback support.
+<div align="center">
 
----
+![BitFM](https://img.shields.io/badge/C%2B%2B-20-blue.svg?style=for-the-badge&logo=cplusplus)
+![Qt](https://img.shields.io/badge/Qt-5%20%2F%206-green.svg?style=for-the-badge&logo=qt)
+![Wayland](https://img.shields.io/badge/Wayland-Native-orange.svg?style=for-the-badge&logo=wayland)
+![License](https://img.shields.io/badge/License-GPL--3.0-purple.svg?style=for-the-badge)
 
-## Key Features
+**A blazing-fast, modern, and modular Linux file manager engineered with C++ and Qt.**  
+*Crafted for speed, pixel-perfect aesthetics, and seamless integration on Wayland (Hyprland, Sway, GNOME, KDE Plasma, Cosmic) & X11.*
 
-- **Modern & Sleek Desktop UI**: Cohesive modern design language with rounded controls, soft borders, clean scrollbars, and styled toolbars.
-- **Collapsible File Inspector Panel (`F4`)**: Right-side preview panel showing:
-  - Large thumbnail previews
-  - Image dimensions (e.g. `1920 × 1080 px`)
-  - Code/Text snippet preview
-  - Exact file size and formatted size
-  - Permissions and modification dates
-  - Asynchronous **SHA-256 Checksum** calculation
-  - Quick action buttons ("Open", "Copy Path")
-- **Custom Favorites / Bookmarks**: Pin any folder to Favorites in the sidebar with persistent storage across sessions (`Ctrl+D` or right-click).
-- **Interactive Icon Zoom Slider**: Smoothly scale grid icon size (40px – 140px) directly from the status bar.
-- **Storage Gauge**: Visual mini disk space usage progress bar with exact free/total capacity.
-- **Wayland Native**: First-class Wayland protocol support via `Qt6::WaylandClient` and `xdg-shell`.
-- **Robust Error Handling & Banners**: In-place error banners for permission issues, unreadable directories, and invalid path feedback.
-- **File Conflict Resolution**: Interactive dialog comparing existing vs new files when collisions occur (Overwrite, Skip, Auto-Rename/Keep Both, Apply to All).
-- **Operation Progress & Cancellation**: Real-time modal progress dialog with cancellation support for batch copy/move operations.
-- **Broken Symlink Detection**: Visual warning badge and type label for dead/broken symbolic links.
-- **Dual-Pane View (`F3`)**: Side-by-side split pane browsing with independent navigation and active pane cues.
-- **Multi-Tab Support (`Ctrl+T`, `Ctrl+W`)**: Manage multiple directory tabs in each pane with smooth tab switching.
-- **Async Image Thumbnails**: FreeDesktop-compliant (`~/.cache/thumbnails/`) background thumbnail generator using `QThreadPool` & `QImageReader`.
-- **Interactive Search & Filter (`Ctrl+F`)**: Instant substring and regular expression search bar embedded in each view tab.
-- **Dual View Modes**: Switch seamlessly between Detailed Multi-Column Table View and Icon/Grid View.
-- **Interactive Breadcrumb Navigation**: Clickable path segments with instant toggle to editable address bar (`Ctrl+L`).
-- **Sidebar Quick Access**: Places (Home, Desktop, Documents, Downloads, Trash) and Devices.
-- **FreeDesktop Trash Specification**: Full support for moving items safely to `$XDG_DATA_HOME/Trash` with `.trashinfo` restore metadata.
-- **Live Inotify Updates**: Automatic directory change detection with event debouncing via `QFileSystemWatcher`.
-- **Wayland Drag-and-Drop & Clipboard**: Seamless drag-and-drop (`text/uri-list`) and Cut/Copy/Paste support.
-- **Terminal Integration**: One-click "Open in Terminal" supporting modern Wayland terminal emulators (`ptyxis`, `alacritty`, `foot`, `kitty`, etc.).
+</div>
 
 ---
 
-## Keyboard Shortcuts
+## 🌟 Highlights & Features
+
+- **🏎️ Blazing Fast C++ Performance**: Zero overhead asynchronous directory loading, asynchronous recursive search, and low-latency file operations.
+- **⊞ 3-Way Instant View Engine**:
+  - **Icon Grid (`Ctrl+1`)**: Modern card-style grid with edge-to-edge justification, centered icons, symlink emblems, and 3-line file metadata.
+  - **Detailed List (`Ctrl+2`)**: Full-featured tabular view with interactive resizable columns, sorting indicators, and date/size formatting.
+  - **Compact View (`Ctrl+3`)**: Flowing multi-column horizontal list with scalable icons, dynamic row heights, and zoom support.
+- **🔍 Instant Filter & Deep Recursive Search (`Ctrl+F`)**:
+  - **Instant In-Folder Filter**: Zero-latency file filtering as you type.
+  - **Async Subdirectory Scanner**: Multi-threaded background recursive search without UI stutter or freezes. Supports plain text and Regular Expressions.
+- **🎬 Live File Inspector (`F4`)**:
+  - **Video Previews**: Generates crisp thumbnail frames with overlay badges and duration info.
+  - **PDF First-Page Rendering**: High-fidelity document previews.
+  - **Audio Inspection**: Extracts bitrate, sample rate, and track duration.
+  - **Checksum Calculation**: Fast asynchronous SHA-256 hash generation.
+- **⚡ Dual-Pane (`F3`) & Tabs (`Ctrl+T`)**: Browse independent directories side-by-side with full drag-and-drop and clipboard synchronization.
+- **💻 Integrated Terminal Drawer (`F12`)**: Dropdown terminal embedded right inside the window, automatically synchronized to your active directory.
+- **👁️ Spacebar Quick Look (`Space`)**: Instant floating preview popup for videos, PDFs, images, and source code.
+- **🔐 Storage & Hardware Integration**: Smart partition filtering (hides system partitions), interactive LUKS/BitLocker encrypted drive unlocking, and remote GVFS server mounts (SFTP, SMB, FTP, WebDAV).
+- **🎨 9 Curated Themes**: Default Dark, Modern Light, Tokyo Night, Catppuccin Mocha, Nord Dark, Dracula, Cyberpunk Neon, Rosé Pine, and Forest Pine.
+
+---
+
+## ⌨️ Keyboard Shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |
-| **`F3`** | Toggle Dual Pane View |
-| **`F4`** | Toggle File Inspector / Preview Panel |
-| **`Ctrl + D`** | Add Current Folder to Favorites / Bookmarks |
-| **`Ctrl + T`** | Open New Tab in Active Pane |
+| **`Ctrl + 1`** | Switch to Icon Grid View |
+| **`Ctrl + 2`** | Switch to Detailed List View |
+| **`Ctrl + 3`** | Switch to Compact View |
+| **`Ctrl + T`** | Open New Tab |
 | **`Ctrl + W`** | Close Current Tab |
-| **`Ctrl + F`** | Toggle Interactive Search / Filter Bar |
-| **`Esc`** | Close Search Bar / Dismiss Dialogs |
-| **`Ctrl + L`** | Edit Path / Address Bar |
-| **`Ctrl + H`** | Toggle Hidden Files |
-| **`F5` / `Ctrl + R`** | Refresh Directory |
+| **`Ctrl + F`** | Toggle Instant Search Bar |
+| **`F3`** | Toggle Dual Pane Split View |
+| **`F4`** | Toggle File Inspector Panel |
+| **`F12`** | Toggle Dropdown Terminal Drawer |
+| **`Space`** | Floating Quick Preview (Video/PDF/Image/Text) |
+| **`Ctrl + L`** | Focus / Edit Location Breadcrumb Bar |
+| **`Ctrl + H`** | Toggle Hidden Files (`.dotfiles`) |
+| **`Ctrl + B`** | Toggle Places / Devices Sidebar |
+| **`Ctrl + M`** | Toggle Menu Bar |
+| **`Ctrl + +` / `Ctrl + =`** | Zoom In Icon Size |
+| **`Ctrl + -`** | Zoom Out Icon Size |
+| **`Ctrl + 0`** | Reset Zoom Level |
+| **`Ctrl + R` / `F5`** | Refresh Directory |
 | **`Alt + Left` / `Backspace`** | Navigate Back |
 | **`Alt + Right`** | Navigate Forward |
-| **`Alt + Up`** | Parent Directory |
+| **`Alt + Up`** | Navigate to Parent Folder |
+| **`Alt + Home`** | Navigate to User Home |
 | **`Ctrl + A`** | Select All Items |
+| **`Delete`** | Move Selected Items to Trash |
+| **`Shift + Delete`** | Permanently Delete Selected Items |
+| **`Esc`** | Close Search Bar / Dialogs / Popups |
 
 ---
 
-## Building and Running
+## 🛠️ Build & Installation
+
+### 1. Install Dependencies
+
+#### **Arch Linux / Manjaro / EndeavourOS**
+```bash
+sudo pacman -S --needed \
+    base-devel \
+    cmake \
+    qt5-base \
+    udisks2 \
+    ffmpegthumbnailer \
+    ffmpeg \
+    poppler-glib
+```
+
+#### **Debian / Ubuntu / Linux Mint**
+```bash
+sudo apt update
+sudo apt install -y \
+    build-essential \
+    cmake \
+    qtbase5-dev \
+    qtbase5-dev-tools \
+    libudisks2-dev \
+    ffmpegthumbnailer \
+    ffmpeg \
+    poppler-utils
+```
+
+#### **Fedora / RHEL**
+```bash
+sudo dnf install -y \
+    gcc-c++ \
+    cmake \
+    qt5-qtbase-devel \
+    udisks2-devel \
+    ffmpegthumbnailer \
+    ffmpeg \
+    poppler-utils
+```
+
+---
+
+### 2. Compile & Run
 
 ```bash
-# Build
-cmake -B build -S .
-cmake --build build -j$(nproc)
+# Clone the repository
+git clone https://github.com/ZonicExists/BitFM.git
+cd BitFM
 
-# Run
-./build/modern-filemanager
+# Create build directory and compile
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+
+# Run BitFM
+./bitfm
 ```
+
+---
+
+## ⚙️ Configuration
+
+Settings and session states are automatically saved to:
+`~/.config/BitFM/bitfm.conf`
+
+Configurations include:
+- Last active view mode (Grid, List, or Compact)
+- Per-view zoom levels and column states
+- Hidden files visibility
+- Active theme and sidebar preferences
+- Window geometry and multi-pane session states
+
+---
+
+## 📄 License
+
+Distributed under the **GPL-3.0 License**. See `LICENSE` for more information.

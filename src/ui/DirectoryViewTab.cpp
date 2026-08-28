@@ -35,9 +35,18 @@ DirectoryViewTab::DirectoryViewTab(const QString &initialPath, QWidget *parent)
     });
     connect(&AppSettings::instance(), &AppSettings::viewModeChanged, this, [this](int mode) {
         m_fileView->setViewMode(static_cast<ViewMode>(mode));
+        updateViewModeIcon();
     });
     connect(&AppSettings::instance(), &AppSettings::zoomLevelChanged, this, [this](int level) {
         m_fileView->setGridIconSize(level);
+    });
+
+    m_searchDebounceTimer.setSingleShot(true);
+    m_searchDebounceTimer.setInterval(180);
+    connect(&m_searchDebounceTimer, &QTimer::timeout, this, [this]() {
+        if (!m_lastSearchPattern.isEmpty()) {
+            m_fileModel->searchRecursive(m_lastSearchPattern, m_lastSearchRegex);
+        }
     });
 }
 
@@ -160,49 +169,66 @@ void DirectoryViewTab::setupToolBar() {
     m_actSearch = m_toolBar->addAction(QIcon::fromTheme("edit-find"), tr("Search (Ctrl+F)"),
         this, &DirectoryViewTab::openSearch);
 
-    // View Mode Dropdown Button
-    QToolButton *viewModeBtn = new QToolButton(m_toolBar);
-    viewModeBtn->setIcon(QIcon::fromTheme("view-list-icons", QIcon::fromTheme("view-grid")));
-    viewModeBtn->setPopupMode(QToolButton::InstantPopup);
-    viewModeBtn->setToolTip(tr("View Mode"));
-    viewModeBtn->setStyleSheet(
-        "QToolButton { border: none; border-radius: 6px; padding: 4px 6px; color: " + QString(ThemeManager::TEXT_SECONDARY) + "; }"
-        "QToolButton:hover { background: " + QString(ThemeManager::BG_HOVER) + "; color: #ffffff; }"
-        "QToolButton::menu-indicator { subcontrol-origin: padding; subcontrol-position: center right; right: 2px; }"
-    );
-    QMenu *viewMenu = new QMenu(viewModeBtn);
-    auto *listAct = viewMenu->addAction(QIcon::fromTheme("view-list-details"), tr("List View"));
-    auto *gridAct = viewMenu->addAction(QIcon::fromTheme("view-grid"), tr("Grid View (Icons)"));
-    viewMenu->addSeparator();
-    m_actToggleHidden = viewMenu->addAction(QIcon::fromTheme("view-hidden"), tr("Show Hidden Files (Ctrl+H)"));
-    m_actToggleHidden->setCheckable(true);
-    m_actToggleHidden->setChecked(m_fileModel->showHidden());
+    // Clean View Mode Direct Toggle Button (Grid <-> List)
+    m_viewModeBtn = new QToolButton(m_toolBar);
+    m_viewModeBtn->setObjectName("viewModeBtn");
+    m_viewModeBtn->setCursor(Qt::PointingHandCursor);
+    m_viewModeBtn->setAutoRaise(true);
+    updateViewModeIcon();
 
-    viewMenu->addSeparator();
-    QMenu *themeMenu = viewMenu->addMenu(QIcon::fromTheme("preferences-desktop-theme", QIcon::fromTheme("applications-graphics")), tr("Theme 🎨"));
-    QActionGroup *themeGroup = new QActionGroup(themeMenu);
-    for (const QString &tName : ThemeManager::availableThemes()) {
-        auto *act = themeMenu->addAction(tName);
-        act->setCheckable(true);
-        if (tName == ThemeManager::instance().currentThemeName()) act->setChecked(true);
-        themeGroup->addAction(act);
-        connect(act, &QAction::triggered, this, [tName]() {
-            ThemeManager::instance().setThemeByName(tName);
+    connect(m_viewModeBtn, &QToolButton::clicked, this, &DirectoryViewTab::toggleViewMode);
+
+    // Right-click opens layout and sorting options menu
+    m_viewModeBtn->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_viewModeBtn, &QToolButton::customContextMenuRequested, this, [this](const QPoint &pos) {
+        QMenu viewMenu(this);
+        auto *gridAct = viewMenu.addAction(QIcon::fromTheme("view-grid"), tr("Icon / Grid View (Ctrl+1)"));
+        auto *listAct = viewMenu.addAction(QIcon::fromTheme("view-list-details"), tr("List View (Ctrl+2)"));
+        auto *compactAct = viewMenu.addAction(QIcon::fromTheme("view-list-compact", QIcon::fromTheme("view-list-details")), tr("Compact View (Ctrl+3)"));
+        viewMenu.addSeparator();
+
+        QMenu *sortMenu = viewMenu.addMenu(QIcon::fromTheme("view-sort-ascending"), tr("Arrange Items"));
+        auto *sortName = sortMenu->addAction(tr("By Name"));
+        auto *sortSize = sortMenu->addAction(tr("By Size"));
+        auto *sortType = sortMenu->addAction(tr("By Type"));
+        auto *sortDate = sortMenu->addAction(tr("By Modification Date"));
+        sortMenu->addSeparator();
+        auto *sortAsc = sortMenu->addAction(tr("Ascending"));
+        auto *sortDesc = sortMenu->addAction(tr("Descending"));
+
+        connect(sortName, &QAction::triggered, this, []() { AppSettings::instance().setSortColumn(0); });
+        connect(sortSize, &QAction::triggered, this, []() { AppSettings::instance().setSortColumn(1); });
+        connect(sortType, &QAction::triggered, this, []() { AppSettings::instance().setSortColumn(2); });
+        connect(sortDate, &QAction::triggered, this, []() { AppSettings::instance().setSortColumn(3); });
+        connect(sortAsc, &QAction::triggered, this, []() { AppSettings::instance().setSortOrder(Qt::AscendingOrder); });
+        connect(sortDesc, &QAction::triggered, this, []() { AppSettings::instance().setSortOrder(Qt::DescendingOrder); });
+
+        viewMenu.addSeparator();
+        auto *hideAct = viewMenu.addAction(QIcon::fromTheme("view-hidden"), tr("Show Hidden Files (Ctrl+H)"));
+        hideAct->setCheckable(true);
+        hideAct->setChecked(m_fileModel->showHidden());
+        connect(hideAct, &QAction::triggered, this, &DirectoryViewTab::toggleHiddenFiles);
+
+        connect(gridAct, &QAction::triggered, this, [this]() {
+            m_fileView->setViewMode(ViewMode::IconGrid);
+            AppSettings::instance().setViewMode(static_cast<int>(ViewMode::IconGrid));
+            updateViewModeIcon();
         });
-    }
+        connect(listAct, &QAction::triggered, this, [this]() {
+            m_fileView->setViewMode(ViewMode::DetailedList);
+            AppSettings::instance().setViewMode(static_cast<int>(ViewMode::DetailedList));
+            updateViewModeIcon();
+        });
+        connect(compactAct, &QAction::triggered, this, [this]() {
+            m_fileView->setViewMode(ViewMode::Compact);
+            AppSettings::instance().setViewMode(static_cast<int>(ViewMode::Compact));
+            updateViewModeIcon();
+        });
 
-    connect(listAct, &QAction::triggered, this, [this]() {
-        m_fileView->setViewMode(ViewMode::DetailedList);
-        AppSettings::instance().setViewMode(static_cast<int>(ViewMode::DetailedList));
+        viewMenu.exec(m_viewModeBtn->mapToGlobal(pos));
     });
-    connect(gridAct, &QAction::triggered, this, [this]() {
-        m_fileView->setViewMode(ViewMode::IconGrid);
-        AppSettings::instance().setViewMode(static_cast<int>(ViewMode::IconGrid));
-    });
-    connect(m_actToggleHidden, &QAction::triggered, this, &DirectoryViewTab::toggleHiddenFiles);
 
-    viewModeBtn->setMenu(viewMenu);
-    m_toolBar->addWidget(viewModeBtn);
+    m_toolBar->addWidget(m_viewModeBtn);
 
     m_actSplit = m_toolBar->addAction(QIcon::fromTheme("view-split-left-right", QIcon::fromTheme("window-new")), tr("Split Pane (F3)"),
         this, &DirectoryViewTab::splitViewRequested);
@@ -213,7 +239,7 @@ void DirectoryViewTab::setupToolBar() {
             dlg.exec();
         });
 
-    auto updateStyles = [this, viewModeBtn]() {
+    auto updateStyles = [this]() {
         m_toolBar->setStyleSheet(QString(
             "QToolBar {"
             "  background-color: %1;"
@@ -224,11 +250,24 @@ void DirectoryViewTab::setupToolBar() {
             "}"
         ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER));
 
-        viewModeBtn->setStyleSheet(
-            "QToolButton { border: none; border-radius: 6px; padding: 4px 6px; color: " + QString(ThemeManager::TEXT_SECONDARY) + "; }"
-            "QToolButton:hover { background: " + QString(ThemeManager::BG_HOVER) + "; color: #ffffff; }"
-            "QToolButton::menu-indicator { subcontrol-origin: padding; subcontrol-position: center right; right: 2px; }"
-        );
+        if (m_viewModeBtn) {
+            m_viewModeBtn->setStyleSheet(QString(
+                "QToolButton#viewModeBtn {"
+                "  border: none;"
+                "  border-radius: 6px;"
+                "  padding: 4px 6px;"
+                "  background: transparent;"
+                "  color: %1;"
+                "}"
+                "QToolButton#viewModeBtn:hover {"
+                "  background-color: %2;"
+                "  color: #ffffff;"
+                "}"
+                "QToolButton#viewModeBtn:pressed {"
+                "  background-color: %3;"
+                "}"
+            ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::BG_SELECTION));
+        }
     };
 
     updateStyles();
@@ -254,6 +293,10 @@ QString DirectoryViewTab::currentFolderName() const {
 void DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
     QString clean = QDir::cleanPath(path);
     if (clean.isEmpty()) return;
+
+    if (m_searchBar && m_searchBar->isActive()) {
+        closeSearch();
+    }
 
     if (recordHistory && !m_currentPath.isEmpty()) {
         m_backStack.push(m_currentPath);
@@ -294,20 +337,48 @@ void DirectoryViewTab::toggleHiddenFiles() {
     AppSettings::instance().setShowHiddenFiles(show);
 }
 
+void DirectoryViewTab::updateViewModeIcon() {
+    if (!m_viewModeBtn || !m_fileView) return;
+    ViewMode mode = m_fileView->viewMode();
+    if (mode == ViewMode::IconGrid) {
+        m_viewModeBtn->setIcon(QIcon::fromTheme("view-grid", QIcon::fromTheme("view-grid-symbolic", QIcon::fromTheme("view-list-icons"))));
+        m_viewModeBtn->setToolTip(tr("Grid View (Click to switch to List View)"));
+    } else if (mode == ViewMode::DetailedList) {
+        m_viewModeBtn->setIcon(QIcon::fromTheme("view-list-details", QIcon::fromTheme("view-list-tree", QIcon::fromTheme("view-list"))));
+        m_viewModeBtn->setToolTip(tr("List View (Click to switch to Compact View)"));
+    } else {
+        m_viewModeBtn->setIcon(QIcon::fromTheme("view-list-compact", QIcon::fromTheme("view-list-icons", QIcon::fromTheme("view-list-details"))));
+        m_viewModeBtn->setToolTip(tr("Compact View (Click to switch to Grid View)"));
+    }
+}
+
 void DirectoryViewTab::toggleViewMode() {
-    ViewMode newMode = (m_fileView->viewMode() == ViewMode::DetailedList)
-        ? ViewMode::IconGrid : ViewMode::DetailedList;
+    if (!m_fileView) return;
+    ViewMode current = m_fileView->viewMode();
+    ViewMode newMode;
+    if (current == ViewMode::IconGrid) {
+        newMode = ViewMode::DetailedList;
+    } else if (current == ViewMode::DetailedList) {
+        newMode = ViewMode::Compact;
+    } else {
+        newMode = ViewMode::IconGrid;
+    }
+
     m_fileView->setViewMode(newMode);
     AppSettings::instance().setViewMode(static_cast<int>(newMode));
+    updateViewModeIcon();
     if (m_actToggleViewMode) {
         m_actToggleViewMode->setIcon(newMode == ViewMode::DetailedList
-            ? QIcon::fromTheme("view-list-icons")
-            : QIcon::fromTheme("view-list-details"));
+            ? QIcon::fromTheme("view-list-details")
+            : (newMode == ViewMode::Compact
+                ? QIcon::fromTheme("view-list-compact", QIcon::fromTheme("view-list-details"))
+                : QIcon::fromTheme("view-grid")));
     }
 }
 
 void DirectoryViewTab::openSearch()   { m_searchBar->activate(); }
 void DirectoryViewTab::closeSearch()  {
+    m_searchDebounceTimer.stop();
     m_searchBar->deactivate();
     m_fileModel->cancelSearch();
     m_proxyModel->setSearchPattern(QString());
@@ -325,8 +396,14 @@ void DirectoryViewTab::updateNavigationButtons() {
 
 void DirectoryViewTab::onDirectoryLoaded(const QString &, int itemCount) {
     m_errorBanner->hideMessage();
-    if (m_searchBar->isActive())
-        m_searchBar->updateMatchCount(itemCount, itemCount);
+    if (m_searchBar->isActive()) {
+        if (m_fileModel->isSearching()) {
+            m_proxyModel->setSearchPattern(QString());
+            m_searchBar->updateMatchCount(itemCount, itemCount);
+        } else {
+            m_searchBar->updateMatchCount(m_proxyModel->matchCount(), itemCount);
+        }
+    }
 }
 
 void DirectoryViewTab::onDirectoryLoadError(const QString &, const QString &errorMessage) {
@@ -335,11 +412,18 @@ void DirectoryViewTab::onDirectoryLoadError(const QString &, const QString &erro
 }
 
 void DirectoryViewTab::onSearchChanged(const QString &pattern, bool isRegex) {
-    if (pattern.trimmed().isEmpty()) {
+    m_lastSearchPattern = pattern.trimmed();
+    m_lastSearchRegex = isRegex;
+
+    if (m_lastSearchPattern.isEmpty()) {
+        m_searchDebounceTimer.stop();
         m_fileModel->cancelSearch();
         m_proxyModel->setSearchPattern(QString());
     } else {
-        m_fileModel->searchRecursive(pattern, isRegex);
+        // 1. Instant 0ms local directory filter
+        m_proxyModel->setSearchPattern(m_lastSearchPattern, isRegex);
+        // 2. Debounced background recursive search across subfolders
+        m_searchDebounceTimer.start(180);
     }
 }
 

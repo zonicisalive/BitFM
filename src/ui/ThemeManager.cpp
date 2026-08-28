@@ -31,12 +31,13 @@ ThemeManager& ThemeManager::instance() {
 
 ThemeManager::ThemeManager() {
     QSettings settings;
-    QString saved = settings.value("appearance/theme", "OLED Pitch Black").toString();
+    QString saved = settings.value("appearance/theme", "Modern GNOME (Adwaita Dark)").toString();
     setThemeByName(saved);
 }
 
 QStringList ThemeManager::availableThemes() {
     return {
+        "Modern GNOME (Adwaita Dark)",
         "OLED Pitch Black",
         "Midnight Cyberpunk",
         "Nord Frost",
@@ -52,6 +53,27 @@ QStringList ThemeManager::availableThemes() {
 ThemeColors ThemeManager::getThemeColors(AppTheme theme) {
     ThemeColors c;
     switch (theme) {
+        case AppTheme::ModernGNOME:
+            c.id = "gnome-dark";
+            c.name = "Modern GNOME (Adwaita Dark)";
+            c.bgBase = "#1e1e1e";
+            c.bgSurface = "#242424";
+            c.bgOverlay = "#2d2d2d";
+            c.bgHover = "#383838";
+            c.bgSelection = "#3584e4";
+            c.accent = "#3584e4";
+            c.accentPress = "#1d72b8";
+            c.textPrimary = "#ffffff";
+            c.textSecondary = "#c0c0c0";
+            c.textMuted = "#808080";
+            c.border = "#333333";
+            c.borderFocus = "#3584e4";
+            c.success = "#33d17a";
+            c.warning = "#f6d32d";
+            c.danger = "#e01b24";
+            c.isDark = true;
+            break;
+
         case AppTheme::OLEDBlack:
             c.id = "oled-black";
             c.name = "OLED Pitch Black";

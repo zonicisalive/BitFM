@@ -30,7 +30,9 @@ public:
         SizeBytesRole,
         LastModifiedRole,
         MimeTypeRole,
-        FileItemRole
+        FileItemRole,
+        MimeCommentRole,
+        FormattedSizeRole
     };
 
     explicit FileSystemModel(QObject *parent = nullptr);

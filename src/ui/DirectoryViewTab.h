@@ -61,6 +61,7 @@ private:
     void setupUi();
     void setupToolBar();
     void updateNavigationButtons();
+    void updateViewModeIcon();
 
     QString m_currentPath;
     QStack<QString> m_backStack;
@@ -83,4 +84,9 @@ private:
     QAction *m_actToggleViewMode = nullptr;
     QAction *m_actSearch = nullptr;
     QAction *m_actSplit = nullptr;
+    QToolButton *m_viewModeBtn = nullptr;
+
+    QTimer m_searchDebounceTimer;
+    QString m_lastSearchPattern;
+    bool m_lastSearchRegex = false;
 };
