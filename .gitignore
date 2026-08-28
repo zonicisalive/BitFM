@@ -1,0 +1,31 @@
+# Build and cache directories
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.a
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Auto-generated Qt files
+*_autogen/
+.rcc/
+.moc/
+.ui/
+.qrc/
+
+# Compilation database & IDEs
+compile_commands.json
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Temporary & logs
+/tmp/
+*.log
