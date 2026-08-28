@@ -20,6 +20,8 @@ struct StorageDevice {
     bool isNetwork = false;
 };
 
+class QWidget;
+
 class DeviceManager : public QObject {
     Q_OBJECT
 
@@ -29,7 +31,7 @@ public:
     QList<StorageDevice> devices() const;
     QList<StorageDevice> networkMounts() const;
 
-    bool mountDevice(const QString &deviceNode, QString *outMountPath = nullptr, QString *error = nullptr);
+    bool mountDevice(const QString &deviceNode, QString *outMountPath = nullptr, QString *error = nullptr, QWidget *parentWidget = nullptr);
     bool unmountDevice(const QString &mountPath, QString *error = nullptr);
 
     bool connectRemoteServer(const QString &protocol, const QString &host, int port,

@@ -5,6 +5,7 @@
 #include "BatchRenameDialog.h"
 #include "FilePropertiesDialog.h"
 #include "AboutDialog.h"
+#include "AppSettings.h"
 #include <QVBoxLayout>
 #include <QHeaderView>
 #include <QDesktopServices>
@@ -56,12 +57,12 @@ public:
 
             if (col == 0) {
                 QPainterPath path;
-                path.addRoundedRect(rect.adjusted(4, 2, 0, -2), 6, 6);
+                path.addRoundedRect(rect.adjusted(6, 2, 0, -2), 8, 8);
                 painter->fillPath(path, bgColor);
                 painter->fillRect(QRect(rect.right() - 8, rect.top() + 2, 9, rect.height() - 4), bgColor);
             } else if (col == totalCols - 1) {
                 QPainterPath path;
-                path.addRoundedRect(rect.adjusted(0, 2, -4, -2), 6, 6);
+                path.addRoundedRect(rect.adjusted(0, 2, -6, -2), 8, 8);
                 painter->fillPath(path, bgColor);
                 painter->fillRect(QRect(rect.left(), rect.top() + 2, 9, rect.height() - 4), bgColor);
             } else {
@@ -72,15 +73,15 @@ public:
         // Paint column content with persistent fixed geometry
         if (index.column() == FileSystemModel::ColName) {
             // 1. Draw Icon inside a STRICTLY fixed 20x20 square bounding box
-            QRect iconBox(rect.left() + 8, rect.center().y() - 10, 20, 20);
+            QRect iconBox(rect.left() + 10, rect.center().y() - 10, 20, 20);
             QIcon icon = qvariant_cast<QIcon>(index.data(Qt::DecorationRole));
             if (!icon.isNull()) {
                 icon.paint(painter, iconBox, Qt::AlignCenter);
             }
 
-            // 2. Draw Text strictly starting at fixed X coordinate (left + 36)
+            // 2. Draw Text strictly starting at fixed X coordinate (left + 38)
             QString text = index.data(Qt::DisplayRole).toString();
-            int rightMargin = 12;
+            int rightMargin = 14;
 
             QString filePath = index.data(FileSystemModel::PathRole).toString();
             QColor tagColor = TagManager::instance().getTagColor(filePath);
@@ -89,7 +90,7 @@ public:
             if (tagColor.isValid()) rightMargin += 16;
             if (state != GitFileState::None) rightMargin += 20;
 
-            int textLeft = rect.left() + 36;
+            int textLeft = rect.left() + 38;
             int textWidth = qMax(10, rect.right() - textLeft - rightMargin);
             QRect textRect(textLeft, rect.top(), textWidth, rect.height());
 
@@ -124,7 +125,7 @@ public:
                     QRect badgeRect(rect.right() - offset - 10, rect.center().y() - 7, 14, 14);
                     painter->setBrush(QColor(40, 44, 60, 200));
                     painter->setPen(QPen(badgeColor, 1));
-                    painter->drawRoundedRect(badgeRect, 3, 3);
+                    painter->drawRoundedRect(badgeRect, 4, 4);
 
                     painter->setPen(badgeColor);
                     QFont bf = painter->font();
@@ -140,7 +141,7 @@ public:
             int align = index.data(Qt::TextAlignmentRole).toInt();
             if (align == 0) align = Qt::AlignLeft | Qt::AlignVCenter;
 
-            QRect textRect = rect.adjusted(6, 0, -6, 0);
+            QRect textRect = rect.adjusted(10, 0, -10, 0);
             painter->setPen(isSelected ? QColor("#ffffff") : QColor(ThemeManager::TEXT_SECONDARY));
             painter->drawText(textRect, align, text);
         }
@@ -179,8 +180,11 @@ public:
         if (isSelected || isHovered) {
             QColor bg = isSelected ? QColor(ThemeManager::BG_SELECTION) : QColor(ThemeManager::BG_HOVER);
             QPainterPath path;
-            path.addRoundedRect(rect.adjusted(2, 2, -2, -2), 8, 8);
+            path.addRoundedRect(rect.adjusted(3, 3, -3, -3), 10, 10);
             painter->fillPath(path, bg);
+            if (isSelected) {
+                painter->strokePath(path, QPen(QColor(ThemeManager::ACCENT), 1.2));
+            }
         }
 
         // Centered Icon
@@ -235,19 +239,19 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
             "  background-color: %1;"
             "  border: none;"
             "  outline: 0;"
-            "  padding: 4px;"
+            "  padding: 0px;"
             "}"
             "QTableView::item {"
             "  height: 34px;"
             "  border: none;"
-            "  padding-left: 6px;"
+            "  padding: 0px;"
             "}"
             "QHeaderView::section {"
             "  background-color: %2;"
             "  color: %3;"
             "  border: none;"
             "  border-bottom: 1px solid %4;"
-            "  padding: 6px 8px;"
+            "  padding: 6px 10px;"
             "  font-weight: 600;"
             "  font-size: 11px;"
             "}"
@@ -284,25 +288,6 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
     m_stackedWidget->addWidget(m_tableView);
     m_stackedWidget->addWidget(m_listView);
     layout->addWidget(m_stackedWidget);
-
-    // Standard Keyboard Shortcuts for File Operations
-    QShortcut *copyShortcut = new QShortcut(QKeySequence::Copy, this);
-    connect(copyShortcut, &QShortcut::activated, this, &FileViewWidget::onCopyAction);
-
-    QShortcut *cutShortcut = new QShortcut(QKeySequence::Cut, this);
-    connect(cutShortcut, &QShortcut::activated, this, &FileViewWidget::onCutAction);
-
-    QShortcut *pasteShortcut = new QShortcut(QKeySequence::Paste, this);
-    connect(pasteShortcut, &QShortcut::activated, this, &FileViewWidget::onPasteAction);
-
-    QShortcut *delShortcut = new QShortcut(QKeySequence::Delete, this);
-    connect(delShortcut, &QShortcut::activated, this, &FileViewWidget::onTrashAction);
-
-    QShortcut *permDelShortcut = new QShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Delete), this);
-    connect(permDelShortcut, &QShortcut::activated, this, &FileViewWidget::onDeletePermanentlyAction);
-
-    QShortcut *selectAllShortcut = new QShortcut(QKeySequence::SelectAll, this);
-    connect(selectAllShortcut, &QShortcut::activated, this, &FileViewWidget::selectAll);
 
     connect(&TagManager::instance(), &TagManager::tagsChanged, this, [this]() {
         m_tableView->viewport()->update();
@@ -418,11 +403,46 @@ void FileViewWidget::setupTableView() {
     m_rowDelegate = new FileRowDelegate(m_tableView, this);
     m_tableView->setItemDelegate(m_rowDelegate);
 
+    m_tableView->horizontalHeader()->setMinimumSectionSize(60);
     m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColName, QHeaderView::Stretch);
-    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColSize, QHeaderView::ResizeToContents);
-    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColType, QHeaderView::ResizeToContents);
-    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColModified, QHeaderView::ResizeToContents);
-    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColPermissions, QHeaderView::ResizeToContents);
+    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColSize, QHeaderView::Interactive);
+    m_tableView->horizontalHeader()->resizeSection(FileSystemModel::ColSize, 100);
+    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColType, QHeaderView::Interactive);
+    m_tableView->horizontalHeader()->resizeSection(FileSystemModel::ColType, 160);
+    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColModified, QHeaderView::Interactive);
+    m_tableView->horizontalHeader()->resizeSection(FileSystemModel::ColModified, 150);
+    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColPermissions, QHeaderView::Interactive);
+    m_tableView->horizontalHeader()->resizeSection(FileSystemModel::ColPermissions, 100);
+    m_tableView->horizontalHeader()->setStretchLastSection(false);
+
+    QByteArray savedHeaderState = AppSettings::instance().headerState();
+    if (!savedHeaderState.isEmpty()) {
+        m_tableView->horizontalHeader()->restoreState(savedHeaderState);
+    }
+
+    // Apply saved sort column and order
+    int sortCol = AppSettings::instance().sortColumn();
+    Qt::SortOrder sortOrd = AppSettings::instance().sortOrder();
+    m_tableView->sortByColumn(sortCol, sortOrd);
+    m_proxyModel->sort(sortCol, sortOrd);
+
+    connect(m_tableView->horizontalHeader(), &QHeaderView::sectionResized, this, [this]() {
+        AppSettings::instance().setHeaderState(m_tableView->horizontalHeader()->saveState());
+    });
+    connect(m_tableView->horizontalHeader(), &QHeaderView::sortIndicatorChanged, this, [this](int logicalIndex, Qt::SortOrder order) {
+        AppSettings::instance().setSortColumn(logicalIndex);
+        AppSettings::instance().setSortOrder(order);
+        AppSettings::instance().setHeaderState(m_tableView->horizontalHeader()->saveState());
+        m_proxyModel->sort(logicalIndex, order);
+    });
+
+    connect(&AppSettings::instance(), &AppSettings::sortingChanged, this, [this](int col, Qt::SortOrder order) {
+        if (m_tableView->horizontalHeader()->sortIndicatorSection() != col ||
+            m_tableView->horizontalHeader()->sortIndicatorOrder() != order) {
+            m_tableView->sortByColumn(col, order);
+        }
+        m_proxyModel->sort(col, order);
+    });
 
     connect(m_tableView, &QTableView::doubleClicked, this, &FileViewWidget::onItemDoubleClicked);
     connect(m_tableView->selectionModel(), &QItemSelectionModel::selectionChanged,
@@ -986,6 +1006,25 @@ static QMimeData* createClipboardMimeData(const QStringList &paths, bool isCut) 
     return mime;
 }
 
+static void copyToWaylandUriList(const QStringList &paths) {
+    if (qgetenv("WAYLAND_DISPLAY").isEmpty() || !QFile::exists("/usr/bin/wl-copy")) return;
+
+    QStringList uriLines;
+    for (const QString &p : paths) {
+        uriLines.append(QUrl::fromLocalFile(p).toString());
+    }
+    QString payload = uriLines.join("\n") + "\n";
+
+    QProcess *proc = new QProcess();
+    QObject::connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                     proc, &QObject::deleteLater);
+    proc->start("/usr/bin/wl-copy", { "-t", "text/uri-list" });
+    if (proc->waitForStarted(1000)) {
+        proc->write(payload.toUtf8());
+        proc->closeWriteChannel();
+    }
+}
+
 void FileViewWidget::onCopyAction() {
     QStringList selected = selectedPaths();
     if (selected.isEmpty()) return;
@@ -997,6 +1036,8 @@ void FileViewWidget::onCopyAction() {
     if (QGuiApplication::clipboard()->supportsSelection()) {
         QGuiApplication::clipboard()->setMimeData(createClipboardMimeData(selected, false), QClipboard::Selection);
     }
+
+    copyToWaylandUriList(selected);
 
     emit statusMessageRequested(tr("Copied %1 item(s) to clipboard").arg(selected.size()));
 }
@@ -1012,6 +1053,8 @@ void FileViewWidget::onCutAction() {
     if (QGuiApplication::clipboard()->supportsSelection()) {
         QGuiApplication::clipboard()->setMimeData(createClipboardMimeData(selected, true), QClipboard::Selection);
     }
+
+    copyToWaylandUriList(selected);
 
     emit statusMessageRequested(tr("Cut %1 item(s)").arg(selected.size()));
 }

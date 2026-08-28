@@ -57,21 +57,6 @@ void SidebarWidget::setupUi() {
     appIcon->setPixmap(QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder")).pixmap(20, 20));
     headerLayout->addWidget(appIcon);
 
-    QToolButton *quickSearchBtn = new QToolButton(header);
-    quickSearchBtn->setIcon(QIcon::fromTheme("edit-find"));
-    quickSearchBtn->setToolTip(tr("Quick Switcher (Ctrl+P)"));
-    quickSearchBtn->setFixedSize(26, 26);
-    quickSearchBtn->setCursor(Qt::PointingHandCursor);
-    quickSearchBtn->setStyleSheet(
-        "QToolButton { border: none; border-radius: 6px; padding: 3px; background: transparent; color: " + QString(ThemeManager::TEXT_SECONDARY) + "; }"
-        "QToolButton:hover { background: rgba(255,255,255,0.08); color: #ffffff; }"
-    );
-    connect(quickSearchBtn, &QToolButton::clicked, this, [this]() {
-        QKeyEvent ev(QEvent::KeyPress, Qt::Key_P, Qt::ControlModifier);
-        QApplication::sendEvent(window(), &ev);
-    });
-    headerLayout->addWidget(quickSearchBtn);
-
     QLabel *appName = new QLabel("Files", header);
     appName->setStyleSheet(QString(
         "font-size: 13px; font-weight: 700; color: %1; background: transparent; border: none; padding-left: 2px;"
@@ -311,6 +296,8 @@ void SidebarWidget::populateNetwork() {
 
 void SidebarWidget::populateTags() {
     m_tagsHeader = makeSectionHeader(tr("Tags"));
+    m_tagsHeader->setData(0, Qt::UserRole, "tags:");
+    m_tagsHeader->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
     m_treeWidget->addTopLevelItem(m_tagsHeader);
 
     for (const TagInfo &tag : TagManager::availableTags()) {
@@ -375,7 +362,7 @@ void SidebarWidget::addBookmark(const QString &path, const QString &) {
     if (!m_savedBookmarks.contains(clean) && QDir(clean).exists()) {
         m_savedBookmarks.append(clean);
         saveBookmarksToSettings();
-        populateAll();
+        QTimer::singleShot(0, this, &SidebarWidget::populateAll);
     }
 }
 
@@ -397,9 +384,9 @@ void SidebarWidget::onItemClicked(QTreeWidgetItem *item, int) {
     } else if (path.startsWith("device:")) {
         QString devNode = path.mid(7);
         QString outMount, err;
-        if (DeviceManager::instance().mountDevice(devNode, &outMount, &err)) {
+        if (DeviceManager::instance().mountDevice(devNode, &outMount, &err, this)) {
             emit locationSelected(outMount);
-        } else {
+        } else if (!err.isEmpty() && err != tr("Operation cancelled by user.")) {
             QMessageBox::warning(this, tr("Mount Error"), err);
         }
     } else {
@@ -421,7 +408,7 @@ void SidebarWidget::onCustomContextMenuRequested(const QPoint &pos) {
         connect(removeAct, &QAction::triggered, this, [this, path]() {
             m_savedBookmarks.removeAll(path);
             saveBookmarksToSettings();
-            populateAll();
+            QTimer::singleShot(0, this, &SidebarWidget::populateAll);
         });
     } else if (isRemovable || path.contains("/gvfs/")) {
         QAction *ejectAct = menu.addAction(QIcon::fromTheme("media-eject"), tr("⏏ Unmount / Eject"));

@@ -46,8 +46,12 @@ private slots:
     void onActivePanePathChanged(const QString &path);
     void onActivePaneSelectionChanged(const QStringList &selectedPaths);
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
 private:
     void setupUi();
+    void setupMenuBar();
     void setupGlobalShortcuts();
 
     QSplitter *m_mainSplitter;

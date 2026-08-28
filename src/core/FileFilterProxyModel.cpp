@@ -77,5 +77,16 @@ bool FileFilterProxyModel::lessThan(const QModelIndex &source_left, const QModel
         return (sortOrder() == Qt::AscendingOrder) ? leftIsDir : !leftIsDir;
     }
 
+    int col = source_left.column();
+    if (col == FileSystemModel::ColSize) {
+        qint64 sizeLeft = source_left.data(FileSystemModel::SizeBytesRole).toLongLong();
+        qint64 sizeRight = source_right.data(FileSystemModel::SizeBytesRole).toLongLong();
+        return sizeLeft < sizeRight;
+    } else if (col == FileSystemModel::ColModified) {
+        QDateTime dtLeft = source_left.data(FileSystemModel::LastModifiedRole).toDateTime();
+        QDateTime dtRight = source_right.data(FileSystemModel::LastModifiedRole).toDateTime();
+        return dtLeft < dtRight;
+    }
+
     return QSortFilterProxyModel::lessThan(source_left, source_right);
 }

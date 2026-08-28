@@ -1,6 +1,8 @@
 #include "DirectoryViewTab.h"
 #include "ThemeManager.h"
 #include "AboutDialog.h"
+#include "UserEnvironment.h"
+#include "AppSettings.h"
 #include <QVBoxLayout>
 #include <QDir>
 #include <QFileInfo>
@@ -16,12 +18,27 @@ DirectoryViewTab::DirectoryViewTab(const QString &initialPath, QWidget *parent)
     : QWidget(parent)
 {
     m_fileModel  = new FileSystemModel(this);
+    m_fileModel->setShowHidden(AppSettings::instance().showHiddenFiles());
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
 
     setupUi();
+    m_fileView->setViewMode(static_cast<ViewMode>(AppSettings::instance().viewMode()));
+    m_fileView->setGridIconSize(AppSettings::instance().zoomLevel());
     setupToolBar();
     navigateTo(initialPath, false);
+
+    // Keep all tabs in sync with global settings
+    connect(&AppSettings::instance(), &AppSettings::showHiddenFilesChanged, this, [this](bool show) {
+        m_fileModel->setShowHidden(show);
+        if (m_actToggleHidden) m_actToggleHidden->setChecked(show);
+    });
+    connect(&AppSettings::instance(), &AppSettings::viewModeChanged, this, [this](int mode) {
+        m_fileView->setViewMode(static_cast<ViewMode>(mode));
+    });
+    connect(&AppSettings::instance(), &AppSettings::zoomLevelChanged, this, [this](int level) {
+        m_fileView->setGridIconSize(level);
+    });
 }
 
 void DirectoryViewTab::setupUi() {
@@ -104,6 +121,7 @@ void DirectoryViewTab::setupUi() {
     connect(m_searchBar, &SearchBarWidget::searchChanged, this, &DirectoryViewTab::onSearchChanged);
     connect(m_proxyModel, &FileFilterProxyModel::filterChanged, this, &DirectoryViewTab::onFilterChanged);
     connect(m_searchBar, &SearchBarWidget::searchClosed, this, [this]() {
+        m_fileModel->cancelSearch();
         m_proxyModel->setSearchPattern(QString());
     });
 }
@@ -111,12 +129,14 @@ void DirectoryViewTab::setupUi() {
 void DirectoryViewTab::setupToolBar() {
     m_toolBar->setFixedHeight(44);
 
-    // Navigation group (Clean GNOME-style Back and Forward)
+    // Navigation group (Clean GNOME-style Back, Forward, and Home)
     m_actBack    = m_toolBar->addAction(QIcon::fromTheme("go-previous"), tr("Back (Alt+Left)"),    this, &DirectoryViewTab::navigateBack);
     m_actForward = m_toolBar->addAction(QIcon::fromTheme("go-next"),     tr("Forward (Alt+Right)"), this, &DirectoryViewTab::navigateForward);
+    m_actHome    = m_toolBar->addAction(QIcon::fromTheme("go-home", QIcon::fromTheme("user-home")), tr("Home (Alt+Home)"), this, &DirectoryViewTab::navigateHome);
 
     m_actBack->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Left));
     m_actForward->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Right));
+    m_actHome->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Home));
 
     m_toolBar->addSeparator();
 
@@ -171,8 +191,14 @@ void DirectoryViewTab::setupToolBar() {
         });
     }
 
-    connect(listAct, &QAction::triggered, this, [this]() { m_fileView->setViewMode(ViewMode::DetailedList); });
-    connect(gridAct, &QAction::triggered, this, [this]() { m_fileView->setViewMode(ViewMode::IconGrid); });
+    connect(listAct, &QAction::triggered, this, [this]() {
+        m_fileView->setViewMode(ViewMode::DetailedList);
+        AppSettings::instance().setViewMode(static_cast<int>(ViewMode::DetailedList));
+    });
+    connect(gridAct, &QAction::triggered, this, [this]() {
+        m_fileView->setViewMode(ViewMode::IconGrid);
+        AppSettings::instance().setViewMode(static_cast<int>(ViewMode::IconGrid));
+    });
     connect(m_actToggleHidden, &QAction::triggered, this, &DirectoryViewTab::toggleHiddenFiles);
 
     viewModeBtn->setMenu(viewMenu);
@@ -256,26 +282,36 @@ void DirectoryViewTab::navigateUp() {
     QDir dir(m_currentPath);
     if (dir.cdUp()) navigateTo(dir.absolutePath());
 }
+void DirectoryViewTab::navigateHome() {
+    navigateTo(UserEnvironment::realUserHome());
+}
 void DirectoryViewTab::refresh() { m_fileModel->refresh(); }
 
 void DirectoryViewTab::toggleHiddenFiles() {
     bool show = !m_fileModel->showHidden();
     m_fileModel->setShowHidden(show);
     if (m_actToggleHidden) m_actToggleHidden->setChecked(show);
+    AppSettings::instance().setShowHiddenFiles(show);
 }
 
 void DirectoryViewTab::toggleViewMode() {
-    if (m_fileView->viewMode() == ViewMode::DetailedList) {
-        m_fileView->setViewMode(ViewMode::IconGrid);
-        if (m_actToggleViewMode) m_actToggleViewMode->setIcon(QIcon::fromTheme("view-list-details"));
-    } else {
-        m_fileView->setViewMode(ViewMode::DetailedList);
-        if (m_actToggleViewMode) m_actToggleViewMode->setIcon(QIcon::fromTheme("view-list-icons"));
+    ViewMode newMode = (m_fileView->viewMode() == ViewMode::DetailedList)
+        ? ViewMode::IconGrid : ViewMode::DetailedList;
+    m_fileView->setViewMode(newMode);
+    AppSettings::instance().setViewMode(static_cast<int>(newMode));
+    if (m_actToggleViewMode) {
+        m_actToggleViewMode->setIcon(newMode == ViewMode::DetailedList
+            ? QIcon::fromTheme("view-list-icons")
+            : QIcon::fromTheme("view-list-details"));
     }
 }
 
 void DirectoryViewTab::openSearch()   { m_searchBar->activate(); }
-void DirectoryViewTab::closeSearch()  { m_searchBar->deactivate(); }
+void DirectoryViewTab::closeSearch()  {
+    m_searchBar->deactivate();
+    m_fileModel->cancelSearch();
+    m_proxyModel->setSearchPattern(QString());
+}
 
 void DirectoryViewTab::showErrorMessage(const QString &title, const QString &message) {
     m_errorBanner->showMessage(title, message, BannerType::Error);
@@ -290,7 +326,7 @@ void DirectoryViewTab::updateNavigationButtons() {
 void DirectoryViewTab::onDirectoryLoaded(const QString &, int itemCount) {
     m_errorBanner->hideMessage();
     if (m_searchBar->isActive())
-        m_searchBar->updateMatchCount(m_proxyModel->matchCount(), itemCount);
+        m_searchBar->updateMatchCount(itemCount, itemCount);
 }
 
 void DirectoryViewTab::onDirectoryLoadError(const QString &, const QString &errorMessage) {
@@ -299,7 +335,12 @@ void DirectoryViewTab::onDirectoryLoadError(const QString &, const QString &erro
 }
 
 void DirectoryViewTab::onSearchChanged(const QString &pattern, bool isRegex) {
-    m_proxyModel->setSearchPattern(pattern, isRegex);
+    if (pattern.trimmed().isEmpty()) {
+        m_fileModel->cancelSearch();
+        m_proxyModel->setSearchPattern(QString());
+    } else {
+        m_fileModel->searchRecursive(pattern, isRegex);
+    }
 }
 
 void DirectoryViewTab::onFilterChanged(int matching, int total) {

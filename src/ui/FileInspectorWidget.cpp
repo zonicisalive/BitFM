@@ -13,12 +13,59 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QGroupBox>
+#include <QPainter>
+#include <QPolygon>
+#include <QProcess>
+
+static QPixmap drawPlayBadge(const QPixmap &src) {
+    if (src.isNull()) return src;
+    QPixmap result = src;
+    QPainter p(&result);
+    p.setRenderHint(QPainter::Antialiasing, true);
+
+    int cx = result.width() / 2;
+    int cy = result.height() / 2;
+    int r = qMin(result.width(), result.height()) / 5;
+    if (r < 14) r = 14;
+    if (r > 26) r = 26;
+
+    // Dark backdrop circle
+    p.setBrush(QColor(0, 0, 0, 160));
+    p.setPen(QPen(QColor(255, 255, 255, 140), 1.5));
+    p.drawEllipse(QPoint(cx, cy), r, r);
+
+    // Play triangle
+    p.setBrush(Qt::white);
+    p.setPen(Qt::NoPen);
+    int trSize = r / 2;
+    QPolygon poly;
+    poly << QPoint(cx - trSize / 2, cy - trSize)
+         << QPoint(cx + trSize, cy)
+         << QPoint(cx - trSize / 2, cy + trSize);
+    p.drawPolygon(poly);
+    p.end();
+    return result;
+}
 
 FileInspectorWidget::FileInspectorWidget(QWidget *parent)
     : QWidget(parent)
 {
     setupUi();
     clear();
+
+    connect(&ThumbnailProvider::instance(), &ThumbnailProvider::thumbnailReady, this, [this](const QString &path, const QIcon &icon) {
+        if (m_currentFilePath == path) {
+            QPixmap pix = icon.pixmap(150, 150);
+            QFileInfo info(path);
+            QString ext = info.suffix().toLower();
+            bool isVid = (ext == "webm" || ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "flv" || ext == "wmv");
+            if (isVid) {
+                m_previewImageLabel->setPixmap(drawPlayBadge(pix));
+            } else {
+                m_previewImageLabel->setPixmap(pix);
+            }
+        }
+    });
 }
 
 void FileInspectorWidget::setupUi() {
@@ -196,8 +243,12 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
     m_copyPathBtn->setEnabled(true);
 
     QString mimeType = mime.name().toLower();
+    QString ext = info.suffix().toLower();
     bool isImage = mimeType.startsWith("image/");
-    bool isText = mimeType.startsWith("text/") || mimeType.contains("json") || mimeType.contains("xml") || mimeType.contains("javascript") || mimeType.contains("x-sh");
+    bool isVideo = mimeType.startsWith("video/") || (ext == "webm" || ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "flv" || ext == "wmv" || ext == "m4v");
+    bool isAudio = mimeType.startsWith("audio/") || (ext == "mp3" || ext == "flac" || ext == "ogg" || ext == "wav" || ext == "m4a" || ext == "aac" || ext == "opus");
+    bool isPdf = (ext == "pdf");
+    bool isText = mimeType.startsWith("text/") || mimeType.contains("json") || mimeType.contains("xml") || mimeType.contains("javascript") || mimeType.contains("x-sh") || ext == "md" || ext == "txt" || ext == "cpp" || ext == "h" || ext == "py" || ext == "rs" || ext == "go" || ext == "js" || ext == "ts";
 
     if (isImage) {
         m_dimensionsLabel->show();
@@ -219,6 +270,98 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
         } else {
             m_previewImageLabel->setPixmap(QIcon::fromTheme("image-x-generic").pixmap(64, 64));
             m_dimensionsLabel->setText(tr("<b>Dimensions:</b> Unknown"));
+        }
+    } else if (isVideo) {
+        m_dimensionsLabel->show();
+        m_textPreviewLabel->hide();
+
+        QString tmpOut = QString("/tmp/insp_video_%1.jpg").arg(qHash(filePath));
+        QProcess proc;
+        proc.start("ffmpegthumbnailer", { "-i", filePath, "-o", tmpOut, "-s", "300", "-q", "8" });
+        if (!proc.waitForFinished(2000) || !QFile::exists(tmpOut)) {
+            proc.start("ffmpeg", { "-ss", "00:00:01", "-i", filePath, "-vframes", "1", "-vf", "scale=300:-1", tmpOut, "-y" });
+            proc.waitForFinished(2000);
+        }
+
+        QImage frame;
+        if (QFile::exists(tmpOut)) {
+            frame.load(tmpOut);
+            QFile::remove(tmpOut);
+        }
+
+        if (!frame.isNull()) {
+            QPixmap pix = QPixmap::fromImage(frame).scaled(150, 150, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            m_previewImageLabel->setPixmap(drawPlayBadge(pix));
+        } else if (ThumbnailProvider::instance().hasThumbnail(filePath)) {
+            QPixmap pix = ThumbnailProvider::instance().getThumbnail(filePath).pixmap(150, 150);
+            m_previewImageLabel->setPixmap(drawPlayBadge(pix));
+        } else {
+            m_previewImageLabel->setPixmap(QIcon::fromTheme("video-x-generic").pixmap(64, 64));
+            ThumbnailProvider::instance().requestThumbnail(filePath, mime.name());
+        }
+
+        // Query video metadata via ffprobe
+        QProcess probeProc;
+        probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration:stream=width,height", "-of", "default=noprint_wrappers=1", filePath });
+        if (probeProc.waitForFinished(1000)) {
+            QString probeOut = probeProc.readAllStandardOutput();
+            int vidW = 0, vidH = 0;
+            double dur = 0;
+            for (const QString &line : probeOut.split('\n')) {
+                if (line.startsWith("width=")) vidW = line.mid(6).toInt();
+                else if (line.startsWith("height=")) vidH = line.mid(7).toInt();
+                else if (line.startsWith("duration=")) dur = line.mid(9).toDouble();
+            }
+            int m = static_cast<int>(dur) / 60;
+            int s = static_cast<int>(dur) % 60;
+            QString durStr = QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
+            if (vidW > 0 && vidH > 0) {
+                m_dimensionsLabel->setText(tr("<b>Resolution:</b> %1 × %2 px (%3)").arg(vidW).arg(vidH).arg(durStr));
+            } else {
+                m_dimensionsLabel->setText(tr("<b>Duration:</b> %1").arg(durStr));
+            }
+        } else {
+            m_dimensionsLabel->setText(tr("<b>Type:</b> Video"));
+        }
+    } else if (isPdf) {
+        m_dimensionsLabel->hide();
+        m_textPreviewLabel->hide();
+
+        QString tmpPrefix = QString("/tmp/insp_pdf_%1").arg(qHash(filePath));
+        QProcess proc;
+        proc.start("pdftoppm", { "-png", "-r", "120", "-f", "1", "-l", "1", "-singlefile", filePath, tmpPrefix });
+        if (proc.waitForFinished(3000) && QFile::exists(tmpPrefix + ".png")) {
+            QImage pdfImg(tmpPrefix + ".png");
+            QFile::remove(tmpPrefix + ".png");
+            if (!pdfImg.isNull()) {
+                m_previewImageLabel->setPixmap(QPixmap::fromImage(pdfImg).scaled(150, 150, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            } else {
+                m_previewImageLabel->setPixmap(QIcon::fromTheme("application-pdf").pixmap(64, 64));
+            }
+        } else {
+            m_previewImageLabel->setPixmap(QIcon::fromTheme("application-pdf").pixmap(64, 64));
+        }
+    } else if (isAudio) {
+        m_dimensionsLabel->show();
+        m_textPreviewLabel->hide();
+        m_previewImageLabel->setPixmap(QIcon::fromTheme("audio-x-generic").pixmap(64, 64));
+
+        QProcess probeProc;
+        probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration,bit_rate", "-of", "default=noprint_wrappers=1", filePath });
+        if (probeProc.waitForFinished(1000)) {
+            QString probeOut = probeProc.readAllStandardOutput();
+            double dur = 0;
+            int bitRate = 0;
+            for (const QString &line : probeOut.split('\n')) {
+                if (line.startsWith("duration=")) dur = line.mid(9).toDouble();
+                else if (line.startsWith("bit_rate=")) bitRate = line.mid(9).toInt();
+            }
+            int m = static_cast<int>(dur) / 60;
+            int s = static_cast<int>(dur) % 60;
+            QString durStr = QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
+            m_dimensionsLabel->setText(tr("<b>Duration:</b> %1 · %2 kbps").arg(durStr).arg(bitRate / 1000));
+        } else {
+            m_dimensionsLabel->setText(tr("<b>Type:</b> Audio"));
         }
     } else if (info.isDir()) {
         m_dimensionsLabel->hide();

@@ -43,15 +43,16 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
             "QWidget#BreadcrumbContainer {"
             "  background-color: %1;"
             "  border: 1px solid %2;"
-            "  border-radius: 7px;"
+            "  border-radius: 9px;"
+            "  padding: 2px 4px;"
             "}"
             "QPushButton.crumb-btn {"
             "  background: transparent;"
             "  border: none;"
-            "  border-radius: 4px;"
-            "  padding: 3px 6px;"
+            "  border-radius: 6px;"
+            "  padding: 4px 8px;"
             "  font-weight: 500;"
-            "  font-size: 12px;"
+            "  font-size: 12.5px;"
             "  color: %3;"
             "}"
             "QPushButton.crumb-btn:hover {"
@@ -95,8 +96,8 @@ void BreadcrumbBar::applyNormalEditStyle() {
         "  background-color: %1;"
         "  color: %2;"
         "  border: 1.5px solid %3;"
-        "  border-radius: 7px;"
-        "  padding: 4px 8px;"
+        "  border-radius: 9px;"
+        "  padding: 5px 12px;"
         "  font-size: 13px;"
         "}"
     ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::ACCENT));
@@ -108,8 +109,8 @@ void BreadcrumbBar::applyErrorEditStyle() {
         "  background-color: %1;"
         "  color: %2;"
         "  border: 2px solid %3;"
-        "  border-radius: 7px;"
-        "  padding: 4px 8px;"
+        "  border-radius: 9px;"
+        "  padding: 5px 12px;"
         "  font-size: 13px;"
         "}"
     ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::DANGER));
@@ -227,13 +228,34 @@ void BreadcrumbBar::rebuildBreadcrumbs() {
         return;
     }
 
+    if (m_currentPath == "tags:" || m_currentPath == "tags://" || m_currentPath == "tag:" || m_currentPath == "tag://") {
+        QPushButton *tagsBtn = new QPushButton("🏷️  " + tr("Tags"), m_breadcrumbContainer);
+        tagsBtn->setProperty("class", "crumb-btn");
+        tagsBtn->setProperty("fullPath", "tags:");
+        connect(tagsBtn, &QPushButton::clicked, this, &BreadcrumbBar::onSegmentClicked);
+        m_breadcrumbLayout->addWidget(tagsBtn);
+        m_breadcrumbLayout->addStretch(1);
+        return;
+    }
+
     if (m_currentPath.startsWith("tag:")) {
+        QPushButton *tagsRootBtn = new QPushButton("🏷️  " + tr("Tags"), m_breadcrumbContainer);
+        tagsRootBtn->setProperty("class", "crumb-btn");
+        tagsRootBtn->setProperty("fullPath", "tags:");
+        connect(tagsRootBtn, &QPushButton::clicked, this, &BreadcrumbBar::onSegmentClicked);
+        m_breadcrumbLayout->addWidget(tagsRootBtn);
+
+        QLabel *sep = new QLabel("›", m_breadcrumbContainer);
+        sep->setProperty("class", "crumb-sep");
+        m_breadcrumbLayout->addWidget(sep);
+
         QString tagName = m_currentPath.mid(4);
         TagInfo t = TagManager::tagByName(tagName);
         QString display = t.displayName.isEmpty() ? tagName : t.displayName;
-        QPushButton *tagBtn = new QPushButton("🏷️  " + tr("Tag: %1").arg(display), m_breadcrumbContainer);
+        QPushButton *tagBtn = new QPushButton(display, m_breadcrumbContainer);
         tagBtn->setProperty("class", "crumb-btn");
         tagBtn->setProperty("fullPath", m_currentPath);
+        connect(tagBtn, &QPushButton::clicked, this, &BreadcrumbBar::onSegmentClicked);
         m_breadcrumbLayout->addWidget(tagBtn);
         m_breadcrumbLayout->addStretch(1);
         return;

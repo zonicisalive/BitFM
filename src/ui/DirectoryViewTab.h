@@ -35,6 +35,7 @@ public slots:
     void navigateBack();
     void navigateForward();
     void navigateUp();
+    void navigateHome();
     void refresh();
     void toggleHiddenFiles();
     void toggleViewMode();
@@ -75,6 +76,7 @@ private:
     QToolBar *m_toolBar = nullptr;
     QAction *m_actBack = nullptr;
     QAction *m_actForward = nullptr;
+    QAction *m_actHome = nullptr;
     QAction *m_actUp = nullptr;
     QAction *m_actRefresh = nullptr;
     QAction *m_actToggleHidden = nullptr;

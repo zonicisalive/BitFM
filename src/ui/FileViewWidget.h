@@ -51,20 +51,20 @@ protected:
 public slots:
     void onRenameAction();
     void onBatchRenameAction();
-
-private slots:
-    void onItemDoubleClicked(const QModelIndex &proxyIndex);
-    void onSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
-    void onCustomContextMenuRequested(const QPoint &pos);
-    void onNewFolderAction();
-    void onNewFileAction();
     void onTrashAction();
     void onDeletePermanentlyAction();
     void onCopyAction();
     void onCutAction();
     void onPasteAction();
-    void onOpenInTerminalAction();
+    void onNewFolderAction();
+    void onNewFileAction();
     void onPropertiesAction();
+
+private slots:
+    void onItemDoubleClicked(const QModelIndex &proxyIndex);
+    void onSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
+    void onCustomContextMenuRequested(const QPoint &pos);
+    void onOpenInTerminalAction();
 
     // New features slots
     void onCompressZipAction();

@@ -68,6 +68,10 @@ public:
     int folderCount() const;
     qint64 totalSizeBytes() const;
 
+    void searchRecursive(const QString &pattern, bool isRegex = false);
+    void cancelSearch();
+    bool isSearching() const;
+
 public slots:
     void refresh();
 
@@ -91,6 +95,9 @@ private:
     bool m_foldersFirst = true;
     int m_sortColumn = ColName;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
+
+    bool m_isSearching = false;
+    uint m_currentSearchId = 0;
 
     QVector<FileItem> m_items;
     QHash<QString, int> m_pathToRow;

@@ -46,6 +46,8 @@ set(CORE_SOURCES
     src/core/RecentFilesProvider.h
     src/core/RecentFilesProvider.cpp
     src/core/UserEnvironment.h
+    src/core/AppSettings.h
+    src/core/AppSettings.cpp
 )
 
 set(UI_SOURCES
@@ -77,6 +79,8 @@ set(UI_SOURCES
     src/ui/FilePropertiesDialog.cpp
     src/ui/ConnectServerDialog.h
     src/ui/ConnectServerDialog.cpp
+    src/ui/UnlockDeviceDialog.h
+    src/ui/UnlockDeviceDialog.cpp
     src/ui/AboutDialog.h
     src/ui/AboutDialog.cpp
     src/ui/FileViewWidget.h

@@ -1,4 +1,5 @@
 #include "SearchBarWidget.h"
+#include "ThemeManager.h"
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeyEvent>
@@ -7,35 +8,54 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
     : QWidget(parent)
 {
     QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(8, 4, 8, 4);
-    layout->setSpacing(6);
+    layout->setContentsMargins(10, 6, 10, 6);
+    layout->setSpacing(8);
 
-    setStyleSheet(
-        "SearchBarWidget {"
-        "  background-color: palette(window);"
-        "  border-top: 1px solid palette(mid);"
-        "}"
-        "QLineEdit {"
-        "  border: 1px solid palette(highlight);"
-        "  border-radius: 6px;"
-        "  padding: 4px 8px;"
-        "  background-color: palette(base);"
-        "  font-size: 13px;"
-        "}"
-        "QToolButton {"
-        "  border: 1px solid palette(mid);"
-        "  border-radius: 4px;"
-        "  padding: 3px 6px;"
-        "  background: transparent;"
-        "}"
-        "QToolButton:hover {"
-        "  background-color: palette(alternate-base);"
-        "}"
-        "QToolButton:checked {"
-        "  background-color: palette(highlight);"
-        "  color: palette(highlighted-text);"
-        "}"
-    );
+    auto updateStyles = [this]() {
+        setStyleSheet(QString(
+            "SearchBarWidget {"
+            "  background-color: %1;"
+            "  border-top: 1px solid %2;"
+            "}"
+            "QLineEdit {"
+            "  border: 1.5px solid %3;"
+            "  border-radius: 8px;"
+            "  padding: 5px 10px;"
+            "  background-color: %4;"
+            "  color: %5;"
+            "  font-size: 13px;"
+            "}"
+            "QLineEdit:focus {"
+            "  border: 1.5px solid %6;"
+            "}"
+            "QToolButton {"
+            "  border: 1px solid %2;"
+            "  border-radius: 6px;"
+            "  padding: 4px 8px;"
+            "  background: transparent;"
+            "  color: %5;"
+            "}"
+            "QToolButton:hover {"
+            "  background-color: %7;"
+            "}"
+            "QToolButton:checked {"
+            "  background-color: %8;"
+            "  color: #ffffff;"
+            "  border: 1px solid %6;"
+            "}"
+        )
+        .arg(ThemeManager::BG_SURFACE)
+        .arg(ThemeManager::BORDER)
+        .arg(ThemeManager::BORDER_FOCUS)
+        .arg(ThemeManager::BG_BASE)
+        .arg(ThemeManager::TEXT_PRIMARY)
+        .arg(ThemeManager::ACCENT)
+        .arg(ThemeManager::BG_HOVER)
+        .arg(ThemeManager::BG_SELECTION));
+    };
+
+    updateStyles();
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, updateStyles);
 
     QLabel *iconLabel = new QLabel(this);
     iconLabel->setPixmap(QIcon::fromTheme("edit-find", QIcon::fromTheme("system-search")).pixmap(16, 16));

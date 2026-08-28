@@ -387,6 +387,7 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         bool overwrite = false;
 
         if (src == targetPath) {
+            successCount++;
             current++;
             continue;
         }
