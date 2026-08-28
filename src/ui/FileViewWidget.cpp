@@ -953,6 +953,7 @@ static QMimeData* createClipboardMimeData(const QStringList &paths, bool isCut) 
     mime->setData("x-special/nautilus-clipboard", nautilusData.toUtf8());
     mime->setData("x-special/gnome-copied-files", nautilusData.toUtf8());
     mime->setData("application/x-kde-cutselection", isCut ? QByteArray("1") : QByteArray("0"));
+    mime->setText(paths.join("\n"));
 
     // If single image file is copied, attach image data so Discord/Slack/Telegram/browsers paste the actual image
     if (paths.size() == 1) {
