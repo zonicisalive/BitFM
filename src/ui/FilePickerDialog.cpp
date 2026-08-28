@@ -29,12 +29,21 @@ FilePickerDialog::FilePickerDialog(PickerMode mode, const QString &initialPath,
     resize(860, 560);
     setMinimumSize(640, 420);
 
+    if (m_mode == PickerMode::SaveFile && m_defaultName.isEmpty()) {
+        m_defaultName = "Untitled";
+    }
+
     m_fileModel = new FileSystemModel(this);
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
 
     setupUi();
     onNavigateRequested(m_initialPath);
+
+    if (m_fileNameEdit) {
+        m_fileNameEdit->setFocus();
+        m_fileNameEdit->selectAll();
+    }
 }
 
 void FilePickerDialog::setupUi() {
@@ -227,6 +236,14 @@ void FilePickerDialog::onActionAccept() {
     QString currentDir = m_fileModel->currentDirectory();
     QString inputName = m_fileNameEdit->text().trimmed();
 
+    if (inputName.isEmpty()) {
+        QStringList sel = m_fileView->selectedPaths();
+        if (!sel.isEmpty()) {
+            inputName = QFileInfo(sel.first()).fileName();
+            m_fileNameEdit->setText(inputName);
+        }
+    }
+
     if (m_mode == PickerMode::ChooseFolder) {
         if (inputName.isEmpty()) {
             m_resultPath = currentDir;
@@ -241,17 +258,29 @@ void FilePickerDialog::onActionAccept() {
             m_resultPath = inputName;
             accept();
         } else {
-            QMessageBox::warning(this, tr("Folder Not Found"), tr("The selected folder does not exist: %1").arg(fullPath));
+            m_resultPath = currentDir;
+            accept();
         }
         return;
     }
 
     if (inputName.isEmpty()) {
-        QMessageBox::warning(this, tr("No File Name"), tr("Please enter or select a file name."));
-        return;
+        if (m_mode == PickerMode::SaveFile) {
+            inputName = "Untitled";
+            m_fileNameEdit->setText(inputName);
+        } else {
+            QMessageBox::warning(this, tr("No File Selected"), tr("Please select or enter a file name."));
+            return;
+        }
     }
 
     QString fullPath = QDir(currentDir).filePath(inputName);
+    if (QFileInfo(fullPath).isDir()) {
+        onNavigateRequested(fullPath);
+        m_fileNameEdit->clear();
+        return;
+    }
+
     if (m_mode == PickerMode::SaveFile) {
         if (QFileInfo::exists(fullPath)) {
             auto res = QMessageBox::question(this, tr("Confirm Overwrite"),
