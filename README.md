@@ -130,19 +130,26 @@ sudo dnf install -y \
 
 ---
 
-### 2. Compile & Run
+### 2. Quick Install (Recommended)
 
 ```bash
 # Clone the repository
 git clone https://github.com/ZonicExists/BitFM.git
 cd BitFM
 
-# Create build directory and compile
+# Run the universal installer (auto-detects dependencies and sets up Wayland portals)
+./install.sh
+
+# Or install system-wide:
+# sudo ./install.sh --system
+```
+
+### 3. Manual Compilation
+
+```bash
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
-
-# Run BitFM
 ./bitfm
 ```
 

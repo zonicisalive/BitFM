@@ -7,6 +7,7 @@
 #include <QMenu>
 #include <QItemSelection>
 #include <QStyledItemDelegate>
+#include <QLabel>
 #include "FileSystemModel.h"
 #include "FileFilterProxyModel.h"
 #include "FileOperations.h"
@@ -100,6 +101,12 @@ private:
     QListView *m_compactView = nullptr;
     FileRowDelegate *m_rowDelegate = nullptr;
     QAbstractItemView* currentActiveView() const;
+
+    // Empty state placeholder
+    QWidget *m_emptyStateWidget = nullptr;
+    QLabel *m_emptyStateIcon = nullptr;
+    QLabel *m_emptyStateText = nullptr;
+    void updateEmptyState();
 
     // Clipboard state
     QStringList m_clipboardPaths;

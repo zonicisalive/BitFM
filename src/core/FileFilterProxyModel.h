@@ -16,6 +16,9 @@ public:
     void setKeepFoldersVisible(bool keep);
     bool keepFoldersVisible() const;
 
+    void setDirectoriesOnly(bool dirsOnly);
+    bool directoriesOnly() const;
+
     int matchCount() const;
 
 signals:
@@ -29,5 +32,6 @@ private:
     QString m_searchPattern;
     bool m_isRegex = false;
     bool m_keepFoldersVisible = false;
+    bool m_directoriesOnly = false;
     QRegularExpression m_regex;
 };

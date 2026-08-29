@@ -493,6 +493,32 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
     m_stackedWidget->addWidget(m_listView);
     layout->addWidget(m_stackedWidget);
 
+    // Empty state overlay widget
+    m_emptyStateWidget = new QWidget(this);
+    m_emptyStateWidget->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    QVBoxLayout *emptyLayout = new QVBoxLayout(m_emptyStateWidget);
+    emptyLayout->setAlignment(Qt::AlignCenter);
+    emptyLayout->setSpacing(8);
+
+    m_emptyStateIcon = new QLabel(m_emptyStateWidget);
+    m_emptyStateIcon->setAlignment(Qt::AlignCenter);
+    QIcon emptyIcon = QIcon::fromTheme("folder-open", QIcon::fromTheme("folder"));
+    m_emptyStateIcon->setPixmap(emptyIcon.pixmap(48, 48));
+
+    m_emptyStateText = new QLabel(tr("This folder is empty"), m_emptyStateWidget);
+    m_emptyStateText->setAlignment(Qt::AlignCenter);
+    m_emptyStateText->setStyleSheet("color: " + QString(ThemeManager::TEXT_MUTED) + "; font-size: 13px; font-weight: 500;");
+
+    emptyLayout->addWidget(m_emptyStateIcon);
+    emptyLayout->addWidget(m_emptyStateText);
+    m_emptyStateWidget->hide();
+
+    connect(m_proxyModel, &QAbstractItemModel::rowsInserted, this, &FileViewWidget::updateEmptyState);
+    connect(m_proxyModel, &QAbstractItemModel::rowsRemoved, this, &FileViewWidget::updateEmptyState);
+    connect(m_proxyModel, &QAbstractItemModel::modelReset, this, &FileViewWidget::updateEmptyState);
+    connect(m_proxyModel, &QAbstractItemModel::layoutChanged, this, &FileViewWidget::updateEmptyState);
+    connect(m_sourceModel, &FileSystemModel::directoryLoaded, this, &FileViewWidget::updateEmptyState);
+
     connect(&TagManager::instance(), &TagManager::tagsChanged, this, [this]() {
         m_tableView->viewport()->update();
         m_listView->viewport()->update();
@@ -788,12 +814,35 @@ int FileViewWidget::gridIconSize() const {
 
 void FileViewWidget::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
+    if (m_emptyStateWidget) {
+        m_emptyStateWidget->setGeometry(rect());
+    }
     updateGridGeometry();
 }
 
 void FileViewWidget::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
+    if (m_emptyStateWidget) {
+        m_emptyStateWidget->setGeometry(rect());
+    }
     updateGridGeometry();
+}
+
+void FileViewWidget::updateEmptyState() {
+    if (!m_emptyStateWidget) return;
+    bool isEmpty = (m_proxyModel->rowCount() == 0);
+    if (isEmpty) {
+        if (m_proxyModel->searchPattern().isEmpty()) {
+            m_emptyStateText->setText(tr("This folder is empty"));
+        } else {
+            m_emptyStateText->setText(tr("No matching items found"));
+        }
+        m_emptyStateWidget->setGeometry(rect());
+        m_emptyStateWidget->show();
+        m_emptyStateWidget->raise();
+    } else {
+        m_emptyStateWidget->hide();
+    }
 }
 
 void FileViewWidget::updateGridGeometry() {
@@ -940,11 +989,17 @@ void FileViewWidget::onItemDoubleClicked(const QModelIndex &proxyIndex) {
     const FileItem *item = m_sourceModel->itemForIndex(srcIndex);
     if (!item) return;
 
-    if (item->isDirectory) {
-        emit openPathRequested(item->absolutePath);
-    } else {
-        AppLauncher::instance().openPath(item->absolutePath);
-    }
+    QString targetPath = item->absolutePath;
+    bool isDir = item->isDirectory;
+
+    QTimer::singleShot(0, this, [this, targetPath, isDir]() {
+        if (isDir) {
+            emit openPathRequested(targetPath);
+        } else {
+            emit openPathRequested(targetPath);
+            AppLauncher::instance().openPath(targetPath);
+        }
+    });
 }
 
 void FileViewWidget::onSelectionChanged(const QItemSelection &, const QItemSelection &) {

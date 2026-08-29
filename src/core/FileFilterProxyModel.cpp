@@ -43,19 +43,34 @@ bool FileFilterProxyModel::keepFoldersVisible() const {
     return m_keepFoldersVisible;
 }
 
+void FileFilterProxyModel::setDirectoriesOnly(bool dirsOnly) {
+    if (m_directoriesOnly != dirsOnly) {
+        m_directoriesOnly = dirsOnly;
+        invalidate();
+    }
+}
+
+bool FileFilterProxyModel::directoriesOnly() const {
+    return m_directoriesOnly;
+}
+
 int FileFilterProxyModel::matchCount() const {
     return rowCount();
 }
 
 bool FileFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const {
-    if (m_searchPattern.isEmpty()) {
-        return true;
-    }
-
     QModelIndex index = sourceModel()->index(sourceRow, FileSystemModel::ColName, sourceParent);
     if (!index.isValid()) return false;
 
     bool isDir = index.data(FileSystemModel::IsDirectoryRole).toBool();
+    if (m_directoriesOnly && !isDir) {
+        return false;
+    }
+
+    if (m_searchPattern.isEmpty()) {
+        return true;
+    }
+
     if (m_keepFoldersVisible && isDir) {
         return true;
     }
