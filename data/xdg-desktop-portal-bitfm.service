@@ -5,7 +5,8 @@ PartOf=graphical-session.target
 [Service]
 Type=dbus
 BusName=org.freedesktop.impl.portal.desktop.bitfm
-ExecStart=bitfm --portal
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/env bitfm --portal
 Restart=on-failure
 
 [Install]

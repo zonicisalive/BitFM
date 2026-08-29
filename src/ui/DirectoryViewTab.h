@@ -52,6 +52,7 @@ signals:
     void fileSelectionChanged(const QStringList &selectedPaths);
     void splitViewRequested();
     void zoomChanged(int newSize);
+    void quickPreviewRequested();
 
 private slots:
     void onDirectoryLoaded(const QString &path, int itemCount);

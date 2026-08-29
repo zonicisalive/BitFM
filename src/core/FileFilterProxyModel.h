@@ -19,6 +19,11 @@ public:
     void setDirectoriesOnly(bool dirsOnly);
     bool directoriesOnly() const;
 
+    void setNameFilters(const QStringList &filters);
+    QStringList nameFilters() const;
+    void setFileTypeFilter(const QString &filterString);
+    QString fileTypeFilter() const;
+
     int matchCount() const;
 
 signals:
@@ -34,4 +39,7 @@ private:
     bool m_keepFoldersVisible = false;
     bool m_directoriesOnly = false;
     QRegularExpression m_regex;
+    QStringList m_nameFilters;
+    QStringList m_parsedExtensions;
+    QString m_rawFilterString;
 };

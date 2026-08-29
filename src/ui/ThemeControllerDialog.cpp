@@ -1,4 +1,5 @@
 #include "ThemeControllerDialog.h"
+#include "AppSettings.h"
 #include <QColorDialog>
 #include <QDesktopServices>
 #include <QUrl>
@@ -382,6 +383,60 @@ void ThemeControllerDialog::setupUi() {
     m_modeStack->addWidget(pageExternal);
 
     mainLayout->addWidget(m_modeStack, 1);
+
+    // ─────────────────────────────────────────────────────────────
+    // Window Translucency & Transparency Card
+    // ─────────────────────────────────────────────────────────────
+    QFrame *translucentCard = new QFrame(this);
+    translucentCard->setStyleSheet(
+        "QFrame {"
+        "  background-color: " + QString(ThemeManager::BG_SURFACE) + ";"
+        "  border: 1px solid " + QString(ThemeManager::BORDER) + ";"
+        "  border-radius: 10px;"
+        "  padding: 8px;"
+        "}"
+    );
+    QVBoxLayout *transLayout = new QVBoxLayout(translucentCard);
+    transLayout->setContentsMargins(10, 8, 10, 8);
+    transLayout->setSpacing(8);
+
+    QHBoxLayout *checkRow = new QHBoxLayout();
+    m_translucentCheck = new QCheckBox(tr("Acrylic Translucency & Wayland Blur 🫧"), translucentCard);
+    m_translucentCheck->setChecked(AppSettings::instance().isTranslucencyEnabled());
+    m_translucentCheck->setStyleSheet("font-size: 12.5px; font-weight: 600; color: " + QString(ThemeManager::TEXT_PRIMARY) + ";");
+    checkRow->addWidget(m_translucentCheck);
+    checkRow->addStretch();
+    transLayout->addLayout(checkRow);
+
+    QHBoxLayout *sliderRow = new QHBoxLayout();
+    sliderRow->setSpacing(10);
+    QLabel *sliderTitle = new QLabel(tr("Window Opacity:"), translucentCard);
+    sliderTitle->setStyleSheet("color: " + QString(ThemeManager::TEXT_SECONDARY) + "; font-size: 11.5px;");
+    sliderRow->addWidget(sliderTitle);
+
+    m_opacitySlider = new QSlider(Qt::Horizontal, translucentCard);
+    m_opacitySlider->setRange(40, 100);
+    m_opacitySlider->setValue(qRound(AppSettings::instance().windowOpacity() * 100));
+    m_opacitySlider->setEnabled(m_translucentCheck->isChecked());
+    sliderRow->addWidget(m_opacitySlider, 1);
+
+    m_opacityLabel = new QLabel(QString("%1%").arg(m_opacitySlider->value()), translucentCard);
+    m_opacityLabel->setFixedWidth(42);
+    m_opacityLabel->setStyleSheet("color: " + QString(ThemeManager::TEXT_PRIMARY) + "; font-size: 12px; font-weight: 600;");
+    sliderRow->addWidget(m_opacityLabel);
+    transLayout->addLayout(sliderRow);
+
+    connect(m_translucentCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        AppSettings::instance().setTranslucencyEnabled(checked);
+        m_opacitySlider->setEnabled(checked);
+    });
+
+    connect(m_opacitySlider, &QSlider::valueChanged, this, [this](int val) {
+        m_opacityLabel->setText(QString("%1%").arg(val));
+        AppSettings::instance().setWindowOpacity(val / 100.0);
+    });
+
+    mainLayout->addWidget(translucentCard);
 
     // Bottom Bar (Done button)
     QHBoxLayout *bottomLayout = new QHBoxLayout();

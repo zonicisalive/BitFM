@@ -28,10 +28,16 @@ MainWindow::MainWindow(QWidget *parent)
 {
     setWindowTitle(tr("BitFM"));
     resize(1260, 780);
+    setAttribute(Qt::WA_TranslucentBackground, AppSettings::instance().isTranslucencyEnabled());
 
     setupUi();
     setupMenuBar();
     setupGlobalShortcuts();
+
+    connect(&AppSettings::instance(), &AppSettings::translucencyChanged, this, [this](bool enabled) {
+        setAttribute(Qt::WA_TranslucentBackground, enabled);
+        update();
+    });
 
     onPaneActivated(m_primaryPane);
 }
@@ -285,6 +291,9 @@ void MainWindow::setupUi() {
 
     connect(m_primaryPane, &PaneWidget::splitViewRequested, this, &MainWindow::toggleDualPane);
     connect(m_secondaryPane, &PaneWidget::splitViewRequested, this, &MainWindow::toggleDualPane);
+
+    connect(m_primaryPane, &PaneWidget::quickPreviewRequested, this, &MainWindow::quickPreviewSelectedItem);
+    connect(m_secondaryPane, &PaneWidget::quickPreviewRequested, this, &MainWindow::quickPreviewSelectedItem);
 
     connect(m_primaryPane, &PaneWidget::zoomChanged, this, [this](int size) {
         m_zoomSlider->blockSignals(true);

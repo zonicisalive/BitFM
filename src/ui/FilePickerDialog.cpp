@@ -39,6 +39,7 @@ FilePickerDialog::FilePickerDialog(PickerMode mode, const QString &initialPath,
     m_fileModel = new FileSystemModel(this);
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
+    m_proxyModel->setKeepFoldersVisible(true);
     if (m_mode == PickerMode::ChooseFolder) {
         m_proxyModel->setDirectoriesOnly(true);
     }
@@ -203,6 +204,14 @@ void FilePickerDialog::setupUi() {
         "  min-width: 220px;"
         "}"
     );
+
+    connect(m_filterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (idx < 0) return;
+        QString filterData = m_filterCombo->itemData(idx).toString();
+        if (filterData.isEmpty()) filterData = m_filterCombo->itemText(idx);
+        m_proxyModel->setFileTypeFilter(filterData);
+    });
+
     if (m_mode == PickerMode::ChooseFolder) {
         typeLabel->hide();
         m_filterCombo->hide();
@@ -485,7 +494,14 @@ QString FilePickerDialog::selectedPath() const {
 
 void FilePickerDialog::setFilter(const QString &filter) {
     if (!filter.isEmpty() && m_filterCombo) {
-        m_filterCombo->insertItem(0, filter, filter);
-        m_filterCombo->setCurrentIndex(0);
+        int found = m_filterCombo->findData(filter);
+        if (found == -1) found = m_filterCombo->findText(filter);
+        if (found != -1) {
+            m_filterCombo->setCurrentIndex(found);
+        } else {
+            m_filterCombo->insertItem(0, filter, filter);
+            m_filterCombo->setCurrentIndex(0);
+        }
+        m_proxyModel->setFileTypeFilter(filter);
     }
 }

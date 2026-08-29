@@ -57,7 +57,8 @@ public:
     QString currentThemeName() const;
     static QStringList availableThemes();
     static ThemeColors getThemeColors(AppTheme theme);
-    static QString getModernStyleSheet(const ThemeColors &c);
+    static QString getModernStyleSheet(const ThemeColors &c, double opacity = 1.0, bool translucent = false);
+    static QString hexToRgba(const QString &hexOrRgb, double alpha);
 
     // Theme Mode: Built-in Presets vs External File Sync
     ThemeMode themeMode() const;

@@ -6,6 +6,8 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
+#include <QCheckBox>
+#include <QSlider>
 #include <QLabel>
 #include <QFrame>
 #include <QStackedWidget>
@@ -65,4 +67,9 @@ private:
     QLabel *m_extThemeNameLabel = nullptr;
     QLabel *m_extThemePathLabel = nullptr;
     QHBoxLayout *m_extSwatchesLayout = nullptr;
+
+    // Translucency & Opacity Controls
+    QCheckBox *m_translucentCheck = nullptr;
+    QSlider *m_opacitySlider = nullptr;
+    QLabel *m_opacityLabel = nullptr;
 };

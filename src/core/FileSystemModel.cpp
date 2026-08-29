@@ -441,7 +441,9 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
 
                 if (item.isDirectory) {
                     item.sizeBytes = 0;
-                    item.formattedSize = QString();
+                    QDir subDir(item.absolutePath);
+                    int subCount = subDir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot | (showHidden ? QDir::Hidden : QDir::Filters())).count();
+                    item.formattedSize = (subCount == 0) ? tr("Empty") : (subCount == 1 ? tr("1 item") : tr("%1 items").arg(subCount));
                     item.mimeTypeName = "inode/directory";
                     item.mimeComment = tr("Folder");
                     item.icon = QIcon::fromTheme("folder", QIcon::fromTheme("folder-open"));
@@ -609,7 +611,9 @@ void FileSystemModel::loadDirectoryInternal() {
 
         if (item.isDirectory) {
             item.sizeBytes = 0;
-            item.formattedSize = QString();
+            QDir subDir(item.absolutePath);
+            int subCount = subDir.entryList(QDir::AllEntries | QDir::NoDotAndDotDot | (m_showHidden ? QDir::Hidden : QDir::Filters())).count();
+            item.formattedSize = (subCount == 0) ? tr("Empty") : (subCount == 1 ? tr("1 item") : tr("%1 items").arg(subCount));
             item.mimeTypeName = "inode/directory";
             item.mimeComment = tr("Folder");
             item.icon = QIcon::fromTheme("folder", QIcon::fromTheme("folder-open"));

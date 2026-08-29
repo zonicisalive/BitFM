@@ -45,6 +45,8 @@ signals:
     void statusMessageRequested(const QString &message);
     void fileSelectionChanged(const QStringList &selectedPaths);
     void zoomChanged(int newSize);
+    void previewRequested();
+    void searchRequested();
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;

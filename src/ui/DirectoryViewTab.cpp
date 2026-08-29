@@ -123,6 +123,8 @@ void DirectoryViewTab::setupUi() {
     connect(m_fileView, &FileViewWidget::statusMessageRequested, this, &DirectoryViewTab::statusMessageRequested);
     connect(m_fileView, &FileViewWidget::fileSelectionChanged, this, &DirectoryViewTab::fileSelectionChanged);
     connect(m_fileView, &FileViewWidget::zoomChanged, this, &DirectoryViewTab::zoomChanged);
+    connect(m_fileView, &FileViewWidget::previewRequested, this, &DirectoryViewTab::quickPreviewRequested);
+    connect(m_fileView, &FileViewWidget::searchRequested, this, &DirectoryViewTab::openSearch);
 
     connect(m_fileModel, &FileSystemModel::directoryLoaded, this, &DirectoryViewTab::onDirectoryLoaded);
     connect(m_fileModel, &FileSystemModel::directoryLoadError, this, &DirectoryViewTab::onDirectoryLoadError);

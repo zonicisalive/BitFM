@@ -59,11 +59,20 @@ public:
     bool isInspectorVisible() const;
     void setInspectorVisible(bool visible);
 
+    // Window translucency & opacity
+    bool isTranslucencyEnabled() const;
+    void setTranslucencyEnabled(bool enabled);
+
+    double windowOpacity() const;
+    void setWindowOpacity(double opacity);
+
 signals:
     void viewModeChanged(int mode);
     void showHiddenFilesChanged(bool show);
     void zoomLevelChanged(int level);
     void sortingChanged(int col, Qt::SortOrder order);
+    void translucencyChanged(bool enabled);
+    void windowOpacityChanged(double opacity);
 
 private:
     AppSettings();

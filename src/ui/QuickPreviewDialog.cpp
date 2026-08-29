@@ -11,7 +11,40 @@
 #include <QProcess>
 #include <QPainter>
 #include <QPainterPath>
+#include <QRegularExpression>
 #include "AppLauncher.h"
+
+static QString highlightCodeSyntax(const QString &sourceCode) {
+    QString escaped = sourceCode.toHtmlEscaped();
+    QStringList lines = escaped.split('\n');
+    QString result;
+    result.reserve(escaped.size() * 2);
+    result.append("<pre style='font-family: monospace, monospace; font-size: 12px; line-height: 1.5; margin: 0; color: #cdd6f4;'>");
+
+    static const QRegularExpression stringRegex("(&quot;.*?&quot;|&#39;.*?&#39;|\".*?\"|'.*?')");
+    static const QRegularExpression numberRegex("\\b(\\d+(\\.\\d+)?([eE][+-]?\\d+)?|0x[0-9a-fA-F]+)\\b");
+    static const QRegularExpression keywordRegex("\\b(fn|def|func|function|class|struct|enum|interface|type|impl|trait|pub|private|public|protected|let|const|var|mut|val|auto|if|else|elif|for|while|loop|match|switch|case|break|continue|return|yield|import|from|export|use|include|package|namespace|typedef|using|template|typename|static|inline|virtual|override|final|async|await|try|catch|throw|finally|raise|except|with|as|in|is|not|and|or|nullptr|null|nil|None|true|false|True|False|self|this|super)\\b");
+    static const QRegularExpression typeRegex("\\b(int|float|double|bool|char|void|size_t|uint|uint8_t|uint16_t|uint32_t|uint64_t|int8_t|int16_t|int32_t|int64_t|QString|QVector|QList|QMap|QSet|QByteArray|QObject|QWidget|String|str|list|dict|set|tuple|Option|Result|Vec|usize|isize|u8|u16|u32|u64|i8|i16|i32|i64|f32|f64)\\b");
+
+    int lineNum = 1;
+    for (QString line : lines) {
+        QString trimmed = line.trimmed();
+        if (trimmed.startsWith("//") || trimmed.startsWith("#") || trimmed.startsWith("--") || trimmed.startsWith(";")) {
+            line = QString("<span style='color: #6c7086; font-style: italic;'>%1</span>").arg(line);
+        } else {
+            line.replace(stringRegex, "<span style='color: #a6e3a1;'>\\1</span>");
+            line.replace(keywordRegex, "<span style='color: #cba6f7; font-weight: 600;'>\\1</span>");
+            line.replace(typeRegex, "<span style='color: #f9e2af;'>\\1</span>");
+            line.replace(numberRegex, "<span style='color: #fab387;'>\\1</span>");
+        }
+        result.append(QString("<span style='color: #585b70; margin-right: 12px;'>%1</span>%2\n")
+            .arg(lineNum, 4, 10, QChar(' '))
+            .arg(line));
+        lineNum++;
+    }
+    result.append("</pre>");
+    return result;
+}
 
 QuickPreviewDialog::QuickPreviewDialog(QWidget *parent)
     : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint)
@@ -325,7 +358,8 @@ void QuickPreviewDialog::updatePreview() {
         QFile file(m_currentFilePath);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QByteArray content = file.read(64 * 1024);
-            m_textPreview->setPlainText(QString::fromUtf8(content));
+            QString rawText = QString::fromUtf8(content);
+            m_textPreview->setHtml(highlightCodeSyntax(rawText));
             file.close();
         } else {
             m_textPreview->setPlainText(tr("Could not read text file."));

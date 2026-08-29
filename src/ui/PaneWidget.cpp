@@ -284,6 +284,7 @@ void PaneWidget::connectTabSignals(DirectoryViewTab *tab) {
 
     connect(tab, &DirectoryViewTab::splitViewRequested, this, &PaneWidget::splitViewRequested);
     connect(tab, &DirectoryViewTab::zoomChanged, this, &PaneWidget::zoomChanged);
+    connect(tab, &DirectoryViewTab::quickPreviewRequested, this, &PaneWidget::quickPreviewRequested);
 }
 
 void PaneWidget::closeCurrentTab() {

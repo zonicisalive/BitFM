@@ -528,6 +528,14 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
         m_tableView->viewport()->update();
         m_listView->viewport()->update();
     });
+
+    m_currentGridSize = AppSettings::instance().zoomLevel();
+    setGridIconSize(m_currentGridSize);
+    connect(&AppSettings::instance(), &AppSettings::zoomLevelChanged, this, [this](int level) {
+        if (m_currentGridSize != level) {
+            setGridIconSize(level);
+        }
+    });
 }
 
 bool FileViewWidget::hasClipboardFiles() const {
@@ -805,6 +813,10 @@ void FileViewWidget::setGridIconSize(int size) {
         int compactIcon = qBound(16, m_currentGridSize / 2, 48);
         m_compactView->setIconSize(QSize(compactIcon, compactIcon));
     }
+    if (AppSettings::instance().zoomLevel() != m_currentGridSize) {
+        AppSettings::instance().setZoomLevel(m_currentGridSize);
+    }
+    emit zoomChanged(m_currentGridSize);
     updateGridGeometry();
 }
 
@@ -1614,6 +1626,67 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                     AppLauncher::instance().openPaths(selected);
                 }
                 return true;
+            } else if (ke->key() == Qt::Key_Space) {
+                emit previewRequested();
+                return true;
+            } else if (!isCtrl && !(ke->modifiers() & Qt::AltModifier)) {
+                if (ke->key() == Qt::Key_J) {
+                    QAbstractItemView *v = currentActiveView();
+                    if (v && v->model()) {
+                        QModelIndex cur = v->currentIndex();
+                        int nextRow = cur.isValid() ? qMin(cur.row() + 1, v->model()->rowCount() - 1) : 0;
+                        QModelIndex nextIdx = v->model()->index(nextRow, 0);
+                        if (nextIdx.isValid()) {
+                            v->setCurrentIndex(nextIdx);
+                            v->selectionModel()->select(nextIdx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                            v->scrollTo(nextIdx);
+                        }
+                    }
+                    return true;
+                } else if (ke->key() == Qt::Key_K) {
+                    QAbstractItemView *v = currentActiveView();
+                    if (v && v->model()) {
+                        QModelIndex cur = v->currentIndex();
+                        int prevRow = cur.isValid() ? qMax(0, cur.row() - 1) : 0;
+                        QModelIndex prevIdx = v->model()->index(prevRow, 0);
+                        if (prevIdx.isValid()) {
+                            v->setCurrentIndex(prevIdx);
+                            v->selectionModel()->select(prevIdx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                            v->scrollTo(prevIdx);
+                        }
+                    }
+                    return true;
+                } else if (ke->key() == Qt::Key_H) {
+                    QDir dir(m_sourceModel->currentDirectory());
+                    if (dir.cdUp()) emit openPathRequested(dir.absolutePath());
+                    return true;
+                } else if (ke->key() == Qt::Key_L) {
+                    QStringList selected = selectedPaths();
+                    if (selected.size() == 1 && QFileInfo(selected.first()).isDir()) {
+                        emit openPathRequested(selected.first());
+                    } else if (!selected.isEmpty()) {
+                        AppLauncher::instance().openPaths(selected);
+                    }
+                    return true;
+                } else if (ke->key() == Qt::Key_Slash) {
+                    emit searchRequested();
+                    return true;
+                } else if (ke->key() == Qt::Key_G) {
+                    QAbstractItemView *v = currentActiveView();
+                    if (v && v->model() && v->model()->rowCount() > 0) {
+                        int targetRow = (ke->modifiers() & Qt::ShiftModifier) ? (v->model()->rowCount() - 1) : 0;
+                        QModelIndex idx = v->model()->index(targetRow, 0);
+                        if (idx.isValid()) {
+                            v->setCurrentIndex(idx);
+                            v->selectionModel()->select(idx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                            v->scrollTo(idx);
+                        }
+                    }
+                    return true;
+                } else if (ke->key() == Qt::Key_Period) {
+                    m_sourceModel->setShowHidden(!m_sourceModel->showHidden());
+                    return true;
+                }
             }
         }
     }
@@ -1672,6 +1745,75 @@ void FileViewWidget::keyPressEvent(QKeyEvent *event) {
         }
         event->accept();
         return;
+    } else if (event->key() == Qt::Key_Space) {
+        emit previewRequested();
+        event->accept();
+        return;
+    } else if (!isCtrl && !(event->modifiers() & Qt::AltModifier)) {
+        if (event->key() == Qt::Key_J) {
+            QAbstractItemView *v = currentActiveView();
+            if (v && v->model()) {
+                QModelIndex cur = v->currentIndex();
+                int nextRow = cur.isValid() ? qMin(cur.row() + 1, v->model()->rowCount() - 1) : 0;
+                QModelIndex nextIdx = v->model()->index(nextRow, 0);
+                if (nextIdx.isValid()) {
+                    v->setCurrentIndex(nextIdx);
+                    v->selectionModel()->select(nextIdx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                    v->scrollTo(nextIdx);
+                }
+            }
+            event->accept();
+            return;
+        } else if (event->key() == Qt::Key_K) {
+            QAbstractItemView *v = currentActiveView();
+            if (v && v->model()) {
+                QModelIndex cur = v->currentIndex();
+                int prevRow = cur.isValid() ? qMax(0, cur.row() - 1) : 0;
+                QModelIndex prevIdx = v->model()->index(prevRow, 0);
+                if (prevIdx.isValid()) {
+                    v->setCurrentIndex(prevIdx);
+                    v->selectionModel()->select(prevIdx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                    v->scrollTo(prevIdx);
+                }
+            }
+            event->accept();
+            return;
+        } else if (event->key() == Qt::Key_H) {
+            QDir dir(m_sourceModel->currentDirectory());
+            if (dir.cdUp()) emit openPathRequested(dir.absolutePath());
+            event->accept();
+            return;
+        } else if (event->key() == Qt::Key_L) {
+            QStringList selected = selectedPaths();
+            if (selected.size() == 1 && QFileInfo(selected.first()).isDir()) {
+                emit openPathRequested(selected.first());
+            } else if (!selected.isEmpty()) {
+                AppLauncher::instance().openPaths(selected);
+            }
+            event->accept();
+            return;
+        } else if (event->key() == Qt::Key_Slash) {
+            emit searchRequested();
+            event->accept();
+            return;
+        } else if (event->key() == Qt::Key_G) {
+            QAbstractItemView *v = currentActiveView();
+            if (v && v->model() && v->model()->rowCount() > 0) {
+                int targetRow = isShift ? (v->model()->rowCount() - 1) : 0;
+                QModelIndex idx = v->model()->index(targetRow, 0);
+                if (idx.isValid()) {
+                    v->setCurrentIndex(idx);
+                    v->selectionModel()->select(idx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+                    v->scrollTo(idx);
+                }
+            }
+            event->accept();
+            return;
+        } else if (event->key() == Qt::Key_Period) {
+            m_sourceModel->setShowHidden(!m_sourceModel->showHidden());
+            event->accept();
+            return;
+        }
     }
     QWidget::keyPressEvent(event);
 }

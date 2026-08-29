@@ -10,7 +10,7 @@ AppSettings::AppSettings() {
     QSettings settings;
     m_viewMode = settings.value("view/mode", 0).toInt();
     m_showHidden = settings.value("view/showHidden", false).toBool();
-    m_zoomLevel = qBound(32, settings.value("view/zoomLevel", 48).toInt(), 96);
+    m_zoomLevel = qBound(32, settings.value("view/zoomLevel", 56).toInt(), 128);
     m_sortColumn = settings.value("view/sortColumn", 0).toInt();
     m_sortOrder = static_cast<Qt::SortOrder>(settings.value("view/sortOrder", static_cast<int>(Qt::AscendingOrder)).toInt());
     m_lastDir = settings.value("navigation/lastDirectory", QString()).toString();
@@ -47,6 +47,7 @@ int AppSettings::zoomLevel() const {
 }
 
 void AppSettings::setZoomLevel(int level) {
+    level = qBound(32, level, 128);
     if (m_zoomLevel != level) {
         m_zoomLevel = level;
         QSettings settings;
@@ -179,4 +180,31 @@ bool AppSettings::isInspectorVisible() const {
 void AppSettings::setInspectorVisible(bool visible) {
     QSettings settings;
     settings.setValue("window/inspector", visible);
+}
+
+bool AppSettings::isTranslucencyEnabled() const {
+    QSettings settings;
+    return settings.value("appearance/translucency", true).toBool();
+}
+
+void AppSettings::setTranslucencyEnabled(bool enabled) {
+    QSettings settings;
+    if (settings.value("appearance/translucency", true).toBool() != enabled) {
+        settings.setValue("appearance/translucency", enabled);
+        emit translucencyChanged(enabled);
+    }
+}
+
+double AppSettings::windowOpacity() const {
+    QSettings settings;
+    return settings.value("appearance/windowOpacity", 0.90).toDouble();
+}
+
+void AppSettings::setWindowOpacity(double opacity) {
+    QSettings settings;
+    opacity = qBound(0.40, opacity, 1.0);
+    if (qAbs(settings.value("appearance/windowOpacity", 0.90).toDouble() - opacity) > 0.005) {
+        settings.setValue("appearance/windowOpacity", opacity);
+        emit windowOpacityChanged(opacity);
+    }
 }

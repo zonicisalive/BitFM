@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=org.freedesktop.impl.portal.desktop.bitfm
-Exec=bitfm --portal
+Exec=/usr/bin/env bitfm --portal
 SystemdService=xdg-desktop-portal-bitfm.service

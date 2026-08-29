@@ -39,6 +39,7 @@ signals:
     void fileSelectionChanged(const QStringList &selectedPaths);
     void splitViewRequested();
     void zoomChanged(int newSize);
+    void quickPreviewRequested();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

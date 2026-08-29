@@ -528,12 +528,55 @@ bool FileOperations::isArchive(const QString &filePath) {
             fileName.endsWith(".tar.gz") || fileName.endsWith(".tar.xz") || fileName.endsWith(".tar.bz2"));
 }
 
+static int countFilesInPaths(const QStringList &paths) {
+    int count = 0;
+    for (const QString &p : paths) {
+        QFileInfo fi(p);
+        if (fi.isDir()) {
+            QDirIterator it(p, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                it.next();
+                count++;
+            }
+            count++; // directory entry itself
+        } else {
+            count++;
+        }
+    }
+    return qMax(1, count);
+}
+
+static int countFilesInArchive(const QString &archivePath) {
+    QString ext = QFileInfo(archivePath).suffix().toLower();
+    QProcess proc;
+    int count = 0;
+    if (ext == "zip") {
+        proc.start("zipinfo", QStringList() << "-1" << archivePath);
+        if (proc.waitForFinished(1200)) {
+            QString out = QString::fromUtf8(proc.readAllStandardOutput());
+            count = out.split('\n', Qt::SkipEmptyParts).size();
+        }
+    } else {
+        proc.start("tar", QStringList() << "-tf" << archivePath);
+        if (proc.waitForFinished(1200)) {
+            QString out = QString::fromUtf8(proc.readAllStandardOutput());
+            count = out.split('\n', Qt::SkipEmptyParts).size();
+        }
+    }
+    return qMax(1, count);
+}
+
 bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString &destinationArchive, const QString &format, QWidget *parentWidget) {
     if (sourcePaths.isEmpty() || destinationArchive.isEmpty()) return false;
 
-    emit operationStarted(tr("Compressing archive..."));
-    QProgressDialog progress(tr("Compressing to %1...").arg(QFileInfo(destinationArchive).fileName()), tr("Cancel"), 0, 0, parentWidget);
-    progress.setWindowModality(Qt::WindowModal);
+    QString archiveName = QFileInfo(destinationArchive).fileName();
+    emit operationStarted(tr("Compressing %1...").arg(archiveName));
+
+    int totalFiles = countFilesInPaths(sourcePaths);
+    int processedCount = 0;
+
+    FileOperationProgressDialog progress(tr("Compressing to %1").arg(archiveName), parentWidget);
+    progress.setStatus(tr("Starting compression..."), 0, totalFiles);
     progress.show();
     QApplication::processEvents();
 
@@ -542,6 +585,7 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
 
     QProcess proc;
     proc.setWorkingDirectory(workDir);
+    proc.setProcessChannelMode(QProcess::MergedChannels);
 
     QStringList args;
     QString cmd;
@@ -549,34 +593,62 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
     QString destExt = QFileInfo(destinationArchive).suffix().toLower();
     if (destExt == "zip" || format == "zip") {
         cmd = "zip";
-        args << "-r" << destinationArchive;
+        args << "-r" << "-v" << destinationArchive;
         for (const QString &p : sourcePaths) {
             args << QFileInfo(p).fileName();
         }
     } else if (destExt == "xz" || format == "tar.xz") {
         cmd = "tar";
-        args << "-cJf" << destinationArchive;
+        args << "-cvJf" << destinationArchive;
         for (const QString &p : sourcePaths) {
             args << QFileInfo(p).fileName();
         }
     } else {
         cmd = "tar";
-        args << "-czf" << destinationArchive;
+        args << "-cvzf" << destinationArchive;
         for (const QString &p : sourcePaths) {
             args << QFileInfo(p).fileName();
         }
     }
 
+    QObject::connect(&progress, &FileOperationProgressDialog::cancelRequested, &proc, &QProcess::kill);
+
     proc.start(cmd, args);
-    while (!proc.waitForFinished(200)) {
+
+    while (proc.state() == QProcess::Running) {
+        if (proc.waitForReadyRead(50)) {
+            while (proc.canReadLine()) {
+                QString line = QString::fromUtf8(proc.readLine()).trimmed();
+                if (!line.isEmpty()) {
+                    processedCount++;
+                    QString item = line;
+                    if (item.startsWith("adding: ")) item = item.mid(8);
+                    else if (item.startsWith("updating: ")) item = item.mid(10);
+                    int paren = item.indexOf('(');
+                    if (paren != -1) item = item.left(paren).trimmed();
+                    progress.setStatus(item, qMin(processedCount, totalFiles), totalFiles);
+                }
+            }
+        }
         QApplication::processEvents();
         if (progress.wasCanceled()) {
             proc.kill();
+            proc.waitForFinished(500);
             QFile::remove(destinationArchive);
             emit operationFinished(false, tr("Compression canceled"));
             return false;
         }
     }
+
+    while (proc.canReadLine()) {
+        QString line = QString::fromUtf8(proc.readLine()).trimmed();
+        if (!line.isEmpty()) {
+            processedCount++;
+            progress.setStatus(line, qMin(processedCount, totalFiles), totalFiles);
+        }
+    }
+    progress.setStatus(tr("Completed"), totalFiles, totalFiles);
+    QApplication::processEvents();
 
     bool success = (proc.exitCode() == 0 && QFile::exists(destinationArchive));
     emit operationFinished(success, success ? tr("Archive created successfully") : tr("Failed to create archive"));
@@ -586,19 +658,24 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
 bool FileOperations::extractArchive(const QString &archivePath, const QString &destinationDir, QWidget *parentWidget) {
     if (!QFile::exists(archivePath) || destinationDir.isEmpty()) return false;
 
+    QString archiveName = QFileInfo(archivePath).fileName();
     QDir().mkpath(destinationDir);
 
-    emit operationStarted(tr("Extracting archive..."));
-    QProgressDialog progress(tr("Extracting %1...").arg(QFileInfo(archivePath).fileName()), tr("Cancel"), 0, 0, parentWidget);
-    progress.setWindowModality(Qt::WindowModal);
+    emit operationStarted(tr("Extracting %1...").arg(archiveName));
+
+    int totalFiles = countFilesInArchive(archivePath);
+    int processedCount = 0;
+
+    FileOperationProgressDialog progress(tr("Extracting %1").arg(archiveName), parentWidget);
+    progress.setStatus(tr("Extracting files..."), 0, totalFiles);
     progress.show();
     QApplication::processEvents();
 
     QProcess proc;
     proc.setWorkingDirectory(destinationDir);
+    proc.setProcessChannelMode(QProcess::MergedChannels);
 
     QString ext = QFileInfo(archivePath).suffix().toLower();
-
     QString cmd;
     QStringList args;
 
@@ -607,18 +684,44 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
         args << "-o" << archivePath << "-d" << destinationDir;
     } else {
         cmd = "tar";
-        args << "-xf" << archivePath << "-C" << destinationDir;
+        args << "-xvf" << archivePath << "-C" << destinationDir;
     }
 
+    QObject::connect(&progress, &FileOperationProgressDialog::cancelRequested, &proc, &QProcess::kill);
+
     proc.start(cmd, args);
-    while (!proc.waitForFinished(200)) {
+
+    while (proc.state() == QProcess::Running) {
+        if (proc.waitForReadyRead(50)) {
+            while (proc.canReadLine()) {
+                QString line = QString::fromUtf8(proc.readLine()).trimmed();
+                if (!line.isEmpty()) {
+                    processedCount++;
+                    QString item = line;
+                    if (item.startsWith("inflating: ")) item = item.mid(11);
+                    else if (item.startsWith("extracting: ")) item = item.mid(12);
+                    progress.setStatus(item, qMin(processedCount, totalFiles), totalFiles);
+                }
+            }
+        }
         QApplication::processEvents();
         if (progress.wasCanceled()) {
             proc.kill();
+            proc.waitForFinished(500);
             emit operationFinished(false, tr("Extraction canceled"));
             return false;
         }
     }
+
+    while (proc.canReadLine()) {
+        QString line = QString::fromUtf8(proc.readLine()).trimmed();
+        if (!line.isEmpty()) {
+            processedCount++;
+            progress.setStatus(line, qMin(processedCount, totalFiles), totalFiles);
+        }
+    }
+    progress.setStatus(tr("Completed"), totalFiles, totalFiles);
+    QApplication::processEvents();
 
     bool success = (proc.exitCode() == 0);
     emit operationFinished(success, success ? tr("Extracted archive successfully") : tr("Failed to extract archive"));

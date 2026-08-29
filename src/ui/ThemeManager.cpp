@@ -1,4 +1,5 @@
 #include "ThemeManager.h"
+#include "AppSettings.h"
 #include <QFont>
 #include <QFontDatabase>
 #include <QPalette>
@@ -39,6 +40,15 @@ ThemeManager::ThemeManager() {
     QString saved = settings.value("appearance/theme", "Modern GNOME (Adwaita Dark)").toString();
     setThemeByName(saved);
     settings.setValue("appearance/theme_mode", savedMode);
+
+    connect(&AppSettings::instance(), &AppSettings::translucencyChanged, this, [this](bool) {
+        if (isExternalSyncEnabled()) checkAndReloadExternalTheme();
+        else setTheme(m_currentTheme);
+    });
+    connect(&AppSettings::instance(), &AppSettings::windowOpacityChanged, this, [this](double) {
+        if (isExternalSyncEnabled()) checkAndReloadExternalTheme();
+        else setTheme(m_currentTheme);
+    });
 }
 
 QStringList ThemeManager::availableThemes() {
@@ -273,12 +283,32 @@ ThemeColors ThemeManager::getThemeColors(AppTheme theme) {
     return c;
 }
 
+QString ThemeManager::hexToRgba(const QString &hexOrRgb, double alpha) {
+    if (hexOrRgb.startsWith("rgba", Qt::CaseInsensitive)) {
+        return hexOrRgb;
+    }
+    QColor c(hexOrRgb);
+    if (!c.isValid()) return hexOrRgb;
+    return QString("rgba(%1, %2, %3, %4)").arg(c.red()).arg(c.green()).arg(c.blue()).arg(alpha, 0, 'f', 2);
+}
+
 void ThemeManager::updateStaticColors(const ThemeColors &c) {
-    BG_BASE       = c.bgBase;
-    BG_SURFACE     = c.bgSurface;
-    BG_OVERLAY     = c.bgOverlay;
-    BG_HOVER       = c.bgHover;
-    BG_SELECTION   = c.bgSelection;
+    bool translucent = AppSettings::instance().isTranslucencyEnabled();
+    double opacity = AppSettings::instance().windowOpacity();
+
+    if (translucent) {
+        BG_BASE       = hexToRgba(c.bgBase, opacity);
+        BG_SURFACE     = hexToRgba(c.bgSurface, qBound(0.2, opacity * 1.06, 1.0));
+        BG_OVERLAY     = hexToRgba(c.bgOverlay, qBound(0.2, opacity * 1.12, 1.0));
+        BG_HOVER       = hexToRgba(c.bgHover, qBound(0.2, opacity * 1.18, 1.0));
+        BG_SELECTION   = hexToRgba(c.bgSelection, 0.85);
+    } else {
+        BG_BASE       = c.bgBase;
+        BG_SURFACE     = c.bgSurface;
+        BG_OVERLAY     = c.bgOverlay;
+        BG_HOVER       = c.bgHover;
+        BG_SELECTION   = c.bgSelection;
+    }
     ACCENT         = c.accent;
     ACCENT_PRESS   = c.accentPress;
     TEXT_PRIMARY   = c.textPrimary;
@@ -291,7 +321,20 @@ void ThemeManager::updateStaticColors(const ThemeColors &c) {
     DANGER         = c.danger;
 }
 
-QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
+QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, bool translucent) {
+    QString bgBase = c.bgBase;
+    QString bgSurface = c.bgSurface;
+    QString bgOverlay = c.bgOverlay;
+    QString bgHover = c.bgHover;
+    QString bgSelection = c.bgSelection;
+
+    if (translucent) {
+        bgBase = hexToRgba(c.bgBase, opacity);
+        bgSurface = hexToRgba(c.bgSurface, qBound(0.2, opacity * 1.06, 1.0));
+        bgOverlay = hexToRgba(c.bgOverlay, qBound(0.2, opacity * 1.12, 1.0));
+        bgHover = hexToRgba(c.bgHover, qBound(0.2, opacity * 1.18, 1.0));
+        bgSelection = hexToRgba(c.bgSelection, 0.85);
+    }
     return QString(
         /* ─── Base Window ─── */
         "QMainWindow, QWidget {"
@@ -690,17 +733,17 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c) {
         "  font-size: 12px;"
         "}"
     )
-    .arg(c.bgBase)           // %1
+    .arg(bgBase)             // %1
     .arg(c.textPrimary)      // %2
     .arg(c.border)           // %3
     .arg(c.accent)           // %4
-    .arg(c.bgSurface)        // %5
-    .arg(c.bgHover)          // %6
-    .arg(c.bgSelection)      // %7
+    .arg(bgSurface)          // %5
+    .arg(bgHover)            // %6
+    .arg(bgSelection)        // %7
     .arg(c.accentPress)      // %8
-    .arg(c.bgSelection)      // %9
-    .arg(c.bgOverlay)        // %10
-    .arg(c.bgOverlay)        // %11
+    .arg(bgSelection)        // %9
+    .arg(bgOverlay)          // %10
+    .arg(bgOverlay)          // %11
     .arg(c.textSecondary);   // %12
 }
 
@@ -783,8 +826,11 @@ void ThemeManager::setTheme(AppTheme theme) {
         pal.setColor(QPalette::Dark,            QColor(c.bgBase));
         pal.setColor(QPalette::Shadow,          QColor(c.isDark ? "#080808" : "#e0e0e0"));
 
+        bool translucent = AppSettings::instance().isTranslucencyEnabled();
+        double opacity = AppSettings::instance().windowOpacity();
+
         qApp->setPalette(pal);
-        qApp->setStyleSheet(getModernStyleSheet(c));
+        qApp->setStyleSheet(getModernStyleSheet(c, opacity, translucent));
     }
 
     emit themeChanged(m_currentTheme);
@@ -881,7 +927,10 @@ void ThemeManager::applyCustomTheme(const ThemeColors &c) {
         pal.setColor(QPalette::Dark,            QColor(c.bgBase));
         pal.setColor(QPalette::Shadow,          QColor(c.isDark ? "#080808" : "#e0e0e0"));
 
-        QString baseCss = getModernStyleSheet(c);
+        bool translucent = AppSettings::instance().isTranslucencyEnabled();
+        double opacity = AppSettings::instance().windowOpacity();
+
+        QString baseCss = getModernStyleSheet(c, opacity, translucent);
 
         QString cssPath = externalStyleCssPath();
         if (QFileInfo::exists(cssPath)) {
