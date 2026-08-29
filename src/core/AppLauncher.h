@@ -28,9 +28,14 @@ public:
     static AppLauncher& instance();
 
     QList<DesktopApp> getAllApps();
+    DesktopApp getDefaultApp(const QString &filePath);
+    DesktopApp getDefaultAppForMime(const QString &mimeType);
+    DesktopApp getAppByDesktopFile(const QString &desktopFile);
     QList<DesktopApp> getRecommendedApps(const QString &filePath, int maxCount = 6);
     QList<DesktopApp> getRecommendedAppsForMime(const QString &mimeType, int maxCount = 6);
 
+    bool openPath(const QString &filePath);
+    bool openPaths(const QStringList &filePaths);
     bool launchApp(const DesktopApp &app, const QStringList &filePaths);
     bool launchCommand(const QString &command, const QStringList &filePaths);
     bool setDefaultApp(const QString &desktopFile, const QString &mimeType);

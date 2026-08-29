@@ -153,7 +153,7 @@ public:
             if (align == 0) align = Qt::AlignLeft | Qt::AlignVCenter;
 
             QRect textRect = rect.adjusted(10, 0, -10, 0);
-            painter->setPen(isSelected ? QColor("#ffffff") : QColor(ThemeManager::TEXT_SECONDARY));
+            painter->setPen(isSelected ? QColor("#9da8a2") : QColor("#808a85"));
             painter->drawText(textRect, align, text);
         }
 
@@ -292,7 +292,7 @@ public:
         int line2Top = nameRect.bottom() + 2;
         QFont subFont = painter->font(); subFont.setPointSize(8);
         painter->setFont(subFont);
-        painter->setPen(isSelected ? QColor("#e0e0e0") : QColor(ThemeManager::TEXT_SECONDARY));
+        painter->setPen(isSelected ? QColor("#9da8a2") : QColor("#808a85"));
         bool isDir = index.data(FileSystemModel::IsDirectoryRole).toBool();
         QString typeStr = isSymlink ? (isDir ? QObject::tr("Link to Folder") : QObject::tr("Link to File"))
                         : (isDir ? QObject::tr("Folder")
@@ -307,7 +307,7 @@ public:
         int line3Top = line2Top + subH + 1;
         QFont dateFont = painter->font(); dateFont.setPointSize(7);
         painter->setFont(dateFont);
-        painter->setPen(isSelected ? QColor("#cccccc") : QColor(ThemeManager::TEXT_MUTED));
+        painter->setPen(isSelected ? QColor("#8a958f") : QColor("#727c77"));
         QDateTime dt = index.data(FileSystemModel::LastModifiedRole).toDateTime();
         QString relDate = formatRelativeDate(dt);
         if (!relDate.isEmpty()) {
@@ -943,7 +943,7 @@ void FileViewWidget::onItemDoubleClicked(const QModelIndex &proxyIndex) {
     if (item->isDirectory) {
         emit openPathRequested(item->absolutePath);
     } else {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(item->absolutePath));
+        AppLauncher::instance().openPath(item->absolutePath);
     }
 }
 
@@ -979,16 +979,24 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
                     emit openPathRequested(path);
                 });
             } else {
-                auto *openAct = menu.addAction(QIcon::fromTheme("document-open"), tr("Open"));
-                connect(openAct, &QAction::triggered, this, [this, path = selected.first()]() {
-                    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+                DesktopApp defApp = AppLauncher::instance().getDefaultApp(selected.first());
+                QString openLabel = defApp.name.isEmpty() ? tr("Open") : tr("Open with %1").arg(defApp.name);
+                QIcon openIcon = defApp.name.isEmpty() ? QIcon::fromTheme("document-open") : defApp.icon();
+
+                auto *openAct = menu.addAction(openIcon, openLabel);
+                connect(openAct, &QAction::triggered, this, [path = selected.first()]() {
+                    AppLauncher::instance().openPath(path);
                 });
 
                 // "Open With..." Submenu
                 QMenu *openWithMenu = menu.addMenu(QIcon::fromTheme("system-run", QIcon::fromTheme("application-x-executable")), tr("Open With"));
-                QList<DesktopApp> recApps = AppLauncher::instance().getRecommendedApps(selected.first(), 4);
-                for (const DesktopApp &app : recApps) {
-                    auto *act = openWithMenu->addAction(app.icon(), app.name);
+                QList<DesktopApp> recApps = AppLauncher::instance().getRecommendedApps(selected.first(), 6);
+                for (int i = 0; i < recApps.size(); ++i) {
+                    const DesktopApp &app = recApps[i];
+                    QString label = (i == 0 && !defApp.desktopFile.isEmpty() && app.desktopFile == defApp.desktopFile)
+                        ? tr("%1 (Default)").arg(app.name)
+                        : app.name;
+                    auto *act = openWithMenu->addAction(app.icon(), label);
                     connect(act, &QAction::triggered, this, [app, selected]() {
                         AppLauncher::instance().launchApp(app, selected);
                     });
@@ -1004,6 +1012,11 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
             }
         } else {
             // Multiple files selected
+            auto *openAct = menu.addAction(QIcon::fromTheme("document-open"), tr("Open (%1 Items)").arg(selected.size()));
+            connect(openAct, &QAction::triggered, this, [selected]() {
+                AppLauncher::instance().openPaths(selected);
+            });
+
             auto *openWithAct = menu.addAction(QIcon::fromTheme("system-run", QIcon::fromTheme("application-x-executable")), tr("Open With…"));
             connect(openWithAct, &QAction::triggered, this, [this, selected]() {
                 OpenWithDialog dlg(selected, this);
@@ -1538,6 +1551,14 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                 if (ke->modifiers() & Qt::ShiftModifier) onBatchRenameAction();
                 else onRenameAction();
                 return true;
+            } else if (ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter) {
+                QStringList selected = selectedPaths();
+                if (selected.size() == 1 && QFileInfo(selected.first()).isDir()) {
+                    emit openPathRequested(selected.first());
+                } else if (!selected.isEmpty()) {
+                    AppLauncher::instance().openPaths(selected);
+                }
+                return true;
             }
         }
     }
@@ -1585,6 +1606,15 @@ void FileViewWidget::keyPressEvent(QKeyEvent *event) {
     } else if (event->key() == Qt::Key_F2) {
         if (isShift) onBatchRenameAction();
         else onRenameAction();
+        event->accept();
+        return;
+    } else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        QStringList selected = selectedPaths();
+        if (selected.size() == 1 && QFileInfo(selected.first()).isDir()) {
+            emit openPathRequested(selected.first());
+        } else if (!selected.isEmpty()) {
+            AppLauncher::instance().openPaths(selected);
+        }
         event->accept();
         return;
     }

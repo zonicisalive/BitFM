@@ -16,6 +16,7 @@
 #include <QPainter>
 #include <QPolygon>
 #include <QProcess>
+#include "AppLauncher.h"
 
 static QPixmap drawPlayBadge(const QPixmap &src) {
     if (src.isNull()) return src;
@@ -160,7 +161,7 @@ void FileInspectorWidget::setupUi() {
     ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_HOVER));
     connect(m_openBtn, &QPushButton::clicked, this, [this]() {
         if (!m_currentFilePath.isEmpty()) {
-            QDesktopServices::openUrl(QUrl::fromLocalFile(m_currentFilePath));
+            AppLauncher::instance().openPath(m_currentFilePath);
         }
     });
     actionsLayout->addWidget(m_openBtn);

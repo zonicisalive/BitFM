@@ -11,6 +11,7 @@
 #include <QProcess>
 #include <QPainter>
 #include <QPainterPath>
+#include "AppLauncher.h"
 
 QuickPreviewDialog::QuickPreviewDialog(QWidget *parent)
     : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint)
@@ -78,7 +79,7 @@ void QuickPreviewDialog::setupUi() {
      .arg(ThemeManager::BG_HOVER));
     connect(m_openBtn, &QPushButton::clicked, this, [this]() {
         if (!m_currentFilePath.isEmpty()) {
-            QDesktopServices::openUrl(QUrl::fromLocalFile(m_currentFilePath));
+            AppLauncher::instance().openPath(m_currentFilePath);
             accept();
         }
     });
@@ -365,7 +366,7 @@ void QuickPreviewDialog::keyPressEvent(QKeyEvent *event) {
         accept();
     } else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
         if (!m_currentFilePath.isEmpty()) {
-            QDesktopServices::openUrl(QUrl::fromLocalFile(m_currentFilePath));
+            AppLauncher::instance().openPath(m_currentFilePath);
             accept();
         }
     } else {

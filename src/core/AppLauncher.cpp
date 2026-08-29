@@ -102,9 +102,72 @@ void AppLauncher::loadApps() {
     m_loaded = true;
 }
 
+#include <QStandardPaths>
+#include <QDesktopServices>
+
 QList<DesktopApp> AppLauncher::getAllApps() {
     if (!m_loaded) loadApps();
     return m_cachedApps;
+}
+
+DesktopApp AppLauncher::getAppByDesktopFile(const QString &desktopFile) {
+    if (!m_loaded) loadApps();
+    QString target = desktopFile;
+    if (target.endsWith(';')) target.chop(1);
+    if (!target.endsWith(".desktop")) target += ".desktop";
+
+    for (const DesktopApp &app : m_cachedApps) {
+        if (app.desktopFile.compare(target, Qt::CaseInsensitive) == 0) {
+            return app;
+        }
+    }
+    return DesktopApp();
+}
+
+DesktopApp AppLauncher::getDefaultAppForMime(const QString &mimeType) {
+    if (mimeType.isEmpty()) return DesktopApp();
+    if (!m_loaded) loadApps();
+
+    // 1. Check ~/.config/mimeapps.list [Default Applications] and [Added Associations]
+    QString userMimeApps = QDir::homePath() + "/.config/mimeapps.list";
+    if (QFile::exists(userMimeApps)) {
+        QSettings ini(userMimeApps, QSettings::IniFormat);
+        QString val = ini.value("Default Applications/" + mimeType).toString();
+        if (val.isEmpty()) {
+            val = ini.value("Added Associations/" + mimeType).toString();
+        }
+        if (!val.isEmpty()) {
+            QString first = val.split(';', Qt::SkipEmptyParts).value(0).trimmed();
+            DesktopApp app = getAppByDesktopFile(first);
+            if (!app.name.isEmpty()) return app;
+        }
+    }
+
+    // 2. Try xdg-mime query default
+    QProcess proc;
+    proc.start("xdg-mime", {"query", "default", mimeType});
+    if (proc.waitForFinished(1000) && proc.exitCode() == 0) {
+        QString defDesktop = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        if (!defDesktop.isEmpty()) {
+            DesktopApp app = getAppByDesktopFile(defDesktop);
+            if (!app.name.isEmpty()) return app;
+        }
+    }
+
+    // 3. Fallback to first matching app in cached apps
+    for (const DesktopApp &app : m_cachedApps) {
+        if (app.matchesMime(mimeType)) {
+            return app;
+        }
+    }
+
+    return DesktopApp();
+}
+
+DesktopApp AppLauncher::getDefaultApp(const QString &filePath) {
+    if (!m_loaded) loadApps();
+    QMimeType mime = m_mimeDb.mimeTypeForFile(filePath);
+    return getDefaultAppForMime(mime.name());
 }
 
 QList<DesktopApp> AppLauncher::getRecommendedApps(const QString &filePath, int maxCount) {
@@ -116,44 +179,110 @@ QList<DesktopApp> AppLauncher::getRecommendedApps(const QString &filePath, int m
 QList<DesktopApp> AppLauncher::getRecommendedAppsForMime(const QString &mimeType, int maxCount) {
     if (!m_loaded) loadApps();
     QList<DesktopApp> recommended;
-    QSet<QString> seenNames;
+    QSet<QString> seenFiles;
 
+    // 1. Put Default App first
+    DesktopApp defApp = getDefaultAppForMime(mimeType);
+    if (!defApp.desktopFile.isEmpty()) {
+        recommended.append(defApp);
+        seenFiles.insert(defApp.desktopFile);
+    }
+
+    // 2. Add other matching apps
     for (const DesktopApp &app : m_cachedApps) {
+        if (seenFiles.contains(app.desktopFile)) continue;
         if (app.matchesMime(mimeType)) {
-            if (!seenNames.contains(app.name)) {
-                seenNames.insert(app.name);
-                recommended.append(app);
-                if (maxCount > 0 && recommended.size() >= maxCount) break;
-            }
+            seenFiles.insert(app.desktopFile);
+            recommended.append(app);
+            if (maxCount > 0 && recommended.size() >= maxCount) break;
         }
     }
     return recommended;
 }
 
+bool AppLauncher::openPath(const QString &filePath) {
+    return openPaths(QStringList{ filePath });
+}
+
+bool AppLauncher::openPaths(const QStringList &filePaths) {
+    if (filePaths.isEmpty()) return false;
+
+    QString first = filePaths.first();
+    QFileInfo fi(first);
+
+    // If it's a .desktop file, launch the app directly
+    if (fi.suffix().compare("desktop", Qt::CaseInsensitive) == 0) {
+        DesktopApp app = getAppByDesktopFile(fi.fileName());
+        if (!app.exec.isEmpty()) return launchApp(app, {});
+    }
+
+    // If it's an executable binary or script (.sh / .AppImage / ELF)
+    if (fi.isExecutable() && !fi.isDir()) {
+        if (fi.suffix().compare("sh", Qt::CaseInsensitive) == 0 ||
+            fi.suffix().compare("AppImage", Qt::CaseInsensitive) == 0 ||
+            fi.suffix().isEmpty()) {
+            return QProcess::startDetached(fi.absoluteFilePath(), {});
+        }
+    }
+
+    // Resolve default application for the file
+    DesktopApp defApp = getDefaultApp(first);
+    if (!defApp.exec.isEmpty()) {
+        if (launchApp(defApp, filePaths)) return true;
+    }
+
+    // Fallback 1: gio open
+    if (QProcess::startDetached("gio", QStringList{ "open" } + filePaths)) return true;
+
+    // Fallback 2: xdg-open
+    if (QProcess::startDetached("xdg-open", { first })) return true;
+
+    // Fallback 3: QDesktopServices
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(first));
+}
+
 bool AppLauncher::launchApp(const DesktopApp &app, const QStringList &filePaths) {
-    if (app.exec.isEmpty()) return false;
+    if (app.exec.isEmpty() && app.desktopFile.isEmpty()) return false;
+
+    // Preferred method: gtk-launch if available and we have a valid desktop file ID
+    static const bool hasGtkLaunch = !QStandardPaths::findExecutable("gtk-launch").isEmpty();
+    if (hasGtkLaunch && !app.desktopFile.isEmpty()) {
+        QString desktopId = app.desktopFile;
+        if (desktopId.endsWith(".desktop")) desktopId.chop(8);
+        QStringList args = { desktopId };
+        args.append(filePaths);
+        if (QProcess::startDetached("gtk-launch", args)) {
+            return true;
+        }
+    }
 
     QString cmd = app.exec;
-    // Remove desktop-entry field codes: %i, %c, %k, %d, %D, %n, %N, %v, %m
-    cmd.remove(QRegularExpression("%[ickdDnmv]"));
-
-    // Check for %f, %F, %u, %U
-    if (cmd.contains("%f") || cmd.contains("%F") || cmd.contains("%u") || cmd.contains("%U")) {
-        QString quotedFiles;
+    // Strip field codes
+    if (filePaths.isEmpty()) {
+        cmd.remove(QRegularExpression("%[fFuUickdDnmv]"));
+    } else {
+        QString quotedPaths;
+        QString quotedUris;
         for (const QString &p : filePaths) {
-            if (cmd.contains("%u") || cmd.contains("%U")) {
-                quotedFiles += "\"" + QUrl::fromLocalFile(p).toString() + "\" ";
-            } else {
-                quotedFiles += "\"" + p + "\" ";
-            }
+            QString escaped = p;
+            escaped.replace("\"", "\\\"");
+            quotedPaths += "\"" + escaped + "\" ";
+            quotedUris += "\"" + QUrl::fromLocalFile(p).toString() + "\" ";
         }
-        cmd.replace("%f", quotedFiles.trimmed());
-        cmd.replace("%F", quotedFiles.trimmed());
-        cmd.replace("%u", quotedFiles.trimmed());
-        cmd.replace("%U", quotedFiles.trimmed());
-    } else if (!filePaths.isEmpty()) {
-        for (const QString &p : filePaths) {
-            cmd += " \"" + p + "\"";
+        quotedPaths = quotedPaths.trimmed();
+        quotedUris = quotedUris.trimmed();
+
+        if (cmd.contains("%u") || cmd.contains("%U")) {
+            cmd.replace("%u", quotedUris);
+            cmd.replace("%U", quotedUris);
+            cmd.remove(QRegularExpression("%[fFickdDnmv]"));
+        } else if (cmd.contains("%f") || cmd.contains("%F")) {
+            cmd.replace("%f", quotedPaths);
+            cmd.replace("%F", quotedPaths);
+            cmd.remove(QRegularExpression("%[uUickdDnmv]"));
+        } else {
+            cmd.remove(QRegularExpression("%[ickdDnmv]"));
+            cmd += " " + quotedPaths;
         }
     }
 
@@ -165,7 +294,9 @@ bool AppLauncher::launchCommand(const QString &command, const QStringList &fileP
     QString cmd = command;
     if (!filePaths.isEmpty()) {
         for (const QString &p : filePaths) {
-            cmd += " \"" + p + "\"";
+            QString escaped = p;
+            escaped.replace("\"", "\\\"");
+            cmd += " \"" + escaped + "\"";
         }
     }
     return QProcess::startDetached("/bin/sh", {"-c", cmd.trimmed()});
@@ -173,5 +304,18 @@ bool AppLauncher::launchCommand(const QString &command, const QStringList &fileP
 
 bool AppLauncher::setDefaultApp(const QString &desktopFile, const QString &mimeType) {
     if (desktopFile.isEmpty() || mimeType.isEmpty()) return false;
-    return QProcess::execute("xdg-mime", {"default", desktopFile, mimeType}) == 0;
+    
+    QString df = desktopFile;
+    if (!df.endsWith(".desktop")) df += ".desktop";
+
+    // 1. Run xdg-mime
+    QProcess::execute("xdg-mime", {"default", df, mimeType});
+
+    // 2. Directly write to ~/.config/mimeapps.list
+    QString configPath = QDir::homePath() + "/.config/mimeapps.list";
+    QSettings mimeApps(configPath, QSettings::IniFormat);
+    mimeApps.setValue("Default Applications/" + mimeType, df);
+    mimeApps.setValue("Added Associations/" + mimeType, df + ";");
+    mimeApps.sync();
+    return true;
 }
