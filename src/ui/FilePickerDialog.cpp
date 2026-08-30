@@ -373,14 +373,29 @@ void FilePickerDialog::onFileSelectionChanged(const QStringList &selectedPaths) 
         if (m_sidebar) m_sidebar->highlightPath(m_fileModel->currentDirectory());
         return;
     }
-    QFileInfo fi(selectedPaths.first());
+
     if (m_mode == PickerMode::ChooseFolder) {
+        QFileInfo fi(selectedPaths.first());
         if (fi.isDir()) m_fileNameEdit->setText(fi.fileName());
         else m_fileNameEdit->clear();
     } else {
-        if (!fi.isDir()) m_fileNameEdit->setText(fi.fileName());
+        if (selectedPaths.size() == 1) {
+            QFileInfo fi(selectedPaths.first());
+            if (!fi.isDir()) m_fileNameEdit->setText(fi.fileName());
+        } else {
+            QStringList quotedNames;
+            for (const QString &p : selectedPaths) {
+                QFileInfo fi(p);
+                if (!fi.isDir()) {
+                    quotedNames.append(QString("\"%1\"").arg(fi.fileName()));
+                }
+            }
+            m_fileNameEdit->setText(quotedNames.join(" "));
+        }
     }
-    if (m_sidebar) m_sidebar->highlightPath(selectedPaths.first());
+    if (m_sidebar && !selectedPaths.isEmpty()) {
+        m_sidebar->highlightPath(selectedPaths.first());
+    }
 }
 
 void FilePickerDialog::onSearchChanged(const QString &pattern, bool isRegex) {
@@ -428,6 +443,7 @@ void FilePickerDialog::onActionAccept() {
             QFileInfo fi(selected.first());
             if (fi.isDir()) {
                 m_resultPath = fi.absoluteFilePath();
+                m_resultPaths = QStringList{ m_resultPath };
                 accept();
                 return;
             }
@@ -438,10 +454,12 @@ void FilePickerDialog::onActionAccept() {
             QString fullPath = QDir(currentDir).filePath(inputName);
             if (QDir(fullPath).exists()) {
                 m_resultPath = fullPath;
+                m_resultPaths = QStringList{ m_resultPath };
                 accept();
                 return;
             } else if (QDir(inputName).exists()) {
                 m_resultPath = inputName;
+                m_resultPaths = QStringList{ m_resultPath };
                 accept();
                 return;
             }
@@ -449,16 +467,62 @@ void FilePickerDialog::onActionAccept() {
 
         // 3. When nothing is selected (or empty input): select the folder currently viewed!
         m_resultPath = currentDir;
+        m_resultPaths = QStringList{ m_resultPath };
         accept();
         return;
     }
 
-    if (inputName.isEmpty()) {
-        QStringList sel = m_fileView->selectedPaths();
-        if (!sel.isEmpty()) {
-            inputName = QFileInfo(sel.first()).fileName();
-            m_fileNameEdit->setText(inputName);
+    // For OpenFile mode:
+    // 1. Check if multiple files are selected in the view
+    QStringList viewSelected = m_fileView->selectedPaths();
+    QStringList validSelectedFiles;
+    for (const QString &p : viewSelected) {
+        QFileInfo fi(p);
+        if (fi.exists() && !fi.isDir()) {
+            validSelectedFiles.append(fi.absoluteFilePath());
         }
+    }
+
+    if (m_mode == PickerMode::OpenFile && validSelectedFiles.size() > 1) {
+        m_resultPaths = validSelectedFiles;
+        m_resultPath = validSelectedFiles.first();
+        accept();
+        return;
+    }
+
+    // 2. Check if user typed multiple quoted file names in input, e.g. "a.txt" "b.txt"
+    if (m_mode == PickerMode::OpenFile && !inputName.isEmpty()) {
+        QStringList parsedPaths;
+        static const QRegularExpression quoteRegex("\"([^\"]+)\"|([^\\s\"]+)");
+        auto matchIterator = quoteRegex.globalMatch(inputName);
+        while (matchIterator.hasNext()) {
+            auto match = matchIterator.next();
+            QString token = match.captured(1).isEmpty() ? match.captured(2) : match.captured(1);
+            token = token.trimmed();
+            if (!token.isEmpty()) {
+                QString p = token;
+                if (p.startsWith("~")) p.replace(0, 1, UserEnvironment::realUserHome());
+                p = QDir::isAbsolutePath(p) ? p : QDir(currentDir).filePath(p);
+                p = QDir::cleanPath(p);
+                if (QFileInfo::exists(p) && !QFileInfo(p).isDir()) {
+                    parsedPaths.append(p);
+                }
+            }
+        }
+        if (parsedPaths.size() > 1) {
+            m_resultPaths = parsedPaths;
+            m_resultPath = parsedPaths.first();
+            accept();
+            return;
+        }
+    }
+
+    // 3. Single selection from view when input matches or is empty
+    if (validSelectedFiles.size() == 1 && (inputName.isEmpty() || inputName == QFileInfo(validSelectedFiles.first()).fileName())) {
+        m_resultPath = validSelectedFiles.first();
+        m_resultPaths = validSelectedFiles;
+        accept();
+        return;
     }
 
     if (inputName.isEmpty()) {
@@ -498,11 +562,26 @@ void FilePickerDialog::onActionAccept() {
     }
 
     m_resultPath = fullPath;
+    m_resultPaths = QStringList{ fullPath };
     accept();
 }
 
 QString FilePickerDialog::selectedPath() const {
     return m_resultPath;
+}
+
+QStringList FilePickerDialog::selectedPaths() const {
+    if (!m_resultPaths.isEmpty()) return m_resultPaths;
+    if (!m_resultPath.isEmpty()) return QStringList{ m_resultPath };
+    return QStringList();
+}
+
+void FilePickerDialog::setMultipleSelection(bool multiple) {
+    m_multiple = multiple;
+}
+
+bool FilePickerDialog::isMultipleSelection() const {
+    return m_multiple;
 }
 
 void FilePickerDialog::setFilter(const QString &filter) {

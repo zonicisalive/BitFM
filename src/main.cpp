@@ -49,6 +49,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption selectOption("select", QObject::tr("Select the specified files in folder"));
     QCommandLineOption saveOption({"s", "save-file"}, QObject::tr("Open in Save File dialog mode (optionally pass filename/path)"));
     QCommandLineOption openOption({"o", "open-file"}, QObject::tr("Open in Open File dialog mode (optionally pass path)"));
+    QCommandLineOption multipleOption({"m", "multiple"}, QObject::tr("Allow multiple files to be selected in open dialog"));
     QCommandLineOption folderOption({"d", "choose-folder", "select-folder"}, QObject::tr("Open in Choose Folder dialog mode (optionally pass path)"));
     QCommandLineOption filterOption({"f", "filter"}, QObject::tr("File type filter for dialog mode (e.g. *.png)"), QObject::tr("filter"));
     parser.addOption(portalOption);
@@ -56,6 +57,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(selectOption);
     parser.addOption(saveOption);
     parser.addOption(openOption);
+    parser.addOption(multipleOption);
     parser.addOption(folderOption);
     parser.addOption(filterOption);
     parser.addPositionalArgument(QObject::tr("paths"), QObject::tr("Target paths or default filename"), QObject::tr("[paths...]"));
@@ -129,9 +131,13 @@ int main(int argc, char *argv[]) {
         return 1;
     } else if (parser.isSet(openOption)) {
         FilePickerDialog dlg(PickerMode::OpenFile, initialPath);
+        if (parser.isSet(multipleOption)) dlg.setMultipleSelection(true);
         if (!filter.isEmpty()) dlg.setFilter(filter);
         if (dlg.exec() == QDialog::Accepted) {
-            std::cout << qUtf8Printable(dlg.selectedPath()) << std::endl;
+            QStringList chosen = dlg.selectedPaths();
+            for (const QString &p : chosen) {
+                std::cout << qUtf8Printable(p) << std::endl;
+            }
             return 0;
         }
         return 1;

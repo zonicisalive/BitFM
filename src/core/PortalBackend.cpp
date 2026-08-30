@@ -48,18 +48,24 @@ uint PortalFileChooserAdaptor::OpenFile(const QDBusObjectPath &,
                                         QVariantMap &results)
 {
     bool isDirectory = options.value("directory", false).toBool();
+    bool multiple = options.value("multiple", false).toBool();
     QString folder = extractFolder(options);
 
     PickerMode mode = isDirectory ? PickerMode::ChooseFolder : PickerMode::OpenFile;
     FilePickerDialog dlg(mode, folder);
+    dlg.setMultipleSelection(multiple);
     if (!title.isEmpty()) {
         dlg.setWindowTitle(title + " — BitFM");
     }
 
     if (dlg.exec() == QDialog::Accepted) {
-        QString chosen = dlg.selectedPath();
+        QStringList chosen = dlg.selectedPaths();
         if (!chosen.isEmpty()) {
-            results["uris"] = QStringList{ QUrl::fromLocalFile(chosen).toString() };
+            QStringList uris;
+            for (const QString &p : chosen) {
+                uris.append(QUrl::fromLocalFile(p).toString());
+            }
+            results["uris"] = uris;
             return 0; // Success
         }
     }

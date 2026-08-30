@@ -31,6 +31,9 @@ public:
                               const QString &defaultName = QString(), QWidget *parent = nullptr);
 
     QString selectedPath() const;
+    QStringList selectedPaths() const;
+    void setMultipleSelection(bool multiple);
+    bool isMultipleSelection() const;
     void setFilter(const QString &filter);
 
 public slots:
@@ -57,9 +60,11 @@ private:
     void updateNavButtons();
 
     PickerMode m_mode;
+    bool m_multiple = false;
     QString m_initialPath;
     QString m_defaultName;
     QString m_resultPath;
+    QStringList m_resultPaths;
 
     QStack<QString> m_backStack;
     QStack<QString> m_forwardStack;
