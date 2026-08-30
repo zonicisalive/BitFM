@@ -524,8 +524,8 @@ bool FileOperations::renameFile(const QString &oldPath, const QString &newName, 
 bool FileOperations::isArchive(const QString &filePath) {
     QString ext = QFileInfo(filePath).suffix().toLower();
     QString fileName = QFileInfo(filePath).fileName().toLower();
-    return (ext == "zip" || ext == "tar" || ext == "tgz" || ext == "gz" || ext == "xz" || ext == "bz2" || ext == "7z" || ext == "rar" ||
-            fileName.endsWith(".tar.gz") || fileName.endsWith(".tar.xz") || fileName.endsWith(".tar.bz2"));
+    return (ext == "zip" || ext == "tar" || ext == "tgz" || ext == "gz" || ext == "xz" || ext == "bz2" || ext == "7z" || ext == "rar" || ext == "zst" || ext == "txz" || ext == "tbz2" || ext == "iso" ||
+            fileName.endsWith(".tar.gz") || fileName.endsWith(".tar.xz") || fileName.endsWith(".tar.bz2") || fileName.endsWith(".tar.zst"));
 }
 
 static int countFilesInPaths(const QStringList &paths) {
@@ -551,14 +551,24 @@ static int countFilesInArchive(const QString &archivePath) {
     QProcess proc;
     int count = 0;
     if (ext == "zip") {
-        proc.start("zipinfo", QStringList() << "-1" << archivePath);
-        if (proc.waitForFinished(1200)) {
-            QString out = QString::fromUtf8(proc.readAllStandardOutput());
-            count = out.split('\n', Qt::SkipEmptyParts).size();
+        if (!QStandardPaths::findExecutable("zipinfo").isEmpty()) {
+            proc.start("zipinfo", QStringList() << "-1" << archivePath);
+            if (proc.waitForFinished(1500)) {
+                QString out = QString::fromUtf8(proc.readAllStandardOutput());
+                count = out.split('\n', Qt::SkipEmptyParts).size();
+            }
+        }
+    } else if (ext == "7z") {
+        if (!QStandardPaths::findExecutable("7z").isEmpty()) {
+            proc.start("7z", QStringList() << "l" << "-slt" << archivePath);
+            if (proc.waitForFinished(1500)) {
+                QString out = QString::fromUtf8(proc.readAllStandardOutput());
+                count = out.split('\n', Qt::SkipEmptyParts).size();
+            }
         }
     } else {
         proc.start("tar", QStringList() << "-tf" << archivePath);
-        if (proc.waitForFinished(1200)) {
+        if (proc.waitForFinished(1500)) {
             QString out = QString::fromUtf8(proc.readAllStandardOutput());
             count = out.split('\n', Qt::SkipEmptyParts).size();
         }
@@ -592,30 +602,58 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
 
     QString destExt = QFileInfo(destinationArchive).suffix().toLower();
     if (destExt == "zip" || format == "zip") {
-        cmd = "zip";
-        args << "-r" << "-v" << destinationArchive;
-        for (const QString &p : sourcePaths) {
-            args << QFileInfo(p).fileName();
+        if (!QStandardPaths::findExecutable("zip").isEmpty()) {
+            cmd = "zip";
+            args << "-r" << "-v" << destinationArchive;
+            for (const QString &p : sourcePaths) {
+                QString rel = QDir(workDir).relativeFilePath(p);
+                args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
+            }
+        } else if (!QStandardPaths::findExecutable("bsdtar").isEmpty()) {
+            cmd = "bsdtar";
+            args << "-acf" << destinationArchive;
+            for (const QString &p : sourcePaths) {
+                QString rel = QDir(workDir).relativeFilePath(p);
+                args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
+            }
         }
     } else if (destExt == "xz" || format == "tar.xz") {
         cmd = "tar";
         args << "-cvJf" << destinationArchive;
         for (const QString &p : sourcePaths) {
-            args << QFileInfo(p).fileName();
+            QString rel = QDir(workDir).relativeFilePath(p);
+            args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
         }
     } else {
         cmd = "tar";
         args << "-cvzf" << destinationArchive;
         for (const QString &p : sourcePaths) {
-            args << QFileInfo(p).fileName();
+            QString rel = QDir(workDir).relativeFilePath(p);
+            args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
+        }
+    }
+
+    if (cmd.isEmpty()) {
+        cmd = "tar";
+        args << "-cvzf" << destinationArchive;
+        for (const QString &p : sourcePaths) {
+            QString rel = QDir(workDir).relativeFilePath(p);
+            args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
         }
     }
 
     QObject::connect(&progress, &FileOperationProgressDialog::cancelRequested, &proc, &QProcess::kill);
 
     proc.start(cmd, args);
+    if (!proc.waitForStarted(3000)) {
+        emit operationFinished(false, tr("Failed to start %1").arg(cmd));
+        if (parentWidget) {
+            QMessageBox::warning(parentWidget, tr("Compression Error"), tr("Could not launch compression tool '%1'.").arg(cmd));
+        }
+        return false;
+    }
 
-    while (proc.state() == QProcess::Running) {
+    while (proc.state() != QProcess::NotRunning) {
         if (proc.waitForReadyRead(50)) {
             while (proc.canReadLine()) {
                 QString line = QString::fromUtf8(proc.readLine()).trimmed();
@@ -624,6 +662,7 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
                     QString item = line;
                     if (item.startsWith("adding: ")) item = item.mid(8);
                     else if (item.startsWith("updating: ")) item = item.mid(10);
+                    else if (item.startsWith("a ")) item = item.mid(2);
                     int paren = item.indexOf('(');
                     if (paren != -1) item = item.left(paren).trimmed();
                     progress.setStatus(item, qMin(processedCount, totalFiles), totalFiles);
@@ -640,6 +679,8 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
         }
     }
 
+    proc.waitForFinished(3000);
+
     while (proc.canReadLine()) {
         QString line = QString::fromUtf8(proc.readLine()).trimmed();
         if (!line.isEmpty()) {
@@ -650,7 +691,14 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
     progress.setStatus(tr("Completed"), totalFiles, totalFiles);
     QApplication::processEvents();
 
-    bool success = (proc.exitCode() == 0 && QFile::exists(destinationArchive));
+    bool success = (proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0 && QFile::exists(destinationArchive));
+    if (!success && !progress.wasCanceled()) {
+        QString errOut = QString::fromUtf8(proc.readAllStandardError());
+        if (parentWidget) {
+            QMessageBox::warning(parentWidget, tr("Compression Failed"), 
+                tr("Failed to create archive '%1'.\n%2").arg(archiveName, errOut.trimmed()));
+        }
+    }
     emit operationFinished(success, success ? tr("Archive created successfully") : tr("Failed to create archive"));
     return success;
 }
@@ -676,13 +724,47 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
     proc.setProcessChannelMode(QProcess::MergedChannels);
 
     QString ext = QFileInfo(archivePath).suffix().toLower();
+    QString fileName = QFileInfo(archivePath).fileName().toLower();
     QString cmd;
     QStringList args;
 
     if (ext == "zip") {
-        cmd = "unzip";
-        args << "-o" << archivePath << "-d" << destinationDir;
+        if (!QStandardPaths::findExecutable("unzip").isEmpty()) {
+            cmd = "unzip";
+            args << "-o" << archivePath << "-d" << destinationDir;
+        } else if (!QStandardPaths::findExecutable("bsdtar").isEmpty()) {
+            cmd = "bsdtar";
+            args << "-xvf" << archivePath << "-C" << destinationDir;
+        } else if (!QStandardPaths::findExecutable("7z").isEmpty()) {
+            cmd = "7z";
+            args << "x" << "-y" << QString("-o%1").arg(destinationDir) << archivePath;
+        }
+    } else if (ext == "7z") {
+        if (!QStandardPaths::findExecutable("7z").isEmpty()) {
+            cmd = "7z";
+            args << "x" << "-y" << QString("-o%1").arg(destinationDir) << archivePath;
+        } else if (!QStandardPaths::findExecutable("7za").isEmpty()) {
+            cmd = "7za";
+            args << "x" << "-y" << QString("-o%1").arg(destinationDir) << archivePath;
+        } else if (!QStandardPaths::findExecutable("bsdtar").isEmpty()) {
+            cmd = "bsdtar";
+            args << "-xvf" << archivePath << "-C" << destinationDir;
+        }
+    } else if (ext == "rar") {
+        if (!QStandardPaths::findExecutable("unrar").isEmpty()) {
+            cmd = "unrar";
+            args << "x" << "-o+" << archivePath << (destinationDir.endsWith('/') ? destinationDir : destinationDir + "/");
+        } else if (!QStandardPaths::findExecutable("bsdtar").isEmpty()) {
+            cmd = "bsdtar";
+            args << "-xvf" << archivePath << "-C" << destinationDir;
+        }
     } else {
+        // tar, tar.gz, tar.xz, tar.bz2, tar.zst, tgz, txz, tbz2, etc.
+        cmd = "tar";
+        args << "-xvf" << archivePath << "-C" << destinationDir;
+    }
+
+    if (cmd.isEmpty()) {
         cmd = "tar";
         args << "-xvf" << archivePath << "-C" << destinationDir;
     }
@@ -690,8 +772,15 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
     QObject::connect(&progress, &FileOperationProgressDialog::cancelRequested, &proc, &QProcess::kill);
 
     proc.start(cmd, args);
+    if (!proc.waitForStarted(3000)) {
+        emit operationFinished(false, tr("Failed to start extractor (%1)").arg(cmd));
+        if (parentWidget) {
+            QMessageBox::warning(parentWidget, tr("Extraction Error"), tr("Could not launch extraction tool '%1'.").arg(cmd));
+        }
+        return false;
+    }
 
-    while (proc.state() == QProcess::Running) {
+    while (proc.state() != QProcess::NotRunning) {
         if (proc.waitForReadyRead(50)) {
             while (proc.canReadLine()) {
                 QString line = QString::fromUtf8(proc.readLine()).trimmed();
@@ -700,6 +789,7 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
                     QString item = line;
                     if (item.startsWith("inflating: ")) item = item.mid(11);
                     else if (item.startsWith("extracting: ")) item = item.mid(12);
+                    else if (item.startsWith("x ")) item = item.mid(2);
                     progress.setStatus(item, qMin(processedCount, totalFiles), totalFiles);
                 }
             }
@@ -713,6 +803,8 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
         }
     }
 
+    proc.waitForFinished(3000);
+
     while (proc.canReadLine()) {
         QString line = QString::fromUtf8(proc.readLine()).trimmed();
         if (!line.isEmpty()) {
@@ -723,7 +815,14 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
     progress.setStatus(tr("Completed"), totalFiles, totalFiles);
     QApplication::processEvents();
 
-    bool success = (proc.exitCode() == 0);
+    bool success = (proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0);
+    if (!success && !progress.wasCanceled()) {
+        QString errOut = QString::fromUtf8(proc.readAllStandardError());
+        if (parentWidget) {
+            QMessageBox::warning(parentWidget, tr("Extraction Failed"), 
+                tr("Failed to extract '%1'.\n%2").arg(archiveName, errOut.trimmed()));
+        }
+    }
     emit operationFinished(success, success ? tr("Extracted archive successfully") : tr("Failed to extract archive"));
     return success;
 }

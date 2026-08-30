@@ -1137,7 +1137,14 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         });
 
         // Archive Operations
-        if (selected.size() == 1 && FileOperations::isArchive(selected.first())) {
+        bool hasArchive = false;
+        for (const QString &p : selected) {
+            if (FileOperations::isArchive(p)) {
+                hasArchive = true;
+                break;
+            }
+        }
+        if (hasArchive) {
             menu.addSeparator();
             auto *extractHereAct = menu.addAction(QIcon::fromTheme("archive-extract"), tr("Extract Here"));
             auto *extractSubAct  = menu.addAction(QIcon::fromTheme("archive-extract"), tr("Extract to Folder"));
@@ -1353,7 +1360,15 @@ void FileViewWidget::onCompressZipAction() {
     if (selected.isEmpty()) return;
 
     QString base = QFileInfo(selected.first()).baseName();
+    if (selected.size() > 1) {
+        base = QFileInfo(m_sourceModel->currentDirectory()).fileName();
+        if (base.isEmpty() || base == "/") base = "Archive";
+    }
     QString destZip = QDir(m_sourceModel->currentDirectory()).filePath(base + ".zip");
+    int suffix = 1;
+    while (QFile::exists(destZip)) {
+        destZip = QDir(m_sourceModel->currentDirectory()).filePath(QString("%1 (%2).zip").arg(base).arg(suffix++));
+    }
 
     if (m_fileOps.compressFiles(selected, destZip, "zip", this)) {
         m_sourceModel->refresh();
@@ -1365,7 +1380,15 @@ void FileViewWidget::onCompressTarXzAction() {
     if (selected.isEmpty()) return;
 
     QString base = QFileInfo(selected.first()).baseName();
+    if (selected.size() > 1) {
+        base = QFileInfo(m_sourceModel->currentDirectory()).fileName();
+        if (base.isEmpty() || base == "/") base = "Archive";
+    }
     QString destTar = QDir(m_sourceModel->currentDirectory()).filePath(base + ".tar.xz");
+    int suffix = 1;
+    while (QFile::exists(destTar)) {
+        destTar = QDir(m_sourceModel->currentDirectory()).filePath(QString("%1 (%2).tar.xz").arg(base).arg(suffix++));
+    }
 
     if (m_fileOps.compressFiles(selected, destTar, "tar.xz", this)) {
         m_sourceModel->refresh();
@@ -1376,7 +1399,15 @@ void FileViewWidget::onExtractHereAction() {
     QStringList selected = selectedPaths();
     if (selected.isEmpty()) return;
 
-    if (m_fileOps.extractArchive(selected.first(), m_sourceModel->currentDirectory(), this)) {
+    bool anySuccess = false;
+    for (const QString &archive : selected) {
+        if (FileOperations::isArchive(archive)) {
+            if (m_fileOps.extractArchive(archive, m_sourceModel->currentDirectory(), this)) {
+                anySuccess = true;
+            }
+        }
+    }
+    if (anySuccess) {
         m_sourceModel->refresh();
     }
 }
@@ -1385,11 +1416,24 @@ void FileViewWidget::onExtractToFolderAction() {
     QStringList selected = selectedPaths();
     if (selected.isEmpty()) return;
 
-    QString base = QFileInfo(selected.first()).completeBaseName();
-    if (base.endsWith(".tar")) base = base.left(base.length() - 4);
-
-    QString destDir = QDir(m_sourceModel->currentDirectory()).filePath(base);
-    if (m_fileOps.extractArchive(selected.first(), destDir, this)) {
+    bool anySuccess = false;
+    for (const QString &archive : selected) {
+        if (FileOperations::isArchive(archive)) {
+            QString base = QFileInfo(archive).completeBaseName();
+            if (base.endsWith(".tar", Qt::CaseInsensitive)) {
+                base = base.left(base.length() - 4);
+            }
+            QString destDir = QDir(m_sourceModel->currentDirectory()).filePath(base);
+            int suffix = 1;
+            while (QDir(destDir).exists()) {
+                destDir = QDir(m_sourceModel->currentDirectory()).filePath(QString("%1 (%2)").arg(base).arg(suffix++));
+            }
+            if (m_fileOps.extractArchive(archive, destDir, this)) {
+                anySuccess = true;
+            }
+        }
+    }
+    if (anySuccess) {
         m_sourceModel->refresh();
     }
 }
