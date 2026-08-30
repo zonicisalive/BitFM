@@ -1040,7 +1040,7 @@ void MainWindow::openQuickSwitcher() {
             if (fi.isDir()) {
                 navigateActivePane(path);
             } else {
-                navigateActivePane(fi.dir().absolutePath());
+                showItemInFolder(path);
             }
         });
     }

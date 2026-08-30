@@ -90,7 +90,13 @@ void FilePickerDialog::setupUi() {
     m_actToggleViewMode = m_topBar->addAction(QIcon::fromTheme("view-list-icons"), tr("Toggle View Mode"), this, &FilePickerDialog::toggleViewMode);
 
     connect(m_breadcrumbBar, &BreadcrumbBar::pathChanged, this, [this](const QString &path) {
-        navigateTo(path);
+        if (QFileInfo(path).isFile()) {
+            navigateTo(QFileInfo(path).absolutePath());
+            m_fileNameEdit->setText(QFileInfo(path).fileName());
+            m_fileView->selectFile(path);
+        } else {
+            navigateTo(path);
+        }
     });
 
     mainLayout->addWidget(m_topBar);
@@ -463,7 +469,12 @@ void FilePickerDialog::onActionAccept() {
         }
     }
 
-    QString fullPath = QDir(currentDir).filePath(inputName);
+    QString expanded = inputName;
+    if (expanded.startsWith("~")) {
+        expanded.replace(0, 1, UserEnvironment::realUserHome());
+    }
+    QString fullPath = QDir::isAbsolutePath(expanded) ? expanded : QDir(currentDir).filePath(inputName);
+    fullPath = QDir::cleanPath(fullPath);
     if (QFileInfo(fullPath).isDir()) {
         navigateTo(fullPath);
         m_fileNameEdit->clear();

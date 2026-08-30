@@ -164,7 +164,11 @@ void DirectoryViewTab::setupToolBar() {
     m_toolBar->addWidget(m_breadcrumbBar);
 
     connect(m_breadcrumbBar, &BreadcrumbBar::pathChanged, this, [this](const QString &p) {
-        navigateTo(p);
+        if (QFileInfo(p).isFile()) {
+            navigateToAndSelect(p);
+        } else {
+            navigateTo(p);
+        }
     });
     connect(m_breadcrumbBar, &BreadcrumbBar::pathNavigationError, this,
         [this](const QString &, const QString &msg) {

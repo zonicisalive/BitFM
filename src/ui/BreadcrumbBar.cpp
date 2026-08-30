@@ -192,8 +192,11 @@ void BreadcrumbBar::onPathEntered() {
         emit pathChanged(m_currentPath);
     } else {
         setErrorStyle(false);
+        m_currentPath = info.absolutePath();
+        GitStatusProvider::instance().requestGitStatus(m_currentPath);
+        rebuildBreadcrumbs();
         activateBreadcrumbMode();
-        QDesktopServices::openUrl(QUrl::fromLocalFile(candidate));
+        emit pathChanged(candidate);
     }
 }
 
