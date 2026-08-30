@@ -370,6 +370,7 @@ void FilePickerDialog::onFileSelectionChanged(const QStringList &selectedPaths) 
         if (m_mode == PickerMode::ChooseFolder) {
             m_fileNameEdit->clear();
         }
+        if (m_sidebar) m_sidebar->highlightPath(m_fileModel->currentDirectory());
         return;
     }
     QFileInfo fi(selectedPaths.first());
@@ -379,6 +380,7 @@ void FilePickerDialog::onFileSelectionChanged(const QStringList &selectedPaths) 
     } else {
         if (!fi.isDir()) m_fileNameEdit->setText(fi.fileName());
     }
+    if (m_sidebar) m_sidebar->highlightPath(selectedPaths.first());
 }
 
 void FilePickerDialog::onSearchChanged(const QString &pattern, bool isRegex) {

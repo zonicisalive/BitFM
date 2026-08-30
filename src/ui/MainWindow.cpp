@@ -901,6 +901,14 @@ void MainWindow::onActivePanePathChanged(const QString &path) {
 }
 
 void MainWindow::onActivePaneSelectionChanged(const QStringList &selectedPaths) {
+    if (m_sidebar) {
+        if (selectedPaths.isEmpty()) {
+            m_sidebar->highlightPath(activePane()->currentPath());
+        } else if (selectedPaths.size() == 1) {
+            m_sidebar->highlightPath(selectedPaths.first());
+        }
+    }
+
     if (m_inspector->isVisible()) {
         if (selectedPaths.isEmpty()) {
             m_inspector->inspectItem(activePane()->currentPath());

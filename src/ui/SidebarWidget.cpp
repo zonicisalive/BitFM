@@ -425,16 +425,65 @@ void SidebarWidget::onCustomContextMenuRequested(const QPoint &pos) {
 }
 
 void SidebarWidget::highlightPath(const QString &path) {
+    if (path.isEmpty()) {
+        m_treeWidget->clearSelection();
+        m_treeWidget->setCurrentItem(nullptr);
+        return;
+    }
+
     QString clean = QDir::cleanPath(path);
+    QString targetDir = clean;
+    if (QFileInfo(clean).isFile()) {
+        targetDir = QFileInfo(clean).absolutePath();
+    }
+
+    QTreeWidgetItem *exactMatch = nullptr;
+    QTreeWidgetItem *bestPrefixMatch = nullptr;
+    int bestPrefixLength = 0;
+
     for (int i = 0; i < m_treeWidget->topLevelItemCount(); ++i) {
         QTreeWidgetItem *hdr = m_treeWidget->topLevelItem(i);
         for (int j = 0; j < hdr->childCount(); ++j) {
             QTreeWidgetItem *child = hdr->child(j);
-            if (QDir::cleanPath(child->data(0, Qt::UserRole).toString()) == clean) {
-                m_treeWidget->setCurrentItem(child);
-                return;
+            QString rawData = child->data(0, Qt::UserRole).toString();
+            if (rawData.isEmpty() || rawData.startsWith("action:")) {
+                continue;
+            }
+
+            QString itemPath = (rawData.startsWith("tag:") || rawData.startsWith("tags:") || rawData == "recent:") 
+                ? rawData 
+                : QDir::cleanPath(rawData);
+
+            // 1. Exact match with item or its target directory
+            if (itemPath == clean || itemPath == targetDir) {
+                exactMatch = child;
+                break;
+            }
+
+            // 2. Ancestor / prefix match (find the closest ancestor with longest itemPath)
+            if (!itemPath.startsWith("tag:") && !itemPath.startsWith("tags:") && itemPath != "recent:") {
+                if (itemPath == "/" && bestPrefixLength == 0) {
+                    bestPrefixLength = 1;
+                    bestPrefixMatch = child;
+                } else if (itemPath != "/" && (targetDir == itemPath || targetDir.startsWith(itemPath + "/"))) {
+                    if (itemPath.length() > bestPrefixLength) {
+                        bestPrefixLength = itemPath.length();
+                        bestPrefixMatch = child;
+                    }
+                }
             }
         }
+        if (exactMatch) break;
     }
-    m_treeWidget->clearSelection();
+
+    QTreeWidgetItem *targetItem = exactMatch ? exactMatch : bestPrefixMatch;
+    if (targetItem) {
+        if (m_treeWidget->currentItem() != targetItem) {
+            m_treeWidget->setCurrentItem(targetItem);
+            m_treeWidget->scrollToItem(targetItem);
+        }
+    } else {
+        m_treeWidget->clearSelection();
+        m_treeWidget->setCurrentItem(nullptr);
+    }
 }
