@@ -3,6 +3,7 @@
 #include "AboutDialog.h"
 #include "UserEnvironment.h"
 #include "AppSettings.h"
+#include "AppLauncher.h"
 #include <QVBoxLayout>
 #include <QDir>
 #include <QFileInfo>
@@ -118,7 +119,11 @@ void DirectoryViewTab::setupUi() {
 
     // Connections
     connect(m_fileView, &FileViewWidget::openPathRequested, this, [this](const QString &path) {
-        navigateTo(path);
+        if (QFileInfo(path).isDir()) {
+            navigateTo(path);
+        } else {
+            AppLauncher::instance().openPath(path);
+        }
     });
     connect(m_fileView, &FileViewWidget::statusMessageRequested, this, &DirectoryViewTab::statusMessageRequested);
     connect(m_fileView, &FileViewWidget::fileSelectionChanged, this, &DirectoryViewTab::fileSelectionChanged);

@@ -130,7 +130,7 @@ void FilePickerDialog::setupUi() {
                 navigateTo(path);
             } else {
                 m_fileNameEdit->setText(QFileInfo(path).fileName());
-                if (m_mode == PickerMode::OpenFile) {
+                if (m_mode == PickerMode::OpenFile || m_mode == PickerMode::SaveFile) {
                     onActionAccept();
                 }
             }

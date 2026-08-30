@@ -1002,15 +1002,9 @@ void FileViewWidget::onItemDoubleClicked(const QModelIndex &proxyIndex) {
     if (!item) return;
 
     QString targetPath = item->absolutePath;
-    bool isDir = item->isDirectory;
 
-    QTimer::singleShot(0, this, [this, targetPath, isDir]() {
-        if (isDir) {
-            emit openPathRequested(targetPath);
-        } else {
-            emit openPathRequested(targetPath);
-            AppLauncher::instance().openPath(targetPath);
-        }
+    QTimer::singleShot(0, this, [this, targetPath]() {
+        emit openPathRequested(targetPath);
     });
 }
 
@@ -1620,10 +1614,8 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                 return true;
             } else if (ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter) {
                 QStringList selected = selectedPaths();
-                if (selected.size() == 1 && QFileInfo(selected.first()).isDir()) {
+                if (!selected.isEmpty()) {
                     emit openPathRequested(selected.first());
-                } else if (!selected.isEmpty()) {
-                    AppLauncher::instance().openPaths(selected);
                 }
                 return true;
             } else if (ke->key() == Qt::Key_Space) {
@@ -1662,10 +1654,8 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                     return true;
                 } else if (ke->key() == Qt::Key_L) {
                     QStringList selected = selectedPaths();
-                    if (selected.size() == 1 && QFileInfo(selected.first()).isDir()) {
+                    if (!selected.isEmpty()) {
                         emit openPathRequested(selected.first());
-                    } else if (!selected.isEmpty()) {
-                        AppLauncher::instance().openPaths(selected);
                     }
                     return true;
                 } else if (ke->key() == Qt::Key_Slash) {
@@ -1738,10 +1728,8 @@ void FileViewWidget::keyPressEvent(QKeyEvent *event) {
         return;
     } else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
         QStringList selected = selectedPaths();
-        if (selected.size() == 1 && QFileInfo(selected.first()).isDir()) {
+        if (!selected.isEmpty()) {
             emit openPathRequested(selected.first());
-        } else if (!selected.isEmpty()) {
-            AppLauncher::instance().openPaths(selected);
         }
         event->accept();
         return;
@@ -1785,10 +1773,8 @@ void FileViewWidget::keyPressEvent(QKeyEvent *event) {
             return;
         } else if (event->key() == Qt::Key_L) {
             QStringList selected = selectedPaths();
-            if (selected.size() == 1 && QFileInfo(selected.first()).isDir()) {
+            if (!selected.isEmpty()) {
                 emit openPathRequested(selected.first());
-            } else if (!selected.isEmpty()) {
-                AppLauncher::instance().openPaths(selected);
             }
             event->accept();
             return;
