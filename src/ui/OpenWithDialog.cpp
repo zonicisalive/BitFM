@@ -18,7 +18,15 @@ OpenWithDialog::OpenWithDialog(const QStringList &filePaths, QWidget *parent)
         m_mimeType = db.mimeTypeForFile(m_filePaths.first()).name();
     }
 
-    m_allApps = AppLauncher::instance().getAllApps();
+    m_allApps.clear();
+    for (const DesktopApp &app : AppLauncher::instance().getAllApps()) {
+        if (app.desktopFile.compare("bitfm.desktop", Qt::CaseInsensitive) == 0 ||
+            app.desktopFile.compare("bitfm", Qt::CaseInsensitive) == 0 ||
+            app.name.compare("BitFM", Qt::CaseInsensitive) == 0) {
+            continue;
+        }
+        m_allApps.append(app);
+    }
     if (!m_filePaths.isEmpty()) {
         m_recommendedApps = AppLauncher::instance().getRecommendedApps(m_filePaths.first(), 0);
     }

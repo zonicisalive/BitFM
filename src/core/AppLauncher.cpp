@@ -23,6 +23,29 @@ bool DesktopApp::matchesMime(const QString &targetMime) const {
             if (targetMime.startsWith(prefix, Qt::CaseInsensitive)) return true;
         }
     }
+    // If target is a directory, match apps that support directories (IDEs, Terminals, File Managers)
+    if (targetMime == "inode/directory" || targetMime.startsWith("x-directory/")) {
+        for (const QString &cat : categories) {
+            if (cat.compare("TerminalEmulator", Qt::CaseInsensitive) == 0 ||
+                cat.compare("FileManager", Qt::CaseInsensitive) == 0 ||
+                cat.compare("IDE", Qt::CaseInsensitive) == 0 ||
+                cat.compare("Development", Qt::CaseInsensitive) == 0) {
+                return true;
+            }
+        }
+        if (desktopFile.contains("code", Qt::CaseInsensitive) ||
+            desktopFile.contains("terminal", Qt::CaseInsensitive) ||
+            desktopFile.contains("kitty", Qt::CaseInsensitive) ||
+            desktopFile.contains("alacritty", Qt::CaseInsensitive) ||
+            desktopFile.contains("foot", Qt::CaseInsensitive) ||
+            desktopFile.contains("ghostty", Qt::CaseInsensitive) ||
+            desktopFile.contains("antigravity", Qt::CaseInsensitive) ||
+            desktopFile.contains("cursor", Qt::CaseInsensitive) ||
+            desktopFile.contains("zed", Qt::CaseInsensitive) ||
+            desktopFile.contains("sublime", Qt::CaseInsensitive)) {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -105,22 +128,160 @@ void AppLauncher::loadApps() {
 #include <QStandardPaths>
 #include <QDesktopServices>
 
+static DesktopApp parseDesktopFileDirectly(const QString &filePath) {
+    QFile f(filePath);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return DesktopApp();
+
+    DesktopApp app;
+    app.desktopPath = filePath;
+    app.desktopFile = QFileInfo(filePath).fileName();
+
+    bool inDesktopEntry = false;
+    QTextStream in(&f);
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith('#')) continue;
+
+        if (line.startsWith('[') && line.endsWith(']')) {
+            inDesktopEntry = (line == "[Desktop Entry]");
+            continue;
+        }
+        if (!inDesktopEntry) continue;
+
+        int eqIdx = line.indexOf('=');
+        if (eqIdx == -1) continue;
+
+        QString key = line.left(eqIdx).trimmed();
+        QString val = line.mid(eqIdx + 1).trimmed();
+
+        if (key == "Name" && app.name.isEmpty()) app.name = val;
+        else if (key == "GenericName" && app.genericName.isEmpty()) app.genericName = val;
+        else if (key == "Comment" && app.comment.isEmpty()) app.comment = val;
+        else if (key == "Exec" && app.exec.isEmpty()) app.exec = val;
+        else if (key == "Icon" && app.iconName.isEmpty()) app.iconName = val;
+        else if (key == "MimeType") app.mimeTypes = val.split(';', Qt::SkipEmptyParts);
+        else if (key == "Categories") app.categories = val.split(';', Qt::SkipEmptyParts);
+    }
+
+    if (app.name.isEmpty()) app.name = QFileInfo(filePath).completeBaseName();
+    return app;
+}
+
+static QStringList getSystemMimeAppsListFiles() {
+    QStringList files;
+    QString home = QDir::homePath();
+
+    // 1. User config mimeapps
+    files << home + "/.config/mimeapps.list";
+
+    // 2. Desktop specific user config (e.g. hyprland-mimeapps.list, gnome-mimeapps.list)
+    QString desktopEnv = QString::fromUtf8(qgetenv("XDG_CURRENT_DESKTOP")).toLower();
+    for (const QString &d : desktopEnv.split(':', Qt::SkipEmptyParts)) {
+        files << home + QString("/.config/%1-mimeapps.list").arg(d.trimmed());
+    }
+
+    // 3. XDG data dirs
+    files << home + "/.local/share/applications/mimeapps.list";
+    files << "/etc/xdg/mimeapps.list";
+    files << "/usr/local/share/applications/mimeapps.list";
+    files << "/usr/share/applications/mimeapps.list";
+
+    // 4. MIME caches
+    files << home + "/.local/share/applications/mimeinfo.cache";
+    files << "/usr/local/share/applications/mimeinfo.cache";
+    files << "/usr/share/applications/mimeinfo.cache";
+
+    QStringList existing;
+    for (const QString &f : files) {
+        if (QFile::exists(f) && !existing.contains(f)) {
+            existing.append(f);
+        }
+    }
+    return existing;
+}
+
+static QStringList queryAppsFromMimeFile(const QString &filePath, const QString &mimeType) {
+    QFile f(filePath);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
+
+    QString currentSection;
+    QStringList defaultApps;
+    QStringList addedApps;
+
+    QTextStream in(&f);
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith('#')) continue;
+
+        if (line.startsWith('[') && line.endsWith(']')) {
+            currentSection = line.mid(1, line.length() - 2).trimmed();
+            continue;
+        }
+
+        int eqIdx = line.indexOf('=');
+        if (eqIdx == -1) continue;
+
+        QString key = line.left(eqIdx).trimmed();
+        QString val = line.mid(eqIdx + 1).trimmed();
+
+        if (key.compare(mimeType, Qt::CaseInsensitive) == 0) {
+            QStringList apps = val.split(';', Qt::SkipEmptyParts);
+            for (QString &a : apps) a = a.trimmed();
+
+            if (currentSection.compare("Default Applications", Qt::CaseInsensitive) == 0) {
+                defaultApps.append(apps);
+            } else if (currentSection.compare("Added Associations", Qt::CaseInsensitive) == 0 ||
+                       currentSection.compare("MIME Cache", Qt::CaseInsensitive) == 0) {
+                addedApps.append(apps);
+            }
+        }
+    }
+
+    if (!defaultApps.isEmpty()) return defaultApps;
+    return addedApps;
+}
+
 QList<DesktopApp> AppLauncher::getAllApps() {
     if (!m_loaded) loadApps();
     return m_cachedApps;
 }
 
 DesktopApp AppLauncher::getAppByDesktopFile(const QString &desktopFile) {
+    if (desktopFile.isEmpty()) return DesktopApp();
     if (!m_loaded) loadApps();
-    QString target = desktopFile;
+
+    QString target = desktopFile.trimmed();
     if (target.endsWith(';')) target.chop(1);
     if (!target.endsWith(".desktop")) target += ".desktop";
 
+    // 1. Search memory cache
     for (const DesktopApp &app : m_cachedApps) {
         if (app.desktopFile.compare(target, Qt::CaseInsensitive) == 0) {
             return app;
         }
     }
+
+    // 2. Direct disk search across all desktop directories
+    QStringList appDirs = {
+        QDir::homePath() + "/.local/share/applications",
+        "/usr/local/share/applications",
+        "/usr/share/applications",
+        "/var/lib/flatpak/exports/share/applications",
+        QDir::homePath() + "/.local/share/flatpak/exports/share/applications",
+        "/var/lib/snapd/desktop/applications"
+    };
+
+    for (const QString &dirPath : appDirs) {
+        QString fullPath = dirPath + "/" + target;
+        if (QFile::exists(fullPath)) {
+            DesktopApp directApp = parseDesktopFileDirectly(fullPath);
+            if (!directApp.name.isEmpty() && !directApp.exec.isEmpty()) {
+                m_cachedApps.append(directApp);
+                return directApp;
+            }
+        }
+    }
+
     return DesktopApp();
 }
 
@@ -128,25 +289,22 @@ DesktopApp AppLauncher::getDefaultAppForMime(const QString &mimeType) {
     if (mimeType.isEmpty()) return DesktopApp();
     if (!m_loaded) loadApps();
 
-    // 1. Check ~/.config/mimeapps.list [Default Applications] and [Added Associations]
-    QString userMimeApps = QDir::homePath() + "/.config/mimeapps.list";
-    if (QFile::exists(userMimeApps)) {
-        QSettings ini(userMimeApps, QSettings::IniFormat);
-        QString val = ini.value("Default Applications/" + mimeType).toString();
-        if (val.isEmpty()) {
-            val = ini.value("Added Associations/" + mimeType).toString();
-        }
-        if (!val.isEmpty()) {
-            QString first = val.split(';', Qt::SkipEmptyParts).value(0).trimmed();
-            DesktopApp app = getAppByDesktopFile(first);
-            if (!app.name.isEmpty()) return app;
+    // 1. Check all standard XDG mimeapps.list files directly line-by-line
+    QStringList mimeFiles = getSystemMimeAppsListFiles();
+    for (const QString &f : mimeFiles) {
+        QStringList candidateDesktops = queryAppsFromMimeFile(f, mimeType);
+        for (const QString &desktopId : candidateDesktops) {
+            DesktopApp app = getAppByDesktopFile(desktopId);
+            if (!app.name.isEmpty() && !app.exec.isEmpty()) {
+                return app;
+            }
         }
     }
 
-    // 2. Try xdg-mime query default
+    // 2. Query system xdg-mime / gio as standard system fallback
     QProcess proc;
     proc.start("xdg-mime", {"query", "default", mimeType});
-    if (proc.waitForFinished(1000) && proc.exitCode() == 0) {
+    if (proc.waitForFinished(800) && proc.exitCode() == 0) {
         QString defDesktop = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
         if (!defDesktop.isEmpty()) {
             DesktopApp app = getAppByDesktopFile(defDesktop);
@@ -154,7 +312,7 @@ DesktopApp AppLauncher::getDefaultAppForMime(const QString &mimeType) {
         }
     }
 
-    // 3. Fallback to first matching app in cached apps
+    // 3. Fallback to cached apps matching MIME type
     for (const DesktopApp &app : m_cachedApps) {
         if (app.matchesMime(mimeType)) {
             return app;
@@ -166,13 +324,52 @@ DesktopApp AppLauncher::getDefaultAppForMime(const QString &mimeType) {
 
 DesktopApp AppLauncher::getDefaultApp(const QString &filePath) {
     if (!m_loaded) loadApps();
-    QMimeType mime = m_mimeDb.mimeTypeForFile(filePath);
-    return getDefaultAppForMime(mime.name());
+    QMimeType mime = m_mimeDb.mimeTypeForFile(filePath, QMimeDatabase::MatchDefault);
+
+    // 1. Primary exact MIME check
+    DesktopApp app = getDefaultAppForMime(mime.name());
+    if (!app.name.isEmpty()) return app;
+
+    // 2. MIME Aliases check (e.g. image/x-png -> image/png)
+    for (const QString &alias : mime.aliases()) {
+        app = getDefaultAppForMime(alias);
+        if (!app.name.isEmpty()) return app;
+    }
+
+    // 3. Parent MIME types (e.g. text/plain for text/x-c++src, text/markdown, script files)
+    for (const QString &parentMime : mime.parentMimeTypes()) {
+        if (parentMime != "application/octet-stream") {
+            app = getDefaultAppForMime(parentMime);
+            if (!app.name.isEmpty()) return app;
+        }
+    }
+
+    // 4. Generic MIME category wildcard check (e.g. text/*, image/*, video/*, audio/*)
+    QString topLevel = mime.name().split('/').value(0);
+    if (!topLevel.isEmpty()) {
+        app = getDefaultAppForMime(topLevel + "/*");
+        if (!app.name.isEmpty()) return app;
+    }
+
+    // 5. Check recommended apps for this file
+    QList<DesktopApp> rec = getRecommendedApps(filePath, 1);
+    if (!rec.isEmpty()) return rec.first();
+
+    return DesktopApp();
+}
+
+static bool isSelfApp(const DesktopApp &app) {
+    if (app.desktopFile.compare("bitfm.desktop", Qt::CaseInsensitive) == 0) return true;
+    if (app.desktopFile.compare("bitfm", Qt::CaseInsensitive) == 0) return true;
+    if (app.name.compare("BitFM", Qt::CaseInsensitive) == 0) return true;
+    QString exe = app.exec.split(' ', Qt::SkipEmptyParts).value(0);
+    if (QFileInfo(exe).fileName().compare("bitfm", Qt::CaseInsensitive) == 0) return true;
+    return false;
 }
 
 QList<DesktopApp> AppLauncher::getRecommendedApps(const QString &filePath, int maxCount) {
     if (!m_loaded) loadApps();
-    QMimeType mime = m_mimeDb.mimeTypeForFile(filePath);
+    QMimeType mime = m_mimeDb.mimeTypeForFile(filePath, QMimeDatabase::MatchDefault);
     return getRecommendedAppsForMime(mime.name(), maxCount);
 }
 
@@ -181,16 +378,32 @@ QList<DesktopApp> AppLauncher::getRecommendedAppsForMime(const QString &mimeType
     QList<DesktopApp> recommended;
     QSet<QString> seenFiles;
 
-    // 1. Put Default App first
+    // 1. Put Default App first (if not self)
     DesktopApp defApp = getDefaultAppForMime(mimeType);
-    if (!defApp.desktopFile.isEmpty()) {
+    if (!defApp.desktopFile.isEmpty() && !defApp.name.isEmpty() && !isSelfApp(defApp)) {
         recommended.append(defApp);
         seenFiles.insert(defApp.desktopFile);
     }
 
-    // 2. Add other matching apps
+    // 2. Add associations from mimeapps.list & mimeinfo.cache
+    QStringList mimeFiles = getSystemMimeAppsListFiles();
+    for (const QString &f : mimeFiles) {
+        QStringList candidates = queryAppsFromMimeFile(f, mimeType);
+        for (const QString &desktopId : candidates) {
+            if (seenFiles.contains(desktopId)) continue;
+            DesktopApp app = getAppByDesktopFile(desktopId);
+            if (!app.name.isEmpty() && !app.exec.isEmpty() && !isSelfApp(app)) {
+                seenFiles.insert(app.desktopFile);
+                recommended.append(app);
+                if (maxCount > 0 && recommended.size() >= maxCount) return recommended;
+            }
+        }
+    }
+
+    // 3. Add other matching apps from desktop database
     for (const DesktopApp &app : m_cachedApps) {
         if (seenFiles.contains(app.desktopFile)) continue;
+        if (isSelfApp(app)) continue;
         if (app.matchesMime(mimeType)) {
             seenFiles.insert(app.desktopFile);
             recommended.append(app);

@@ -1036,8 +1036,30 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
             QFileInfo info(selected.first());
             if (info.isDir()) {
                 auto *openAct = menu.addAction(QIcon::fromTheme("folder-open"), tr("Open Folder"));
+                QFont boldFont = openAct->font();
+                boldFont.setBold(true);
+                openAct->setFont(boldFont);
                 connect(openAct, &QAction::triggered, this, [this, path = selected.first()]() {
                     emit openPathRequested(path);
+                });
+
+                // "Open With..." Submenu for directory
+                QMenu *openWithMenu = menu.addMenu(QIcon::fromTheme("system-run", QIcon::fromTheme("application-x-executable")), tr("Open With"));
+                QList<DesktopApp> recApps = AppLauncher::instance().getRecommendedApps(selected.first(), 8);
+                for (int i = 0; i < recApps.size(); ++i) {
+                    const DesktopApp &app = recApps[i];
+                    auto *act = openWithMenu->addAction(app.icon(), app.name);
+                    connect(act, &QAction::triggered, this, [app, selected]() {
+                        AppLauncher::instance().launchApp(app, selected);
+                    });
+                }
+                if (!recApps.isEmpty()) {
+                    openWithMenu->addSeparator();
+                }
+                auto *otherAppAct = openWithMenu->addAction(QIcon::fromTheme("applications-other", QIcon::fromTheme("preferences-desktop-default-applications")), tr("Other Application…"));
+                connect(otherAppAct, &QAction::triggered, this, [this, selected]() {
+                    OpenWithDialog dlg(selected, this);
+                    dlg.exec();
                 });
             } else {
                 DesktopApp defApp = AppLauncher::instance().getDefaultApp(selected.first());
@@ -1045,18 +1067,20 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
                 QIcon openIcon = defApp.name.isEmpty() ? QIcon::fromTheme("document-open") : defApp.icon();
 
                 auto *openAct = menu.addAction(openIcon, openLabel);
+                QFont boldFont = openAct->font();
+                boldFont.setBold(true);
+                openAct->setFont(boldFont);
                 connect(openAct, &QAction::triggered, this, [path = selected.first()]() {
                     AppLauncher::instance().openPath(path);
                 });
 
                 // "Open With..." Submenu
                 QMenu *openWithMenu = menu.addMenu(QIcon::fromTheme("system-run", QIcon::fromTheme("application-x-executable")), tr("Open With"));
-                QList<DesktopApp> recApps = AppLauncher::instance().getRecommendedApps(selected.first(), 6);
+                QList<DesktopApp> recApps = AppLauncher::instance().getRecommendedApps(selected.first(), 8);
                 for (int i = 0; i < recApps.size(); ++i) {
                     const DesktopApp &app = recApps[i];
-                    QString label = (i == 0 && !defApp.desktopFile.isEmpty() && app.desktopFile == defApp.desktopFile)
-                        ? tr("%1 (Default)").arg(app.name)
-                        : app.name;
+                    bool isDefault = (!defApp.desktopFile.isEmpty() && app.desktopFile == defApp.desktopFile) || (i == 0 && defApp.desktopFile.isEmpty());
+                    QString label = isDefault ? tr("%1 (Default)").arg(app.name) : app.name;
                     auto *act = openWithMenu->addAction(app.icon(), label);
                     connect(act, &QAction::triggered, this, [app, selected]() {
                         AppLauncher::instance().launchApp(app, selected);
