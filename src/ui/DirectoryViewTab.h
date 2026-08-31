@@ -10,6 +10,7 @@
 #include "BreadcrumbBar.h"
 #include "SearchBarWidget.h"
 #include "ErrorBannerWidget.h"
+#include "TrashBarWidget.h"
 
 class DirectoryViewTab : public QWidget {
     Q_OBJECT
@@ -27,6 +28,7 @@ public:
     FileViewWidget* fileView() const;
     SearchBarWidget* searchBar() const;
     ErrorBannerWidget* errorBanner() const;
+    TrashBarWidget* trashBar() const;
 
     QStringList selectedPaths() const;
 
@@ -65,6 +67,7 @@ private:
     void setupToolBar();
     void updateNavigationButtons();
     void updateViewModeIcon();
+    void updateTrashBar();
 
     QString m_currentPath;
     QStack<QString> m_backStack;
@@ -76,6 +79,7 @@ private:
     BreadcrumbBar *m_breadcrumbBar = nullptr;
     SearchBarWidget *m_searchBar = nullptr;
     ErrorBannerWidget *m_errorBanner = nullptr;
+    TrashBarWidget *m_trashBar = nullptr;
 
     QToolBar *m_toolBar = nullptr;
     QAction *m_actBack = nullptr;

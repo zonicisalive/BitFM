@@ -12,8 +12,14 @@ class FileOperations : public QObject {
 public:
     explicit FileOperations(QObject *parent = nullptr);
 
-    // Operations with UI parent for conflict dialogs and progress
+    // Trash operations
     bool moveToTrash(const QStringList &filePaths, QWidget *parentWidget = nullptr);
+    bool restoreFromTrash(const QStringList &filePaths, QWidget *parentWidget = nullptr);
+    bool emptyTrash(QWidget *parentWidget = nullptr);
+    static QString trashPath();
+    static bool isTrashPath(const QString &path);
+    static bool isTrashAvailable();
+
     bool deletePermanently(const QStringList &filePaths, QWidget *parentWidget = nullptr);
     bool copyFiles(const QStringList &sourcePaths, const QString &destinationDir, QWidget *parentWidget = nullptr);
     bool moveFiles(const QStringList &sourcePaths, const QString &destinationDir, QWidget *parentWidget = nullptr);
@@ -26,8 +32,6 @@ public:
     bool extractArchive(const QString &archivePath, const QString &destinationDir, QWidget *parentWidget = nullptr);
     static bool isArchive(const QString &filePath);
 
-    static QString trashPath();
-    static bool isTrashAvailable();
     static QString getDetailedErrorMessage(const QString &filePath, const QString &action);
     static void relaunchAsRoot(const QString &targetPath = QString());
 

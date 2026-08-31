@@ -1031,6 +1031,41 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
     QStringList selected = selectedPaths();
     QMenu menu(this);
 
+    bool inTrash = FileOperations::isTrashPath(m_sourceModel->currentDirectory());
+    if (inTrash) {
+        if (!selected.isEmpty()) {
+            auto *restoreAct = menu.addAction(QIcon::fromTheme("edit-undo", QIcon::fromTheme("document-revert")),
+                selected.size() == 1 ? tr("Restore from Trash") : tr("Restore (%1 items)").arg(selected.size()));
+            QFont boldFont = restoreAct->font();
+            boldFont.setBold(true);
+            restoreAct->setFont(boldFont);
+            connect(restoreAct, &QAction::triggered, this, [this, selected]() {
+                m_fileOps.restoreFromTrash(selected, this);
+                m_sourceModel->refresh();
+            });
+
+            auto *delAct = menu.addAction(QIcon::fromTheme("edit-delete", QIcon::fromTheme("process-stop")),
+                selected.size() == 1 ? tr("Delete Permanently (Shift+Del)") : tr("Delete Permanently (%1 items)").arg(selected.size()));
+            connect(delAct, &QAction::triggered, this, &FileViewWidget::onDeletePermanentlyAction);
+
+            menu.addSeparator();
+            auto *selAllAct = menu.addAction(QIcon::fromTheme("edit-select-all"), tr("Select All (Ctrl+A)"));
+            connect(selAllAct, &QAction::triggered, this, &FileViewWidget::selectAll);
+        } else {
+            auto *emptyAct = menu.addAction(QIcon::fromTheme("user-trash"), tr("Empty Trash"));
+            connect(emptyAct, &QAction::triggered, this, [this]() {
+                m_fileOps.emptyTrash(this);
+                m_sourceModel->refresh();
+            });
+
+            auto *refreshAct = menu.addAction(QIcon::fromTheme("view-refresh"), tr("Refresh (F5)"));
+            connect(refreshAct, &QAction::triggered, this, [this]() { m_sourceModel->refresh(); });
+        }
+
+        menu.exec(view->viewport()->mapToGlobal(pos));
+        return;
+    }
+
     if (index.isValid() && !selected.isEmpty()) {
         if (selected.size() == 1) {
             QFileInfo info(selected.first());
@@ -1509,7 +1544,13 @@ void FileViewWidget::onGitLogAction() {
 
 void FileViewWidget::onTrashAction() {
     QStringList selected = selectedPaths();
-    if (!selected.isEmpty()) m_fileOps.moveToTrash(selected, this);
+    if (selected.isEmpty()) return;
+
+    if (FileOperations::isTrashPath(m_sourceModel->currentDirectory())) {
+        onDeletePermanentlyAction();
+        return;
+    }
+    m_fileOps.moveToTrash(selected, this);
 }
 
 void FileViewWidget::onDeletePermanentlyAction() {

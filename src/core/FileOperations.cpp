@@ -26,10 +26,118 @@ QString FileOperations::trashPath() {
     return UserEnvironment::userTrashPath();
 }
 
+bool FileOperations::isTrashPath(const QString &path) {
+    if (path.isEmpty()) return false;
+    QString norm = QDir::cleanPath(path);
+    QString userTrash = QDir::cleanPath(UserEnvironment::userTrashPath());
+    return norm == userTrash || norm.startsWith(userTrash + "/");
+}
+
 bool FileOperations::isTrashAvailable() {
     QString tPath = trashPath();
     QDir dir(tPath);
     return dir.exists() || dir.mkpath(".");
+}
+
+bool FileOperations::restoreFromTrash(const QStringList &filePaths, QWidget *parentWidget) {
+    if (filePaths.isEmpty()) return true;
+
+    emit operationStarted(tr("Restoring from Trash..."));
+    QString trashBase = trashPath();
+    QString filesDir = trashBase + "/files";
+    QString infoDir = trashBase + "/info";
+
+    int total = filePaths.size();
+    int current = 0;
+    int successCount = 0;
+
+    for (const QString &path : filePaths) {
+        current++;
+        emit operationProgress(current, total);
+
+        QFileInfo fi(path);
+        QString baseName = fi.fileName();
+        QString infoFile = infoDir + "/" + baseName + ".trashinfo";
+        QString originalPath;
+
+        if (QFile::exists(infoFile)) {
+            QFile f(infoFile);
+            if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QTextStream in(&f);
+                while (!in.atEnd()) {
+                    QString line = in.readLine().trimmed();
+                    if (line.startsWith("Path=")) {
+                        QString rawPath = line.mid(5).trimmed();
+                        originalPath = QUrl::fromPercentEncoding(rawPath.toUtf8());
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (originalPath.isEmpty()) {
+            originalPath = QDir(UserEnvironment::realUserHome()).filePath(baseName);
+        }
+
+        QDir parentDir = QFileInfo(originalPath).dir();
+        if (!parentDir.exists()) {
+            parentDir.mkpath(".");
+        }
+
+        QString destPath = originalPath;
+        if (QFile::exists(destPath)) {
+            int copyNum = 1;
+            QFileInfo destFi(destPath);
+            QString stem = destFi.completeBaseName();
+            QString ext = destFi.suffix().isEmpty() ? "" : "." + destFi.suffix();
+            while (QFile::exists(destPath)) {
+                destPath = destFi.dir().filePath(QString("%1 (Restored %2)%3").arg(stem).arg(copyNum++).arg(ext));
+            }
+        }
+
+        if (QFile::rename(path, destPath)) {
+            QFile::remove(infoFile);
+            successCount++;
+        }
+        QApplication::processEvents();
+    }
+
+    bool allSuccess = (successCount == total);
+    emit operationFinished(
+        allSuccess,
+        allSuccess ? tr("Restored %1 items from Trash.").arg(total)
+                   : tr("Restored %1 of %2 items.").arg(successCount).arg(total)
+    );
+    return allSuccess;
+}
+
+bool FileOperations::emptyTrash(QWidget *parentWidget) {
+    auto res = QMessageBox::question(parentWidget, tr("Empty Trash"),
+        tr("Are you sure you want to permanently delete all items in the Trash?\nThis action cannot be undone."),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (res != QMessageBox::Yes) return false;
+
+    QString trashBase = trashPath();
+    QString filesDir = trashBase + "/files";
+    QString infoDir = trashBase + "/info";
+
+    QStringList allFiles;
+    QDir dFiles(filesDir);
+    for (const QFileInfo &fi : dFiles.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden)) {
+        allFiles.append(fi.absoluteFilePath());
+    }
+
+    QDir dInfo(infoDir);
+    for (const QFileInfo &fi : dInfo.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden)) {
+        allFiles.append(fi.absoluteFilePath());
+    }
+
+    if (allFiles.isEmpty()) {
+        QMessageBox::information(parentWidget, tr("Trash Empty"), tr("The Trash is already empty."));
+        return true;
+    }
+
+    return deletePermanently(allFiles, parentWidget);
 }
 
 QString FileOperations::getDetailedErrorMessage(const QString &filePath, const QString &action) {

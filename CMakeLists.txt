@@ -67,6 +67,8 @@ set(UI_SOURCES
     src/ui/SearchBarWidget.cpp
     src/ui/ErrorBannerWidget.h
     src/ui/ErrorBannerWidget.cpp
+    src/ui/TrashBarWidget.h
+    src/ui/TrashBarWidget.cpp
     src/ui/ConflictResolutionDialog.h
     src/ui/ConflictResolutionDialog.cpp
     src/ui/FileOperationProgressDialog.h

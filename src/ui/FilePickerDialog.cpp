@@ -136,6 +136,8 @@ void FilePickerDialog::setupUi() {
                 navigateTo(path);
             } else {
                 m_fileNameEdit->setText(QFileInfo(path).fileName());
+                m_resultPath = path;
+                m_resultPaths = QStringList{ path };
                 if (m_mode == PickerMode::OpenFile || m_mode == PickerMode::SaveFile) {
                     onActionAccept();
                 }
@@ -143,6 +145,7 @@ void FilePickerDialog::setupUi() {
         });
     });
     connect(m_fileView, &FileViewWidget::fileSelectionChanged, this, &FilePickerDialog::onFileSelectionChanged);
+    connect(m_fileView, &FileViewWidget::searchRequested, this, &FilePickerDialog::toggleSearch);
     splitter->addWidget(m_fileView);
 
     connect(m_fileModel, &FileSystemModel::directoryLoaded, this, &FilePickerDialog::onDirectoryLoaded);
@@ -266,6 +269,7 @@ void FilePickerDialog::setupUi() {
 
     // Global Shortcuts within Dialog
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_F), this, SLOT(toggleSearch()));
+    new QShortcut(QKeySequence(Qt::Key_Slash), this, SLOT(toggleSearch()));
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, SLOT(toggleHiddenFiles()));
     new QShortcut(QKeySequence(Qt::ALT | Qt::Key_Left), this, SLOT(navigateBack()));
     new QShortcut(QKeySequence(Qt::ALT | Qt::Key_Right), this, SLOT(navigateForward()));
@@ -295,7 +299,11 @@ void FilePickerDialog::navigateTo(const QString &path, bool recordHistory) {
     updateNavButtons();
 
     if (m_mode == PickerMode::ChooseFolder) {
-        m_fileNameEdit->clear();
+        QFileInfo fi(path);
+        QString fn = fi.fileName().isEmpty() ? path : fi.fileName();
+        m_fileNameEdit->setText(fn);
+        m_resultPath = path;
+        m_resultPaths = QStringList{ path };
     }
 }
 
@@ -368,7 +376,12 @@ void FilePickerDialog::onNavigateRequested(const QString &path) {
 void FilePickerDialog::onFileSelectionChanged(const QStringList &selectedPaths) {
     if (selectedPaths.isEmpty()) {
         if (m_mode == PickerMode::ChooseFolder) {
-            m_fileNameEdit->clear();
+            QString currentDir = m_fileModel->currentDirectory();
+            QFileInfo fi(currentDir);
+            QString fn = fi.fileName().isEmpty() ? currentDir : fi.fileName();
+            m_fileNameEdit->setText(fn);
+            m_resultPath = currentDir;
+            m_resultPaths = QStringList{ currentDir };
         }
         if (m_sidebar) m_sidebar->highlightPath(m_fileModel->currentDirectory());
         return;
@@ -376,21 +389,38 @@ void FilePickerDialog::onFileSelectionChanged(const QStringList &selectedPaths) 
 
     if (m_mode == PickerMode::ChooseFolder) {
         QFileInfo fi(selectedPaths.first());
-        if (fi.isDir()) m_fileNameEdit->setText(fi.fileName());
-        else m_fileNameEdit->clear();
+        if (fi.isDir()) {
+            m_fileNameEdit->setText(fi.fileName());
+            m_resultPath = fi.absoluteFilePath();
+            m_resultPaths = QStringList{ fi.absoluteFilePath() };
+        } else {
+            QString currentDir = m_fileModel->currentDirectory();
+            QFileInfo curFi(currentDir);
+            m_fileNameEdit->setText(curFi.fileName().isEmpty() ? currentDir : curFi.fileName());
+            m_resultPath = currentDir;
+            m_resultPaths = QStringList{ currentDir };
+        }
     } else {
         if (selectedPaths.size() == 1) {
             QFileInfo fi(selectedPaths.first());
-            if (!fi.isDir()) m_fileNameEdit->setText(fi.fileName());
+            if (!fi.isDir()) {
+                m_fileNameEdit->setText(fi.fileName());
+                m_resultPath = fi.absoluteFilePath();
+                m_resultPaths = QStringList{ fi.absoluteFilePath() };
+            }
         } else {
             QStringList quotedNames;
+            QStringList paths;
             for (const QString &p : selectedPaths) {
                 QFileInfo fi(p);
                 if (!fi.isDir()) {
                     quotedNames.append(QString("\"%1\"").arg(fi.fileName()));
+                    paths.append(fi.absoluteFilePath());
                 }
             }
             m_fileNameEdit->setText(quotedNames.join(" "));
+            m_resultPaths = paths;
+            if (!paths.isEmpty()) m_resultPath = paths.first();
         }
     }
     if (m_sidebar && !selectedPaths.isEmpty()) {
@@ -451,6 +481,12 @@ void FilePickerDialog::onActionAccept() {
 
         // 2. If user typed a subfolder or path in the input box:
         if (!inputName.isEmpty()) {
+            if (inputName == QFileInfo(currentDir).fileName() || inputName == currentDir) {
+                m_resultPath = currentDir;
+                m_resultPaths = QStringList{ currentDir };
+                accept();
+                return;
+            }
             QString fullPath = QDir(currentDir).filePath(inputName);
             if (QDir(fullPath).exists()) {
                 m_resultPath = fullPath;
@@ -465,7 +501,7 @@ void FilePickerDialog::onActionAccept() {
             }
         }
 
-        // 3. When nothing is selected (or empty input): select the folder currently viewed!
+        // 3. When nothing is selected (or matching current dir): select current/sidebar folder
         m_resultPath = currentDir;
         m_resultPaths = QStringList{ m_resultPath };
         accept();
