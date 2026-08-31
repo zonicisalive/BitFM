@@ -204,6 +204,9 @@ static QStringList queryAppsFromMimeFile(const QString &filePath, const QString 
     QFile f(filePath);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
 
+    QString targetMime = mimeType.trimmed();
+    targetMime.replace('\\', '/');
+
     QString currentSection;
     QStringList defaultApps;
     QStringList addedApps;
@@ -215,6 +218,7 @@ static QStringList queryAppsFromMimeFile(const QString &filePath, const QString 
 
         if (line.startsWith('[') && line.endsWith(']')) {
             currentSection = line.mid(1, line.length() - 2).trimmed();
+            currentSection.replace("%20", " ");
             continue;
         }
 
@@ -222,9 +226,10 @@ static QStringList queryAppsFromMimeFile(const QString &filePath, const QString 
         if (eqIdx == -1) continue;
 
         QString key = line.left(eqIdx).trimmed();
+        key.replace('\\', '/');
         QString val = line.mid(eqIdx + 1).trimmed();
 
-        if (key.compare(mimeType, Qt::CaseInsensitive) == 0) {
+        if (key.compare(targetMime, Qt::CaseInsensitive) == 0) {
             QStringList apps = val.split(';', Qt::SkipEmptyParts);
             for (QString &a : apps) a = a.trimmed();
 
@@ -423,25 +428,25 @@ bool AppLauncher::openPaths(const QStringList &filePaths) {
     QString first = filePaths.first();
     QFileInfo fi(first);
 
-    // If it's a .desktop file, launch the app directly
+    // 1. If it's a .desktop file, launch the app directly
     if (fi.suffix().compare("desktop", Qt::CaseInsensitive) == 0) {
         DesktopApp app = getAppByDesktopFile(fi.fileName());
         if (!app.exec.isEmpty()) return launchApp(app, {});
     }
 
-    // If it's an executable binary or script (.sh / .AppImage / ELF)
+    // 2. Resolve default application for the file
+    DesktopApp defApp = getDefaultApp(first);
+    if (!defApp.exec.isEmpty()) {
+        if (launchApp(defApp, filePaths)) return true;
+    }
+
+    // 3. If it's an executable binary or script (.sh / .AppImage / ELF) with no assigned default app
     if (fi.isExecutable() && !fi.isDir()) {
         if (fi.suffix().compare("sh", Qt::CaseInsensitive) == 0 ||
             fi.suffix().compare("AppImage", Qt::CaseInsensitive) == 0 ||
             fi.suffix().isEmpty()) {
             return QProcess::startDetached(fi.absoluteFilePath(), {});
         }
-    }
-
-    // Resolve default application for the file
-    DesktopApp defApp = getDefaultApp(first);
-    if (!defApp.exec.isEmpty()) {
-        if (launchApp(defApp, filePaths)) return true;
     }
 
     // Fallback 1: gio open
@@ -518,17 +523,131 @@ bool AppLauncher::launchCommand(const QString &command, const QStringList &fileP
 bool AppLauncher::setDefaultApp(const QString &desktopFile, const QString &mimeType) {
     if (desktopFile.isEmpty() || mimeType.isEmpty()) return false;
     
-    QString df = desktopFile;
+    QString df = desktopFile.trimmed();
     if (!df.endsWith(".desktop")) df += ".desktop";
+    QString mt = mimeType.trimmed();
+    mt.replace('\\', '/');
 
-    // 1. Run xdg-mime
-    QProcess::execute("xdg-mime", {"default", df, mimeType});
+    // 1. Run xdg-mime & gio mime
+    QProcess::execute("xdg-mime", {"default", df, mt});
+    QProcess::execute("gio", {"mime", mt, df});
 
-    // 2. Directly write to ~/.config/mimeapps.list
-    QString configPath = QDir::homePath() + "/.config/mimeapps.list";
-    QSettings mimeApps(configPath, QSettings::IniFormat);
-    mimeApps.setValue("Default Applications/" + mimeType, df);
-    mimeApps.setValue("Added Associations/" + mimeType, df + ";");
-    mimeApps.sync();
+    // 2. Directly and safely write standard XDG format into mimeapps.list files
+    QStringList configFiles = {
+        QDir::homePath() + "/.config/mimeapps.list",
+        QDir::homePath() + "/.local/share/applications/mimeapps.list"
+    };
+
+    for (const QString &configPath : configFiles) {
+        QFileInfo fi(configPath);
+        QDir().mkpath(fi.dir().absolutePath());
+
+        QStringList lines;
+        if (fi.exists()) {
+            QFile rf(configPath);
+            if (rf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QTextStream in(&rf);
+                while (!in.atEnd()) {
+                    QString line = in.readLine();
+                    QString trimmed = line.trimmed();
+                    // Clean up and heal any previous QSettings corrupted headers
+                    if (trimmed.startsWith("[Default%20Applications]", Qt::CaseInsensitive)) {
+                        line = "[Default Applications]";
+                    } else if (trimmed.startsWith("[Added%20Associations]", Qt::CaseInsensitive)) {
+                        line = "[Added Associations]";
+                    } else {
+                        // Fix backslash key conversions
+                        int eq = line.indexOf('=');
+                        if (eq != -1 && !trimmed.startsWith('#') && !trimmed.startsWith('[')) {
+                            QString k = line.left(eq);
+                            QString v = line.mid(eq);
+                            k.replace('\\', '/');
+                            line = k + v;
+                        }
+                    }
+                    lines.append(line);
+                }
+                rf.close();
+            }
+        }
+
+        auto applySection = [&](const QString &sectionName, const QString &key, const QString &val, bool isAddedSection) {
+            int secStart = -1;
+            int secEnd = -1;
+
+            for (int i = 0; i < lines.size(); ++i) {
+                QString t = lines[i].trimmed();
+                if (t.startsWith('[') && t.endsWith(']')) {
+                    QString name = t.mid(1, t.length() - 2).trimmed();
+                    name.replace("%20", " ");
+                    if (name.compare(sectionName, Qt::CaseInsensitive) == 0) {
+                        secStart = i;
+                    } else if (secStart != -1) {
+                        secEnd = i;
+                        break;
+                    }
+                }
+            }
+
+            if (secStart == -1) {
+                if (!lines.isEmpty() && !lines.last().trimmed().isEmpty()) {
+                    lines.append("");
+                }
+                secStart = lines.size();
+                lines.append(QString("[%1]").arg(sectionName));
+                lines.append(QString("%1=%2").arg(key, val));
+                return;
+            }
+
+            if (secEnd == -1) secEnd = lines.size();
+
+            int keyIdx = -1;
+            for (int i = secStart + 1; i < secEnd; ++i) {
+                QString t = lines[i].trimmed();
+                int eq = t.indexOf('=');
+                if (eq != -1) {
+                    QString k = t.left(eq).trimmed();
+                    k.replace('\\', '/');
+                    if (k.compare(key, Qt::CaseInsensitive) == 0) {
+                        keyIdx = i;
+                        break;
+                    }
+                }
+            }
+
+            if (keyIdx != -1) {
+                if (isAddedSection) {
+                    int eq = lines[keyIdx].indexOf('=');
+                    QString existingVals = lines[keyIdx].mid(eq + 1).trimmed();
+                    QStringList apps = existingVals.split(';', Qt::SkipEmptyParts);
+                    for (QString &a : apps) a = a.trimmed();
+                    apps.removeAll(df);
+                    apps.prepend(df);
+                    lines[keyIdx] = QString("%1=%2;").arg(key, apps.join(';'));
+                } else {
+                    lines[keyIdx] = QString("%1=%2;").arg(key, df);
+                }
+            } else {
+                lines.insert(secStart + 1, QString("%1=%2;").arg(key, val));
+            }
+        };
+
+        applySection("Default Applications", mt, df + ";", false);
+        applySection("Added Associations", mt, df + ";", true);
+
+        QFile wf(configPath);
+        if (wf.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+            QTextStream out(&wf);
+            for (const QString &l : lines) {
+                out << l << "\n";
+            }
+            wf.close();
+        }
+    }
+
+    // Refresh memory cache so newly set default takes effect immediately
+    m_loaded = false;
+    loadApps();
+
     return true;
 }

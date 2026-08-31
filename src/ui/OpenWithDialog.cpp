@@ -3,6 +3,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFileInfo>
+#include <QDir>
 #include <QMessageBox>
 
 OpenWithDialog::OpenWithDialog(const QStringList &filePaths, QWidget *parent)
@@ -233,6 +234,26 @@ void OpenWithDialog::onOpenClicked() {
 bool OpenWithDialog::launchSelected() {
     QString customCmd = m_customCmdEdit->text().trimmed();
     if (!customCmd.isEmpty()) {
+        if (m_setDefCheckBox && m_setDefCheckBox->isChecked() && !m_mimeType.isEmpty()) {
+            QString safeName = customCmd.split(' ', Qt::SkipEmptyParts).value(0);
+            safeName.remove(QRegularExpression("[^a-zA-Z0-9_-]"));
+            if (safeName.isEmpty()) safeName = "custom-app";
+            QString desktopId = QString("usercustom-%1.desktop").arg(safeName);
+            QString appDir = QDir::homePath() + "/.local/share/applications";
+            QDir().mkpath(appDir);
+            QFile f(appDir + "/" + desktopId);
+            if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&f);
+                out << "[Desktop Entry]\n";
+                out << "Type=Application\n";
+                out << "Name=" << customCmd << "\n";
+                out << "Exec=" << customCmd << " %U\n";
+                out << "NoDisplay=true\n";
+                out << "MimeType=" << m_mimeType << ";\n";
+                f.close();
+            }
+            AppLauncher::instance().setDefaultApp(desktopId, m_mimeType);
+        }
         return AppLauncher::instance().launchCommand(customCmd, m_filePaths);
     }
 
@@ -243,18 +264,28 @@ bool OpenWithDialog::launchSelected() {
     }
 
     QString desktopFile = item->data(Qt::UserRole).toString();
-    DesktopApp chosenApp;
-    for (const DesktopApp &app : m_allApps) {
-        if (app.desktopFile == desktopFile) {
-            chosenApp = app;
-            break;
+    DesktopApp chosenApp = AppLauncher::instance().getAppByDesktopFile(desktopFile);
+    if (chosenApp.name.isEmpty()) {
+        for (const DesktopApp &app : m_allApps) {
+            if (app.desktopFile == desktopFile) {
+                chosenApp = app;
+                break;
+            }
+        }
+    }
+    if (chosenApp.name.isEmpty()) {
+        for (const DesktopApp &app : m_recommendedApps) {
+            if (app.desktopFile == desktopFile) {
+                chosenApp = app;
+                break;
+            }
         }
     }
 
-    if (chosenApp.name.isEmpty()) return false;
+    if (chosenApp.name.isEmpty() && chosenApp.exec.isEmpty()) return false;
 
     if (m_setDefCheckBox && m_setDefCheckBox->isChecked() && !m_mimeType.isEmpty()) {
-        AppLauncher::instance().setDefaultApp(chosenApp.desktopFile, m_mimeType);
+        AppLauncher::instance().setDefaultApp(desktopFile, m_mimeType);
     }
 
     return AppLauncher::instance().launchApp(chosenApp, m_filePaths);
