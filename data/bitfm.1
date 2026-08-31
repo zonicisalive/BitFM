@@ -1,0 +1,235 @@
+.TH BITFM 1 "August 2026" "BitFM 1.0.0" "User Commands"
+.SH NAME
+bitfm \- modern, high-performance Linux file manager and Wayland file chooser portal
+.SH SYNOPSIS
+.B bitfm
+[\fIOPTIONS\fR] [\fIPATHS\fR...]
+.br
+.B bitfm
+\fB\-\-portal\fR
+.br
+.B bitfm
+\fB\-o\fR, \fB\-\-open\-file\fR [\fB\-m\fR, \fB\-\-multiple\fR] [\fB\-f\fR, \fB\-\-filter\fR \fIFILTER\fR] [\fIPATH\fR]
+.br
+.B bitfm
+\fB\-s\fR, \fB\-\-save\-file\fR [\fB\-f\fR, \fB\-\-filter\fR \fIFILTER\fR] [\fIPATH\fR]
+.br
+.B bitfm
+\fB\-d\fR, \fB\-\-choose\-folder\fR [\fIPATH\fR]
+.br
+.B bitfm
+\fB\-\-select\fR \fIPATHS\fR...
+.SH DESCRIPTION
+\fBBitFM\fR is a next-generation, asynchronous Linux file manager and desktop portal file chooser engineered with C++20 and Qt 6. Designed for pixel-perfect aesthetics and low-latency operation, it provides native integration on Wayland compositors (Hyprland, Niri, Sway, River, Labwc, Wayfire, GNOME, KDE Plasma, Cosmic) as well as traditional X11 sessions.
+.PP
+BitFM supports multi-tab browsing, dual-pane side-by-side exploration, three dynamic view modes (Icon Grid, Detailed List, and Compact List), an integrated dropdown terminal drawer, real-time file inspection, quick floating previews, acrylic translucency with hardware blur, and deep D-Bus integration (\fIorg.freedesktop.FileManager1\fR and \fIorg.freedesktop.impl.portal.FileChooser\fR).
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Display application help message and exit.
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+Display application version information and exit.
+.TP
+\fB\-\-portal\fR
+Run BitFM as a background daemon implementing the XDG Desktop Portal FileChooser D-Bus service (\fIorg.freedesktop.impl.portal.desktop.bitfm\fR).
+.TP
+\fB\-o\fR, \fB\-\-open\-file\fR [\fIPATH\fR]
+Launch in Open File dialog mode. When accepted, prints the selected file path(s) to standard output.
+.TP
+\fB\-s\fR, \fB\-\-save\-file\fR [\fIPATH\fR]
+Launch in Save File dialog mode.
+.TP
+\fB\-d\fR, \fB\-\-choose\-folder\fR, \fB\-\-select\-folder\fR [\fIPATH\fR]
+Launch in Choose Folder dialog mode.
+.TP
+\fB\-m\fR, \fB\-\-multiple\fR
+Allow multiple files to be selected simultaneously when using \fB\-\-open\-file\fR.
+.TP
+\fB\-f\fR, \fB\-\-filter\fR \fIFILTER\fR
+Set the initial file type filter in dialog modes (e.g. \fI*.png\fR, \fIImages\fR, \fIDocuments\fR).
+.TP
+\fB\-\-select\fR \fIPATHS\fR...
+Select and focus the specified file(s) in their parent directory inside a running or new BitFM window.
+.TP
+\fB\-\-gapplication\-service\fR
+Run as a persistent D-Bus service without initially displaying a main window.
+.SH VIEW MODES
+BitFM provides three distinct layout presentations:
+.TP
+\fBIcon Grid (\fRCtrl+1\fB)\fR
+Modern card-style grid with edge-to-edge justification, centered thumbnails/emblems, symlink indicators, folder item counts, and multi-line file metadata.
+.TP
+\fBDetailed List (\fRCtrl+2\fB)\fR
+Tabular file view featuring interactive resizable columns (Name, Size, Type, Date Modified, Permissions), sorting indicators, and inline metadata formatting.
+.TP
+\fBCompact List (\fRCtrl+3\fB)\fR
+Flowing multi-column horizontal list with dynamic icon scaling, customizable row heights, and compact column density.
+.SH KEYBOARD SHORTCUTS
+.SS Navigation & Tabs
+.TP
+\fBCtrl+T\fR
+Open a new directory tab.
+.TP
+\fBCtrl+W\fR
+Close the current directory tab.
+.TP
+\fBF3\fR
+Toggle dual-pane split view for side-by-side directory management.
+.TP
+\fBAlt+Left\fR, \fBBackspace\fR
+Navigate back in folder history.
+.TP
+\fBAlt+Right\fR
+Navigate forward in folder history.
+.TP
+\fBAlt+Up\fR, \fBh\fR
+Navigate up to the parent directory.
+.TP
+\fBAlt+Home\fR
+Navigate to the user's home directory.
+.TP
+\fBCtrl+L\fR
+Focus and edit the location breadcrumb path bar.
+.SS Search & Filtering
+.TP
+\fBCtrl+F\fR, \fB/\fR
+Toggle the instant search & filter bar.
+.TP
+\fBCtrl+H\fR, \fB.\fR
+Toggle visibility of hidden files and directories (\fI.dotfiles\fR).
+.TP
+\fBEsc\fR
+Close search bar, floating previews, or active dialogs.
+.SS Vim-Style Navigation
+.TP
+\fBj\fR, \fBDown\fR
+Move selection cursor down.
+.TP
+\fBk\fR, \fBUp\fR
+Move selection cursor up.
+.TP
+\fBh\fR
+Navigate to parent folder.
+.TP
+\fBl\fR, \fBEnter\fR
+Open selected file or navigate into selected directory.
+.TP
+\fBg\fR
+Jump to the top of the file list.
+.TP
+\fBG\fR
+Jump to the bottom of the file list.
+.SS Panels & Previews
+.TP
+\fBSpace\fR
+Open Quick Look floating preview for videos, PDFs, audio, images, and syntax-highlighted code.
+.TP
+\fBF4\fR
+Toggle the File Inspector panel (metadata, video frame extraction, PDF page previews, SHA-256 hashes).
+.TP
+\fBF12\fR
+Toggle the integrated dropdown terminal drawer synchronized to the active folder.
+.TP
+\fBCtrl+B\fR
+Toggle the Places and Devices sidebar.
+.TP
+\fBCtrl+M\fR
+Toggle the application menu bar.
+.SS Zoom & View Sizing
+.TP
+\fBCtrl++\fR, \fBCtrl+=\fR
+Increase icon grid and list thumbnail zoom size.
+.TP
+\fBCtrl+-\fR
+Decrease icon grid and list thumbnail zoom size.
+.TP
+\fBCtrl+0\fR
+Reset zoom level to default.
+.SS File Operations
+.TP
+\fBCtrl+X\fR
+Cut selected items (rendered with visual ghosting/dimming until pasted).
+.TP
+\fBCtrl+C\fR
+Copy selected items to clipboard.
+.TP
+\fBCtrl+V\fR
+Paste files or move cut items to current directory.
+.TP
+\fBF2\fR
+Rename selected file or folder (opens Batch Rename if multiple items selected).
+.TP
+\fBCtrl+Shift+N\fR
+Create a new folder.
+.TP
+\fBDelete\fR
+Move selected items to Trash (or permanently delete if already in Trash).
+.TP
+\fBShift+Delete\fR
+Permanently delete selected items immediately.
+.TP
+\fBCtrl+Shift+T\fR
+Open Theme Controller Studio.
+.SH TRASH & RESTORATION
+When browsing the Trash directory (\fI~/.local/share/Trash/files\fR), BitFM provides a dedicated top **Trash Bar** featuring:
+.IP \(bu 2
+\fBRestore Selected / Restore All\fR: Restores files and directories back to their original recorded filesystem locations using \fI.trashinfo\fR metadata.
+.IP \(bu 2
+\fBDelete Selected\fR: Permanently deletes only the selected items.
+.IP \(bu 2
+\fBEmpty Trash\fR: Wipes all deleted files and metadata from the Trash.
+.PP
+Context menus inside Trash automatically hide standard actions (\fIOpen With\fR, \fICut\fR, \fICopy\fR, etc.) to prevent accidental execution of discarded files.
+.SH THEMES & STYLING
+BitFM includes 10 built-in themes (Modern GNOME Adwaita Dark, OLED Pitch Black, Midnight Cyberpunk, Nord Frost, Gruvbox Warm Dark, Dracula Gothic, Rosé Pine, GitHub Dark, Catppuccin Mocha, Pure Light) and supports live acrylic translucency with hardware blur under Wayland.
+.PP
+BitFM watches \fB~/.config/BitFM/theme.conf\fR and \fB~/.config/BitFM/theme.json\fR via inotify for real-time external theme synchronization.
+.SH FILES
+.TP
+\fB~/.config/BitFM/bitfm.conf\fR
+Application configuration file storing user preferences, window geometry, splitter sizes, and universal zoom levels.
+.TP
+\fB~/.config/BitFM/theme.conf\fR
+Custom dynamic theme configuration file.
+.TP
+\fB~/.local/share/Trash\fR
+FreeDesktop compliant trash storage directory containing \fIfiles/\fR and \fIinfo/\fR.
+.TP
+\fB~/.config/xdg-desktop-portal/portals.conf\fR
+Configuration mapping BitFM as the preferred file chooser portal.
+.SH STANDARDS & D-BUS INTERFACES
+BitFM fully implements standard Linux desktop specifications:
+.TP
+\fBorg.freedesktop.FileManager1\fR
+Allows web browsers (Firefox, Chromium, Brave) and applications to focus windows, open directories, and highlight downloaded items via \fIShowItems\fR and \fIShowFolders\fR.
+.TP
+\fBorg.freedesktop.impl.portal.FileChooser\fR
+Provides modern native file dialogs to Flatpak, Snap, and native Wayland/X11 applications.
+.TP
+\fBXDG MimeApps & Shared MIME-Info\fR
+Associates file types with installed applications using \fImimeapps.list\fR and \fImimeinfo.cache\fR.
+.SH EXAMPLES
+.TP
+Open BitFM at the user home directory:
+.B bitfm
+.TP
+Open BitFM focused on a specific directory:
+.B bitfm /var/log
+.TP
+Highlight a downloaded file in its folder:
+.B bitfm \-\-select ~/Downloads/document.pdf
+.TP
+Open a file chooser dialog filtering for images:
+.B bitfm \-\-open\-file \-\-multiple \-\-filter "*.png;*.jpg;*.webp" ~/Pictures
+.TP
+Run as the XDG Desktop Portal background daemon:
+.B bitfm \-\-portal
+.SH AUTHORS
+BitFM is created and maintained by the BitFM developers and contributors.
+.br
+Website & Repository: \fBhttps://github.com/ZonicExists/BitFM\fR
+.SH COPYRIGHT
+Copyright \(co 2026 BitFM Contributors.
+.br
+Distributed under the GNU General Public License version 3 (GPL-3.0).
