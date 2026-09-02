@@ -1,16 +1,26 @@
 #include "PortalBackend.h"
 #include "FilePickerDialog.h"
+#include "ThemeManager.h"
 #include <QDBusConnection>
 #include <QDBusError>
 #include <QUrl>
 #include <QDir>
 #include <QFileInfo>
+#include <QApplication>
 #include <QDebug>
 
 PortalFileChooserAdaptor::PortalFileChooserAdaptor(QObject *parent)
     : QDBusAbstractAdaptor(parent)
 {
     setAutoRelaySignals(true);
+}
+
+static void ensureThemeLoaded() {
+    static bool loaded = false;
+    if (!loaded && qApp) {
+        ThemeManager::applyTheme(*static_cast<QApplication*>(qApp));
+        loaded = true;
+    }
 }
 
 static QString extractFolder(const QVariantMap &options) {
@@ -47,6 +57,7 @@ uint PortalFileChooserAdaptor::OpenFile(const QDBusObjectPath &,
                                         const QVariantMap &options,
                                         QVariantMap &results)
 {
+    ensureThemeLoaded();
     bool isDirectory = options.value("directory", false).toBool();
     bool multiple = options.value("multiple", false).toBool();
     QString folder = extractFolder(options);
@@ -79,6 +90,7 @@ uint PortalFileChooserAdaptor::SaveFile(const QDBusObjectPath &,
                                         const QVariantMap &options,
                                         QVariantMap &results)
 {
+    ensureThemeLoaded();
     QString currentName = options.value("current_name").toString();
     QString folder = extractFolder(options);
 
