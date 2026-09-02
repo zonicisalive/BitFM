@@ -479,6 +479,9 @@ void DirectoryViewTab::openSearch() {
 }
 
 void DirectoryViewTab::closeSearch() {
+    if (m_isClosingSearch) return;
+    m_isClosingSearch = true;
+
     m_searchDebounceTimer.stop();
     if (m_searchBar) m_searchBar->deactivate();
     if (m_fileModel) m_fileModel->cancelSearch();
@@ -488,6 +491,8 @@ void DirectoryViewTab::closeSearch() {
         m_breadcrumbBar->activateBreadcrumbMode();
     }
     if (m_actSearch) m_actSearch->setChecked(false);
+
+    m_isClosingSearch = false;
 }
 
 void DirectoryViewTab::showErrorMessage(const QString &title, const QString &message) {

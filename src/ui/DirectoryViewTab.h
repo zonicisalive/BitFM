@@ -81,6 +81,7 @@ private:
     QStackedWidget *m_locationStack = nullptr;
     ErrorBannerWidget *m_errorBanner = nullptr;
     TrashBarWidget *m_trashBar = nullptr;
+    bool m_isClosingSearch = false;
 
     QToolBar *m_toolBar = nullptr;
     QAction *m_actBack = nullptr;

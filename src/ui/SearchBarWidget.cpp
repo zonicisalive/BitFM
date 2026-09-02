@@ -94,7 +94,6 @@ void SearchBarWidget::activate() {
 
 void SearchBarWidget::deactivate() {
     m_lineEdit->clear();
-    emit searchClosed();
 }
 
 bool SearchBarWidget::isActive() const {
@@ -119,6 +118,7 @@ void SearchBarWidget::onRegexToggled(bool checked) {
 
 void SearchBarWidget::onCloseClicked() {
     deactivate();
+    emit searchClosed();
 }
 
 bool SearchBarWidget::eventFilter(QObject *watched, QEvent *event) {
@@ -126,6 +126,7 @@ bool SearchBarWidget::eventFilter(QObject *watched, QEvent *event) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
         if (keyEvent->key() == Qt::Key_Escape) {
             deactivate();
+            emit searchClosed();
             return true;
         }
     }
