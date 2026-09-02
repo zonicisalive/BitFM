@@ -1,5 +1,6 @@
 #include "FileOperations.h"
 #include "FileOperationProgressDialog.h"
+#include "VfsTypes.h"
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -322,12 +323,17 @@ bool FileOperations::deletePermanently(const QStringList &filePaths, QWidget *pa
     return allSuccess;
 }
 
-FileStats FileOperations::calculateStats(const QStringList &paths, bool *canceled) {
+FileStats FileOperations::calculateStats(const QStringList &paths, bool *canceled, FileOperationProgressDialog *progressDialog) {
     FileStats stats;
+    QElapsedTimer uiTimer;
+    uiTimer.start();
+    qint64 lastUiUpdate = 0;
+
     for (const QString &path : paths) {
         if (canceled && *canceled) break;
         QFileInfo fi(path);
         if (!fi.exists()) continue;
+
         if (fi.isDir() && !fi.isSymLink()) {
             stats.dirCount++;
             QDirIterator it(path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System, QDirIterator::Subdirectories);
@@ -341,10 +347,36 @@ FileStats FileOperations::calculateStats(const QStringList &paths, bool *cancele
                     stats.fileCount++;
                     stats.totalBytes += subFi.size();
                 }
+
+                if (uiTimer.elapsed() - lastUiUpdate > 30) {
+                    if (progressDialog) {
+                        progressDialog->setStatus(
+                            tr("Preparing... Found %1 items (%2)")
+                                .arg(stats.fileCount + stats.dirCount)
+                                .arg(FileItem::formatFileSize(stats.totalBytes)),
+                            0, 0
+                        );
+                    }
+                    QApplication::processEvents(QEventLoop::AllEvents, 5);
+                    lastUiUpdate = uiTimer.elapsed();
+                }
             }
         } else {
             stats.fileCount++;
             stats.totalBytes += fi.size();
+        }
+
+        if (uiTimer.elapsed() - lastUiUpdate > 30) {
+            if (progressDialog) {
+                progressDialog->setStatus(
+                    tr("Preparing... Found %1 items (%2)")
+                        .arg(stats.fileCount + stats.dirCount)
+                        .arg(FileItem::formatFileSize(stats.totalBytes)),
+                    0, 0
+                );
+            }
+            QApplication::processEvents(QEventLoop::AllEvents, 5);
+            lastUiUpdate = uiTimer.elapsed();
         }
     }
     return stats;
@@ -508,19 +540,41 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
     emit operationStarted(tr("Copying files..."));
 
     bool isCanceled = false;
-    FileStats stats = calculateStats(sourcePaths, &isCanceled);
+    FileOperationProgressDialog *progressDialog = nullptr;
+
+    bool hasDir = false;
+    for (const QString &p : sourcePaths) {
+        if (QFileInfo(p).isDir()) {
+            hasDir = true;
+            break;
+        }
+    }
+
+    // Show progress dialog IMMEDIATELY so the UI never appears frozen
+    if (parentWidget && (sourcePaths.size() > 1 || hasDir)) {
+        progressDialog = new FileOperationProgressDialog(tr("Copying Files"), parentWidget);
+        connect(progressDialog, &FileOperationProgressDialog::cancelRequested, this, [&isCanceled]() {
+            isCanceled = true;
+        });
+        progressDialog->setStatus(tr("Preparing copy..."), 0, 0);
+        progressDialog->show();
+        QApplication::processEvents();
+    }
+
+    FileStats stats = calculateStats(sourcePaths, &isCanceled, progressDialog);
+    if (isCanceled) {
+        if (progressDialog) {
+            progressDialog->close();
+            progressDialog->deleteLater();
+        }
+        emit operationFinished(false, tr("Copy operation was canceled."));
+        return false;
+    }
+
     int totalItems = stats.fileCount + stats.dirCount;
     qint64 totalBytes = stats.totalBytes;
 
-    qint64 bytesCopied = 0;
-    int itemsCopied = 0;
-    int successTopLevel = 0;
-
-    bool applyToAll = false;
-    ConflictAction globalAction = ConflictAction::Skip;
-
-    FileOperationProgressDialog *progressDialog = nullptr;
-    if ((totalItems > 1 || totalBytes > 5 * 1024 * 1024 || stats.dirCount > 0) && parentWidget) {
+    if (!progressDialog && parentWidget && (totalItems > 1 || totalBytes > 5 * 1024 * 1024 || stats.dirCount > 0)) {
         progressDialog = new FileOperationProgressDialog(tr("Copying Files"), parentWidget);
         connect(progressDialog, &FileOperationProgressDialog::cancelRequested, this, [&isCanceled]() {
             isCanceled = true;
@@ -528,6 +582,13 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
         progressDialog->show();
         QApplication::processEvents();
     }
+
+    qint64 bytesCopied = 0;
+    int itemsCopied = 0;
+    int successTopLevel = 0;
+
+    bool applyToAll = false;
+    ConflictAction globalAction = ConflictAction::Skip;
 
     for (const QString &src : sourcePaths) {
         if (isCanceled) break;
@@ -625,19 +686,41 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
     emit operationStarted(tr("Moving files..."));
 
     bool isCanceled = false;
-    FileStats stats = calculateStats(sourcePaths, &isCanceled);
+    FileOperationProgressDialog *progressDialog = nullptr;
+
+    bool hasDir = false;
+    for (const QString &p : sourcePaths) {
+        if (QFileInfo(p).isDir()) {
+            hasDir = true;
+            break;
+        }
+    }
+
+    // Show progress dialog IMMEDIATELY so the UI never appears frozen
+    if (parentWidget && (sourcePaths.size() > 1 || hasDir)) {
+        progressDialog = new FileOperationProgressDialog(tr("Moving Files"), parentWidget);
+        connect(progressDialog, &FileOperationProgressDialog::cancelRequested, this, [&isCanceled]() {
+            isCanceled = true;
+        });
+        progressDialog->setStatus(tr("Preparing move..."), 0, 0);
+        progressDialog->show();
+        QApplication::processEvents();
+    }
+
+    FileStats stats = calculateStats(sourcePaths, &isCanceled, progressDialog);
+    if (isCanceled) {
+        if (progressDialog) {
+            progressDialog->close();
+            progressDialog->deleteLater();
+        }
+        emit operationFinished(false, tr("Move operation was canceled."));
+        return false;
+    }
+
     int totalItems = stats.fileCount + stats.dirCount;
     qint64 totalBytes = stats.totalBytes;
 
-    qint64 bytesCopied = 0;
-    int itemsCopied = 0;
-    int successTopLevel = 0;
-
-    bool applyToAll = false;
-    ConflictAction globalAction = ConflictAction::Skip;
-
-    FileOperationProgressDialog *progressDialog = nullptr;
-    if ((totalItems > 1 || totalBytes > 5 * 1024 * 1024 || stats.dirCount > 0) && parentWidget) {
+    if (!progressDialog && parentWidget && (totalItems > 1 || totalBytes > 5 * 1024 * 1024 || stats.dirCount > 0)) {
         progressDialog = new FileOperationProgressDialog(tr("Moving Files"), parentWidget);
         connect(progressDialog, &FileOperationProgressDialog::cancelRequested, this, [&isCanceled]() {
             isCanceled = true;
@@ -645,6 +728,13 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         progressDialog->show();
         QApplication::processEvents();
     }
+
+    qint64 bytesCopied = 0;
+    int itemsCopied = 0;
+    int successTopLevel = 0;
+
+    bool applyToAll = false;
+    ConflictAction globalAction = ConflictAction::Skip;
 
     for (const QString &src : sourcePaths) {
         if (isCanceled) break;

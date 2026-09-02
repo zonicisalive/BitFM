@@ -1621,8 +1621,10 @@ void FileViewWidget::onPasteAction() {
         destDir = UserEnvironment::realUserHome();
     }
 
+    QWidget *dlgParent = window() ? window() : this;
+
     if (isCut) {
-        bool ok = m_fileOps.moveFiles(srcPaths, destDir, this);
+        bool ok = m_fileOps.moveFiles(srcPaths, destDir, dlgParent);
         if (ok) {
             QGuiApplication::clipboard()->clear();
             m_clipboardPaths.clear();
@@ -1632,7 +1634,7 @@ void FileViewWidget::onPasteAction() {
             emit statusMessageRequested(tr("Moved %1 item(s) to %2").arg(srcPaths.size()).arg(QFileInfo(destDir).fileName()));
         }
     } else {
-        bool ok = m_fileOps.copyFiles(srcPaths, destDir, this);
+        bool ok = m_fileOps.copyFiles(srcPaths, destDir, dlgParent);
         if (ok) {
             m_sourceModel->refresh();
             emit statusMessageRequested(tr("Pasted %1 item(s)").arg(srcPaths.size()));
@@ -1673,10 +1675,11 @@ void FileViewWidget::dropEvent(QDropEvent *event) {
     if (sourcePaths.isEmpty()) return;
 
     QString destDir = m_sourceModel->currentDirectory();
+    QWidget *dlgParent = window() ? window() : this;
     if (event->dropAction() == Qt::MoveAction)
-        m_fileOps.moveFiles(sourcePaths, destDir, this);
+        m_fileOps.moveFiles(sourcePaths, destDir, dlgParent);
     else
-        m_fileOps.copyFiles(sourcePaths, destDir, this);
+        m_fileOps.copyFiles(sourcePaths, destDir, dlgParent);
     event->acceptProposedAction();
 }
 
