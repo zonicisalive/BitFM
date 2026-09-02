@@ -28,6 +28,7 @@ DirectoryViewTab::DirectoryViewTab(const QString &initialPath, QWidget *parent)
     setupUi();
     m_fileView->setViewMode(static_cast<ViewMode>(AppSettings::instance().viewMode()));
     m_fileView->setGridIconSize(AppSettings::instance().zoomLevel());
+    updateViewModeIcon();
     navigateTo(initialPath, false);
 
     // Keep all tabs in sync with global settings
@@ -432,8 +433,8 @@ void DirectoryViewTab::toggleHiddenFiles() {
 }
 
 void DirectoryViewTab::updateViewModeIcon() {
-    if (!m_viewModeBtn || !m_fileView) return;
-    ViewMode mode = m_fileView->viewMode();
+    if (!m_viewModeBtn) return;
+    ViewMode mode = m_fileView ? m_fileView->viewMode() : static_cast<ViewMode>(AppSettings::instance().viewMode());
     if (mode == ViewMode::IconGrid) {
         m_viewModeBtn->setIcon(QIcon::fromTheme("view-grid", QIcon::fromTheme("view-grid-symbolic", QIcon::fromTheme("view-list-icons"))));
         m_viewModeBtn->setToolTip(tr("Grid View (Click to switch to List View)"));
