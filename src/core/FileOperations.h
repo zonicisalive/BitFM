@@ -6,6 +6,14 @@
 #include <QWidget>
 #include "ConflictResolutionDialog.h"
 
+class FileOperationProgressDialog;
+
+struct FileStats {
+    int fileCount = 0;
+    int dirCount = 0;
+    qint64 totalBytes = 0;
+};
+
 class FileOperations : public QObject {
     Q_OBJECT
 
@@ -42,5 +50,11 @@ signals:
 
 private:
     bool moveSingleFileToTrash(const QString &filePath, QString *err = nullptr);
-    bool copyRecursively(const QString &srcFilePath, const QString &tgtFilePath, bool overwrite, bool *canceled);
+    FileStats calculateStats(const QStringList &paths, bool *canceled = nullptr);
+    bool copySingleFile(const QString &srcFilePath, const QString &tgtFilePath, bool overwrite,
+                        qint64 *bytesCopied, qint64 totalBytes, int *itemsCopied, int totalItems,
+                        FileOperationProgressDialog *progressDialog, bool *canceled);
+    bool copyRecursively(const QString &srcFilePath, const QString &tgtFilePath, bool overwrite,
+                         qint64 *bytesCopied = nullptr, qint64 totalBytes = 0, int *itemsCopied = nullptr, int totalItems = 0,
+                         FileOperationProgressDialog *progressDialog = nullptr, bool *canceled = nullptr);
 };

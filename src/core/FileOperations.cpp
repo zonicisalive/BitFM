@@ -295,7 +295,140 @@ bool FileOperations::deletePermanently(const QStringList &filePaths, QWidget *pa
     return allSuccess;
 }
 
-bool FileOperations::copyRecursively(const QString &srcFilePath, const QString &tgtFilePath, bool overwrite, bool *canceled) {
+FileStats FileOperations::calculateStats(const QStringList &paths, bool *canceled) {
+    FileStats stats;
+    for (const QString &path : paths) {
+        if (canceled && *canceled) break;
+        QFileInfo fi(path);
+        if (!fi.exists()) continue;
+        if (fi.isDir() && !fi.isSymLink()) {
+            stats.dirCount++;
+            QDirIterator it(path, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                if (canceled && *canceled) break;
+                it.next();
+                QFileInfo subFi = it.fileInfo();
+                if (subFi.isDir() && !subFi.isSymLink()) {
+                    stats.dirCount++;
+                } else {
+                    stats.fileCount++;
+                    stats.totalBytes += subFi.size();
+                }
+            }
+        } else {
+            stats.fileCount++;
+            stats.totalBytes += fi.size();
+        }
+    }
+    return stats;
+}
+
+bool FileOperations::copySingleFile(const QString &srcFilePath, const QString &tgtFilePath, bool overwrite,
+                                    qint64 *bytesCopied, qint64 totalBytes, int *itemsCopied, int totalItems,
+                                    FileOperationProgressDialog *progressDialog, bool *canceled) {
+    if (canceled && *canceled) return false;
+
+    QFileInfo srcInfo(srcFilePath);
+    if (!srcInfo.exists()) return false;
+
+    // Safety check: Cannot copy a file onto itself
+    if (QDir::cleanPath(srcFilePath) == QDir::cleanPath(tgtFilePath)) {
+        return false;
+    }
+
+    // Handle symbolic links
+    if (srcInfo.isSymLink()) {
+        if (QFile::exists(tgtFilePath)) {
+            if (overwrite) {
+                QFile::remove(tgtFilePath);
+            } else {
+                return false;
+            }
+        }
+        bool ok = QFile::link(srcInfo.symLinkTarget(), tgtFilePath);
+        if (ok && itemsCopied) (*itemsCopied)++;
+        if (progressDialog) {
+            progressDialog->setDetailedProgress(srcFilePath, bytesCopied ? *bytesCopied : 0, totalBytes,
+                                                itemsCopied ? *itemsCopied : 0, totalItems);
+        }
+        return ok;
+    }
+
+    QFile srcFile(srcFilePath);
+    if (!srcFile.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+
+    if (QFile::exists(tgtFilePath)) {
+        if (overwrite) {
+            QFile::remove(tgtFilePath);
+        } else {
+            return false;
+        }
+    }
+
+    QFile tgtFile(tgtFilePath);
+    if (!tgtFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;
+    }
+
+    constexpr qint64 BUFFER_SIZE = 1024 * 1024; // 1 MB buffer
+    QByteArray buffer;
+    buffer.resize(BUFFER_SIZE);
+
+    qint64 lastUiUpdate = 0;
+    QElapsedTimer uiTimer;
+    uiTimer.start();
+
+    while (!srcFile.atEnd()) {
+        if (canceled && *canceled) {
+            tgtFile.close();
+            tgtFile.remove(); // Clean up partial file on cancel
+            return false;
+        }
+
+        qint64 bytesRead = srcFile.read(buffer.data(), BUFFER_SIZE);
+        if (bytesRead < 0) {
+            tgtFile.close();
+            tgtFile.remove();
+            return false;
+        }
+        if (bytesRead == 0) break;
+
+        qint64 bytesWritten = tgtFile.write(buffer.constData(), bytesRead);
+        if (bytesWritten != bytesRead) {
+            tgtFile.close();
+            tgtFile.remove();
+            return false;
+        }
+
+        if (bytesCopied) *bytesCopied += bytesWritten;
+
+        if (uiTimer.elapsed() - lastUiUpdate > 30) {
+            if (progressDialog) {
+                progressDialog->setDetailedProgress(srcFilePath, bytesCopied ? *bytesCopied : 0, totalBytes,
+                                                    itemsCopied ? *itemsCopied : 0, totalItems);
+            }
+            QApplication::processEvents(QEventLoop::AllEvents, 5);
+            lastUiUpdate = uiTimer.elapsed();
+        }
+    }
+
+    tgtFile.close();
+    srcFile.close();
+    tgtFile.setPermissions(srcInfo.permissions());
+
+    if (itemsCopied) (*itemsCopied)++;
+    if (progressDialog) {
+        progressDialog->setDetailedProgress(srcFilePath, bytesCopied ? *bytesCopied : 0, totalBytes,
+                                            itemsCopied ? *itemsCopied : 0, totalItems);
+    }
+    return true;
+}
+
+bool FileOperations::copyRecursively(const QString &srcFilePath, const QString &tgtFilePath, bool overwrite,
+                                     qint64 *bytesCopied, qint64 totalBytes, int *itemsCopied, int totalItems,
+                                     FileOperationProgressDialog *progressDialog, bool *canceled) {
     if (canceled && *canceled) return false;
 
     QFileInfo srcInfo(srcFilePath);
@@ -312,29 +445,26 @@ bool FileOperations::copyRecursively(const QString &srcFilePath, const QString &
             return false;
         }
 
+        if (itemsCopied) (*itemsCopied)++;
+        if (progressDialog) {
+            progressDialog->setDetailedProgress(srcFilePath, bytesCopied ? *bytesCopied : 0, totalBytes,
+                                                itemsCopied ? *itemsCopied : 0, totalItems);
+        }
+
         QDir sourceDir(srcFilePath);
-        QStringList fileNames = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
-        for (const QString &fileName : fileNames) {
+        QFileInfoList entries = sourceDir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
+        for (const QFileInfo &entryInfo : entries) {
             if (canceled && *canceled) return false;
-            QString newSrcFilePath = srcFilePath + "/" + fileName;
-            QString newTgtFilePath = tgtFilePath + "/" + fileName;
-            if (!copyRecursively(newSrcFilePath, newTgtFilePath, overwrite, canceled)) {
+            QString newSrcFilePath = entryInfo.absoluteFilePath();
+            QString newTgtFilePath = targetDir.absoluteFilePath(entryInfo.fileName());
+            if (!copyRecursively(newSrcFilePath, newTgtFilePath, overwrite, bytesCopied, totalBytes, itemsCopied, totalItems, progressDialog, canceled)) {
                 return false;
             }
         }
+        return true;
     } else {
-        if (QFile::exists(tgtFilePath)) {
-            if (overwrite) {
-                if (QDir::cleanPath(srcFilePath) != QDir::cleanPath(tgtFilePath)) {
-                    QFile::remove(tgtFilePath);
-                }
-            } else {
-                return false;
-            }
-        }
-        return QFile::copy(srcFilePath, tgtFilePath);
+        return copySingleFile(srcFilePath, tgtFilePath, overwrite, bytesCopied, totalBytes, itemsCopied, totalItems, progressDialog, canceled);
     }
-    return true;
 }
 
 bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &destinationDir, QWidget *parentWidget) {
@@ -349,31 +479,34 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
     }
 
     emit operationStarted(tr("Copying files..."));
-    int total = sourcePaths.size();
-    int current = 0;
-    int successCount = 0;
+
+    bool isCanceled = false;
+    FileStats stats = calculateStats(sourcePaths, &isCanceled);
+    int totalItems = stats.fileCount + stats.dirCount;
+    qint64 totalBytes = stats.totalBytes;
+
+    qint64 bytesCopied = 0;
+    int itemsCopied = 0;
+    int successTopLevel = 0;
 
     bool applyToAll = false;
     ConflictAction globalAction = ConflictAction::Skip;
-    bool isCanceled = false;
 
     FileOperationProgressDialog *progressDialog = nullptr;
-    if (total > 1 && parentWidget) {
+    if ((totalItems > 1 || totalBytes > 5 * 1024 * 1024 || stats.dirCount > 0) && parentWidget) {
         progressDialog = new FileOperationProgressDialog(tr("Copying Files"), parentWidget);
         connect(progressDialog, &FileOperationProgressDialog::cancelRequested, this, [&isCanceled]() {
             isCanceled = true;
         });
         progressDialog->show();
+        QApplication::processEvents();
     }
 
     for (const QString &src : sourcePaths) {
         if (isCanceled) break;
 
         QFileInfo srcInfo(src);
-        if (!srcInfo.exists()) {
-            current++;
-            continue;
-        }
+        if (!srcInfo.exists()) continue;
 
         QString targetPath = destDir.absoluteFilePath(srcInfo.fileName());
         bool overwrite = false;
@@ -413,8 +546,6 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
                 isCanceled = true;
                 break;
             } else if (action == ConflictAction::Skip) {
-                current++;
-                if (progressDialog) progressDialog->setStatus(srcInfo.fileName(), current, total);
                 continue;
             } else if (action == ConflictAction::Rename) {
                 int counter = 1;
@@ -429,18 +560,13 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
             }
         }
 
-        if (progressDialog) {
-            progressDialog->setStatus(srcInfo.fileName(), current + 1, total);
-        }
-
-        if (copyRecursively(src, targetPath, overwrite, &isCanceled)) {
-            successCount++;
+        if (copyRecursively(src, targetPath, overwrite, &bytesCopied, totalBytes, &itemsCopied, totalItems, progressDialog, &isCanceled)) {
+            successTopLevel++;
         } else if (!isCanceled && parentWidget) {
             QMessageBox::warning(parentWidget, tr("Copy Error"), getDetailedErrorMessage(src, "copy"));
         }
 
-        current++;
-        emit operationProgress(current, total);
+        emit operationProgress(itemsCopied, totalItems);
         QApplication::processEvents();
     }
 
@@ -449,11 +575,11 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
         progressDialog->deleteLater();
     }
 
-    bool allSuccess = (!isCanceled && successCount == total);
+    bool allSuccess = (!isCanceled && successTopLevel == sourcePaths.size());
     emit operationFinished(
         allSuccess,
         isCanceled ? tr("Copy operation was canceled.") :
-        (allSuccess ? tr("Copied %1 items.").arg(total) : tr("Failed to copy some items."))
+        (allSuccess ? tr("Copied %1 items.").arg(sourcePaths.size()) : tr("Failed to copy some items."))
     );
     return allSuccess;
 }
@@ -470,21 +596,27 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
     }
 
     emit operationStarted(tr("Moving files..."));
-    int total = sourcePaths.size();
-    int current = 0;
-    int successCount = 0;
+
+    bool isCanceled = false;
+    FileStats stats = calculateStats(sourcePaths, &isCanceled);
+    int totalItems = stats.fileCount + stats.dirCount;
+    qint64 totalBytes = stats.totalBytes;
+
+    qint64 bytesCopied = 0;
+    int itemsCopied = 0;
+    int successTopLevel = 0;
 
     bool applyToAll = false;
     ConflictAction globalAction = ConflictAction::Skip;
-    bool isCanceled = false;
 
     FileOperationProgressDialog *progressDialog = nullptr;
-    if (total > 1 && parentWidget) {
+    if ((totalItems > 1 || totalBytes > 5 * 1024 * 1024 || stats.dirCount > 0) && parentWidget) {
         progressDialog = new FileOperationProgressDialog(tr("Moving Files"), parentWidget);
         connect(progressDialog, &FileOperationProgressDialog::cancelRequested, this, [&isCanceled]() {
             isCanceled = true;
         });
         progressDialog->show();
+        QApplication::processEvents();
     }
 
     for (const QString &src : sourcePaths) {
@@ -495,8 +627,7 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         bool overwrite = false;
 
         if (src == targetPath) {
-            successCount++;
-            current++;
+            successTopLevel++;
             continue;
         }
 
@@ -517,8 +648,6 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
                 isCanceled = true;
                 break;
             } else if (action == ConflictAction::Skip) {
-                current++;
-                if (progressDialog) progressDialog->setStatus(srcInfo.fileName(), current, total);
                 continue;
             } else if (action == ConflictAction::Rename) {
                 int counter = 1;
@@ -534,19 +663,26 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         }
 
         if (progressDialog) {
-            progressDialog->setStatus(srcInfo.fileName(), current + 1, total);
+            progressDialog->setDetailedProgress(srcInfo.fileName(), bytesCopied, totalBytes, itemsCopied, totalItems);
         }
 
         bool moved = false;
         if (overwrite && QFile::exists(targetPath)) {
-            QFile::remove(targetPath);
+            if (QFileInfo(targetPath).isDir()) {
+                QDir(targetPath).removeRecursively();
+            } else {
+                QFile::remove(targetPath);
+            }
         }
 
+        // Fast atomic rename (same filesystem)
         if (QFile::rename(src, targetPath)) {
             moved = true;
+            itemsCopied++;
+            bytesCopied += srcInfo.size();
         } else {
-            // Fallback for cross-mount moves
-            if (copyRecursively(src, targetPath, overwrite, &isCanceled)) {
+            // Fallback for cross-filesystem moves
+            if (copyRecursively(src, targetPath, overwrite, &bytesCopied, totalBytes, &itemsCopied, totalItems, progressDialog, &isCanceled)) {
                 if (srcInfo.isDir()) {
                     QDir(src).removeRecursively();
                 } else {
@@ -557,13 +693,12 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         }
 
         if (moved) {
-            successCount++;
+            successTopLevel++;
         } else if (!isCanceled && parentWidget) {
             QMessageBox::warning(parentWidget, tr("Move Error"), getDetailedErrorMessage(src, "move"));
         }
 
-        current++;
-        emit operationProgress(current, total);
+        emit operationProgress(itemsCopied, totalItems);
         QApplication::processEvents();
     }
 
@@ -572,11 +707,11 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         progressDialog->deleteLater();
     }
 
-    bool allSuccess = (!isCanceled && successCount == total);
+    bool allSuccess = (!isCanceled && successTopLevel == sourcePaths.size());
     emit operationFinished(
         allSuccess,
         isCanceled ? tr("Move operation was canceled.") :
-        (allSuccess ? tr("Moved %1 items.").arg(total) : tr("Failed to move some items."))
+        (allSuccess ? tr("Moved %1 items.").arg(sourcePaths.size()) : tr("Failed to move some items."))
     );
     return allSuccess;
 }
