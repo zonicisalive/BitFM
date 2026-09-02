@@ -18,6 +18,15 @@ struct StorageDevice {
     bool isRemovable = false;
     bool isAndroid = false;
     bool isNetwork = false;
+
+    bool operator==(const StorageDevice &o) const {
+        return id == o.id && name == o.name && mountPath == o.mountPath &&
+               deviceNode == o.deviceNode && totalBytes == o.totalBytes &&
+               freeBytes == o.freeBytes && iconName == o.iconName &&
+               isMounted == o.isMounted && isRemovable == o.isRemovable &&
+               isAndroid == o.isAndroid && isNetwork == o.isNetwork;
+    }
+    bool operator!=(const StorageDevice &o) const { return !(*this == o); }
 };
 
 class QWidget;
@@ -56,4 +65,5 @@ private:
     QList<StorageDevice> m_networkMounts;
     QTimer m_pollTimer;
     QFileSystemWatcher m_watcher;
+    bool m_isScanning = false;
 };

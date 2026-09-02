@@ -258,12 +258,33 @@ bool FileOperations::deletePermanently(const QStringList &filePaths, QWidget *pa
     if (filePaths.isEmpty()) return true;
 
     emit operationStarted(tr("Deleting permanently..."));
-    int total = filePaths.size();
+    bool isCanceled = false;
+    FileStats stats = calculateStats(filePaths, &isCanceled);
+    int totalItems = stats.fileCount + stats.dirCount;
+
+    FileOperationProgressDialog *progressDialog = nullptr;
+    if ((totalItems > 1 || stats.dirCount > 0) && parentWidget) {
+        progressDialog = new FileOperationProgressDialog(tr("Deleting Files"), parentWidget);
+        connect(progressDialog, &FileOperationProgressDialog::cancelRequested, this, [&isCanceled]() {
+            isCanceled = true;
+        });
+        progressDialog->show();
+        QApplication::processEvents();
+    }
+
     int current = 0;
     int successCount = 0;
 
     for (const QString &path : filePaths) {
+        if (isCanceled) break;
+
         QFileInfo info(path);
+        if (!info.exists()) continue;
+
+        if (progressDialog) {
+            progressDialog->setStatus(info.fileName(), current + 1, totalItems);
+        }
+
         bool res = false;
         if (info.isDir() && !info.isSymLink()) {
             QDir dir(path);
@@ -274,7 +295,7 @@ bool FileOperations::deletePermanently(const QStringList &filePaths, QWidget *pa
 
         if (res) {
             successCount++;
-        } else if (parentWidget) {
+        } else if (parentWidget && !isCanceled) {
             QMessageBox::warning(
                 parentWidget,
                 tr("Deletion Error"),
@@ -283,14 +304,20 @@ bool FileOperations::deletePermanently(const QStringList &filePaths, QWidget *pa
         }
 
         current++;
-        emit operationProgress(current, total);
+        emit operationProgress(current, totalItems);
         QApplication::processEvents();
     }
 
-    bool allSuccess = (successCount == total);
+    if (progressDialog) {
+        progressDialog->close();
+        progressDialog->deleteLater();
+    }
+
+    bool allSuccess = (!isCanceled && successCount == filePaths.size());
     emit operationFinished(
         allSuccess,
-        allSuccess ? tr("Deleted %1 items.").arg(total) : tr("Failed to delete %1 of %2 items.").arg(total - successCount).arg(total)
+        isCanceled ? tr("Deletion canceled.") :
+        (allSuccess ? tr("Deleted %1 items.").arg(filePaths.size()) : tr("Failed to delete %1 of %2 items.").arg(filePaths.size() - successCount).arg(filePaths.size()))
     );
     return allSuccess;
 }

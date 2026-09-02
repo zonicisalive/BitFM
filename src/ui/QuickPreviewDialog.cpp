@@ -12,6 +12,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QRegularExpression>
+#include <QThreadPool>
 #include "AppLauncher.h"
 
 static QString highlightCodeSyntax(const QString &sourceCode) {
@@ -253,75 +254,92 @@ void QuickPreviewDialog::updatePreview() {
     if (isVideo) {
         m_textPreview->hide();
         m_imagePreview->show();
+        m_imagePreview->setPixmap(QIcon::fromTheme("video-x-generic").pixmap(128, 128));
+        m_infoLabel->setText(QString("Video File · Loading preview... · Size: %1").arg(FileItem::formatFileSize(info.size())));
 
-        QString tmpOut = QString("/tmp/preview_video_%1.jpg").arg(info.size());
-        QProcess proc;
-        proc.start("ffmpegthumbnailer", { "-i", m_currentFilePath, "-o", tmpOut, "-s", "720", "-q", "8" });
-        if (!proc.waitForFinished(3000) || !QFile::exists(tmpOut)) {
-            proc.start("ffmpeg", { "-ss", "00:00:01", "-i", m_currentFilePath, "-vframes", "1", "-vf", "scale=720:-1", tmpOut, "-y" });
-            proc.waitForFinished(3000);
-        }
+        QString filePath = m_currentFilePath;
+        qint64 fileSize = info.size();
 
-        QImage frame;
-        if (QFile::exists(tmpOut)) {
-            frame.load(tmpOut);
-            QFile::remove(tmpOut);
-        }
+        QThreadPool::globalInstance()->start([this, filePath, fileSize]() {
+            QString tmpOut = QString("/tmp/preview_video_%1.jpg").arg(fileSize);
+            QProcess proc;
+            proc.start("ffmpegthumbnailer", { "-i", filePath, "-o", tmpOut, "-s", "720", "-q", "8" });
+            if (!proc.waitForFinished(3000) || !QFile::exists(tmpOut)) {
+                proc.start("ffmpeg", { "-ss", "00:00:01", "-i", filePath, "-vframes", "1", "-vf", "scale=720:-1", tmpOut, "-y" });
+                proc.waitForFinished(3000);
+            }
 
-        // Query video metadata via ffprobe
-        QProcess probeProc;
-        probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration,bit_rate:stream=width,height,codec_name", "-of", "default=noprint_wrappers=1", m_currentFilePath });
-        probeProc.waitForFinished(2000);
-        QString probeOut = probeProc.readAllStandardOutput();
+            QImage frame;
+            if (QFile::exists(tmpOut)) {
+                frame.load(tmpOut);
+                QFile::remove(tmpOut);
+            }
 
-        int vidWidth = 0, vidHeight = 0;
-        double durationSec = 0;
-        QString codec;
+            // Query video metadata via ffprobe
+            QProcess probeProc;
+            probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration,bit_rate:stream=width,height,codec_name", "-of", "default=noprint_wrappers=1", filePath });
+            probeProc.waitForFinished(2000);
+            QString probeOut = probeProc.readAllStandardOutput();
 
-        for (const QString &line : probeOut.split('\n')) {
-            if (line.startsWith("width=")) vidWidth = line.mid(6).toInt();
-            else if (line.startsWith("height=")) vidHeight = line.mid(7).toInt();
-            else if (line.startsWith("duration=")) durationSec = line.mid(9).toDouble();
-            else if (line.startsWith("codec_name=") && codec.isEmpty()) codec = line.mid(11).toUpper();
-        }
+            int vidWidth = 0, vidHeight = 0;
+            double durationSec = 0;
+            QString codec;
 
-        int mins = static_cast<int>(durationSec) / 60;
-        int secs = static_cast<int>(durationSec) % 60;
-        QString durStr = QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
+            for (const QString &line : probeOut.split('\n')) {
+                if (line.startsWith("width=")) vidWidth = line.mid(6).toInt();
+                else if (line.startsWith("height=")) vidHeight = line.mid(7).toInt();
+                else if (line.startsWith("duration=")) durationSec = line.mid(9).toDouble();
+                else if (line.startsWith("codec_name=") && codec.isEmpty()) codec = line.mid(11).toUpper();
+            }
 
-        if (!frame.isNull()) {
-            QPixmap pix = QPixmap::fromImage(frame).scaled(700, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            QPixmap badged = drawPlayBadge(pix);
-            m_imagePreview->setPixmap(badged);
-        } else {
-            m_imagePreview->setPixmap(QIcon::fromTheme("video-x-generic").pixmap(128, 128));
-        }
+            int mins = static_cast<int>(durationSec) / 60;
+            int secs = static_cast<int>(durationSec) % 60;
+            QString durStr = QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
 
-        m_infoLabel->setText(QString("Resolution: %1 × %2 px · Duration: %3 · Codec: %4 · Size: %5")
-            .arg(vidWidth > 0 ? QString::number(vidWidth) : "HD")
-            .arg(vidHeight > 0 ? QString::number(vidHeight) : "Auto")
-            .arg(durStr)
-            .arg(codec.isEmpty() ? "Video" : codec)
-            .arg(FileItem::formatFileSize(info.size())));
+            QMetaObject::invokeMethod(this, [this, filePath, frame, vidWidth, vidHeight, durStr, codec, fileSize]() {
+                if (m_currentFilePath == filePath) {
+                    if (!frame.isNull()) {
+                        QPixmap pix = QPixmap::fromImage(frame).scaled(700, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                        m_imagePreview->setPixmap(drawPlayBadge(pix));
+                    }
+                    m_infoLabel->setText(QString("Resolution: %1 × %2 px · Duration: %3 · Codec: %4 · Size: %5")
+                        .arg(vidWidth > 0 ? QString::number(vidWidth) : "HD")
+                        .arg(vidHeight > 0 ? QString::number(vidHeight) : "Auto")
+                        .arg(durStr)
+                        .arg(codec.isEmpty() ? "Video" : codec)
+                        .arg(FileItem::formatFileSize(fileSize)));
+                }
+            });
+        });
 
     } else if (isPdf) {
         m_textPreview->hide();
         m_imagePreview->show();
-
-        QString tmpPrefix = QString("/tmp/preview_pdf_%1").arg(info.size());
-        QProcess proc;
-        proc.start("pdftoppm", { "-png", "-r", "150", "-f", "1", "-l", "1", "-singlefile", m_currentFilePath, tmpPrefix });
-        if (proc.waitForFinished(4000) && QFile::exists(tmpPrefix + ".png")) {
-            QImage pdfImg(tmpPrefix + ".png");
-            QFile::remove(tmpPrefix + ".png");
-            if (!pdfImg.isNull()) {
-                QPixmap pix = QPixmap::fromImage(pdfImg).scaled(700, 420, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                m_imagePreview->setPixmap(pix);
-                m_infoLabel->setText(QString("PDF Document · Page 1 Preview · Size: %1").arg(FileItem::formatFileSize(info.size())));
-                return;
-            }
-        }
         m_imagePreview->setPixmap(QIcon::fromTheme("application-pdf").pixmap(128, 128));
+        m_infoLabel->setText(QString("PDF Document · Loading page 1 preview... · Size: %1").arg(FileItem::formatFileSize(info.size())));
+
+        QString filePath = m_currentFilePath;
+        qint64 fileSize = info.size();
+
+        QThreadPool::globalInstance()->start([this, filePath, fileSize]() {
+            QString tmpPrefix = QString("/tmp/preview_pdf_%1").arg(fileSize);
+            QProcess proc;
+            proc.start("pdftoppm", { "-png", "-r", "150", "-f", "1", "-l", "1", "-singlefile", filePath, tmpPrefix });
+            if (proc.waitForFinished(4000) && QFile::exists(tmpPrefix + ".png")) {
+                QImage pdfImg(tmpPrefix + ".png");
+                QFile::remove(tmpPrefix + ".png");
+                if (!pdfImg.isNull()) {
+                    QMetaObject::invokeMethod(this, [this, filePath, pdfImg, fileSize]() {
+                        if (m_currentFilePath == filePath) {
+                            QPixmap pix = QPixmap::fromImage(pdfImg).scaled(700, 420, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                            m_imagePreview->setPixmap(pix);
+                            m_infoLabel->setText(QString("PDF Document · Page 1 Preview · Size: %1").arg(FileItem::formatFileSize(fileSize)));
+                        }
+                    });
+                    return;
+                }
+            }
+        });
 
     } else if (isAudio) {
         m_textPreview->hide();

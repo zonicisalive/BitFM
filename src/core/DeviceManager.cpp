@@ -8,6 +8,7 @@
 #include <QStorageInfo>
 #include <QDir>
 #include <QFileInfo>
+#include <QThreadPool>
 #include <unistd.h>
 
 DeviceManager& DeviceManager::instance() {
@@ -24,9 +25,11 @@ DeviceManager::DeviceManager(QObject *parent)
     connect(&m_pollTimer, &QTimer::timeout, this, &DeviceManager::refresh);
     m_pollTimer.start(3000);
 
-    // Watch media directories for instant notification
+    // Watch /media and /run/media for kernel udev mount events
+    QString user = UserEnvironment::realUserName();
+    QString mediaUser = QString("/run/media/%1").arg(user);
     QString gvfsPath = QString("/run/user/%1/gvfs").arg(getuid());
-    QString mediaUser = QString("/run/media/%1").arg(qgetenv("USER").constData());
+
     for (const QString &dir : QStringList({ QString("/media"), mediaUser, gvfsPath })) {
         if (QDir(dir).exists()) {
             m_watcher.addPath(dir);
@@ -45,148 +48,161 @@ QList<StorageDevice> DeviceManager::networkMounts() const {
 }
 
 void DeviceManager::refresh() {
-    QList<StorageDevice> newDevices;
-    QList<StorageDevice> newNetwork;
+    if (m_isScanning) return;
+    m_isScanning = true;
 
-    // 1. Scan GVFS Mounts (Android MTP, SFTP, SMB, WebDAV, Cameras)
-    QString gvfsDir = QString("/run/user/%1/gvfs").arg(getuid());
-    if (QDir(gvfsDir).exists()) {
-        QDir dir(gvfsDir);
-        QFileInfoList entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QFileInfo &e : entries) {
-            QString name = e.fileName();
-            QString fullPath = e.absoluteFilePath();
+    uid_t uid = getuid();
 
-            StorageDevice dev;
-            dev.id = fullPath;
-            dev.mountPath = fullPath;
-            dev.isMounted = true;
+    QThreadPool::globalInstance()->start([this, uid]() {
+        QList<StorageDevice> newDevices;
+        QList<StorageDevice> newNetwork;
 
-            QStorageInfo st(fullPath);
-            if (st.isValid()) {
-                dev.totalBytes = st.bytesTotal();
-                dev.freeBytes = st.bytesAvailable();
-            }
+        // 1. Scan GVFS Mounts (Android MTP, SFTP, SMB, WebDAV, Cameras)
+        QString gvfsDir = QString("/run/user/%1/gvfs").arg(uid);
+        if (QDir(gvfsDir).exists()) {
+            QDir dir(gvfsDir);
+            QFileInfoList entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QFileInfo &e : entries) {
+                QString name = e.fileName();
+                QString fullPath = e.absoluteFilePath();
 
-            if (name.startsWith("mtp:host=")) {
-                dev.name = tr("Android Device");
-                dev.iconName = "multimedia-player-apple-ipod";
-                dev.isAndroid = true;
-                dev.isRemovable = true;
-                newDevices.append(dev);
-            } else if (name.startsWith("sftp:host=")) {
-                QString hostInfo = name.mid(10);
-                dev.name = QString("SFTP: %1").arg(hostInfo.section(',', 0, 0));
-                dev.iconName = "network-server";
-                dev.isNetwork = true;
-                newNetwork.append(dev);
-            } else if (name.startsWith("smb-share:") || name.startsWith("smb:")) {
-                dev.name = QString("SMB: %1").arg(name.section('=', 1, 1));
-                dev.iconName = "network-workgroup";
-                dev.isNetwork = true;
-                newNetwork.append(dev);
-            } else if (name.startsWith("gphoto2:host=")) {
-                dev.name = tr("Camera (PTP)");
-                dev.iconName = "camera-photo";
-                dev.isAndroid = true;
-                dev.isRemovable = true;
-                newDevices.append(dev);
-            }
-        }
-    }
+                StorageDevice dev;
+                dev.id = fullPath;
+                dev.mountPath = fullPath;
+                dev.isMounted = true;
 
-    // 2. Scan block devices using lsblk
-    QProcess lsblkProc;
-    lsblkProc.start("lsblk", { "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,LABEL,RM,MODEL,FSTYPE,PARTTYPE,PARTLABEL" });
-    if (lsblkProc.waitForFinished(1500) && lsblkProc.exitCode() == 0) {
-        QJsonDocument doc = QJsonDocument::fromJson(lsblkProc.readAllStandardOutput());
-        QJsonObject root = doc.object();
-        QJsonArray blockdevices = root["blockdevices"].toArray();
+                QStorageInfo st(fullPath);
+                if (st.isValid()) {
+                    dev.totalBytes = st.bytesTotal();
+                    dev.freeBytes = st.bytesAvailable();
+                }
 
-        auto parseDevice = [&](const QJsonObject &obj, const QString &parentModel, auto &self) -> void {
-            QString type = obj["type"].toString();
-            if (type == "loop") return; // Skip snap loops
-
-            QString name = obj["name"].toString();
-            QString model = obj["model"].toString();
-            if (model.isEmpty()) model = parentModel;
-            QString label = obj["label"].toString();
-            QString mountpoint = obj["mountpoint"].toString();
-            bool isRemovable = obj["rm"].toBool();
-            QString size = obj["size"].toString();
-            QString fstype = obj["fstype"].toString().toLower();
-            QString partType = obj["parttype"].toString().toLower();
-            QString partLabel = obj["partlabel"].toString().toLower();
-
-            bool hasChildren = obj.contains("children") && !obj["children"].toArray().isEmpty();
-
-            bool isSystemPart = (partType == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" || // EFI System Partition
-                                 partType == "de94bba4-06d1-4d40-a16a-bfd50179d6ac" || // Windows Recovery
-                                 partType == "e3c9e316-0b5c-4db8-817d-f92df00215ae" || // Microsoft Reserved
-                                 partType == "4f68bce3-e8cd-4db1-96e7-fbcaf984b709" || // Linux Swap
-                                 partType == "21686148-6449-6e6f-744e-656564454649" || // BIOS Boot
-                                 partLabel.contains("microsoft reserved") ||
-                                 partLabel.contains("recovery") ||
-                                 partLabel.contains("efi system") ||
-                                 partLabel.contains("bios boot") ||
-                                 mountpoint == "[SWAP]" ||
-                                 fstype == "swap" ||
-                                 mountpoint.startsWith("/boot"));
-
-            if (isSystemPart) {
-                // Skip system / boot / recovery / swap partitions
-            } else if (type == "part" || (type == "disk" && !hasChildren && !fstype.isEmpty())) {
-                if (!fstype.isEmpty() || !mountpoint.isEmpty() || !label.isEmpty()) {
-                    StorageDevice dev;
-                    dev.deviceNode = "/dev/" + name;
-                    dev.id = dev.deviceNode;
-                    dev.mountPath = mountpoint;
-                    dev.isMounted = !mountpoint.isEmpty();
-                    dev.isRemovable = isRemovable;
-
-                    if (mountpoint == "/") {
-                        dev.name = tr("File System");
-                        dev.iconName = "drive-harddisk-root";
-                    } else if (!label.isEmpty()) {
-                        dev.name = label;
-                        dev.iconName = isRemovable ? "media-flash" : "drive-harddisk";
-                    } else if (!size.isEmpty()) {
-                        dev.name = QString("%1 Volume").arg(size);
-                        dev.iconName = isRemovable ? "media-flash" : "drive-harddisk";
-                    } else if (!model.isEmpty()) {
-                        dev.name = QString("%1 (%2)").arg(model, size);
-                        dev.iconName = isRemovable ? "media-flash" : "drive-harddisk";
-                    } else {
-                        dev.name = QString("%1 (%2)").arg(name, size);
-                        dev.iconName = isRemovable ? "media-flash" : "drive-harddisk";
-                    }
-
-                    if (dev.isMounted) {
-                        QStorageInfo st(dev.mountPath);
-                        if (st.isValid()) {
-                            dev.totalBytes = st.bytesTotal();
-                            dev.freeBytes = st.bytesAvailable();
-                        }
-                    }
-
+                if (name.startsWith("mtp:host=")) {
+                    dev.name = tr("Android Device");
+                    dev.iconName = "multimedia-player-apple-ipod";
+                    dev.isAndroid = true;
+                    dev.isRemovable = true;
+                    newDevices.append(dev);
+                } else if (name.startsWith("sftp:host=")) {
+                    QString hostInfo = name.mid(10);
+                    dev.name = QString("SFTP: %1").arg(hostInfo.section(',', 0, 0));
+                    dev.iconName = "network-server";
+                    dev.isNetwork = true;
+                    newNetwork.append(dev);
+                } else if (name.startsWith("smb-share:") || name.startsWith("smb:")) {
+                    dev.name = QString("SMB: %1").arg(name.section('=', 1, 1));
+                    dev.iconName = "network-workgroup";
+                    dev.isNetwork = true;
+                    newNetwork.append(dev);
+                } else if (name.startsWith("gphoto2:host=")) {
+                    dev.name = tr("Camera (PTP)");
+                    dev.iconName = "camera-photo";
+                    dev.isAndroid = true;
+                    dev.isRemovable = true;
                     newDevices.append(dev);
                 }
             }
-
-            QJsonArray children = obj["children"].toArray();
-            for (const QJsonValue &childVal : children) {
-                self(childVal.toObject(), model, self);
-            }
-        };
-
-        for (const QJsonValue &val : blockdevices) {
-            parseDevice(val.toObject(), QString(), parseDevice);
         }
-    }
 
-    m_devices = newDevices;
-    m_networkMounts = newNetwork;
-    emit devicesChanged();
+        // 2. Scan block devices using lsblk
+        QProcess lsblkProc;
+        lsblkProc.start("lsblk", { "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,LABEL,RM,MODEL,FSTYPE,PARTTYPE,PARTLABEL" });
+        if (lsblkProc.waitForFinished(1500) && lsblkProc.exitCode() == 0) {
+            QJsonDocument doc = QJsonDocument::fromJson(lsblkProc.readAllStandardOutput());
+            QJsonObject root = doc.object();
+            QJsonArray blockdevices = root["blockdevices"].toArray();
+
+            auto parseDevice = [&](const QJsonObject &obj, const QString &parentModel, auto &self) -> void {
+                QString type = obj["type"].toString();
+                if (type == "loop") return; // Skip snap loops
+
+                QString name = obj["name"].toString();
+                QString model = obj["model"].toString();
+                if (model.isEmpty()) model = parentModel;
+                QString label = obj["label"].toString();
+                QString mountpoint = obj["mountpoint"].toString();
+                bool isRemovable = obj["rm"].toBool();
+                QString size = obj["size"].toString();
+                QString fstype = obj["fstype"].toString().toLower();
+                QString partType = obj["parttype"].toString().toLower();
+                QString partLabel = obj["partlabel"].toString().toLower();
+
+                bool hasChildren = obj.contains("children") && !obj["children"].toArray().isEmpty();
+
+                bool isSystemPart = (partType == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" || // EFI System Partition
+                                     partType == "de94bba4-06d1-4d40-a16a-bfd50179d6ac" || // Windows Recovery
+                                     partType == "e3c9e316-0b5c-4db8-817d-f92df00215ae" || // Microsoft Reserved
+                                     partType == "4f68bce3-e8cd-4db1-96e7-fbcaf984b709" || // Linux Swap
+                                     partType == "21686148-6449-6e6f-744e-656564454649" || // BIOS Boot
+                                     partLabel.contains("microsoft reserved") ||
+                                     partLabel.contains("recovery") ||
+                                     partLabel.contains("efi system") ||
+                                     partLabel.contains("bios boot") ||
+                                     mountpoint == "[SWAP]" ||
+                                     fstype == "swap" ||
+                                     mountpoint.startsWith("/boot"));
+
+                if (isSystemPart) {
+                    // Skip system / boot / recovery / swap partitions
+                } else if (type == "part" || (type == "disk" && !hasChildren && !fstype.isEmpty())) {
+                    if (!fstype.isEmpty() || !mountpoint.isEmpty() || !label.isEmpty()) {
+                        StorageDevice dev;
+                        dev.deviceNode = "/dev/" + name;
+                        dev.id = dev.deviceNode;
+                        dev.mountPath = mountpoint;
+                        dev.isMounted = !mountpoint.isEmpty();
+                        dev.isRemovable = isRemovable;
+
+                        if (mountpoint == "/") {
+                            dev.name = tr("File System");
+                            dev.iconName = "drive-harddisk-root";
+                        } else if (!label.isEmpty()) {
+                            dev.name = label;
+                            dev.iconName = isRemovable ? "media-flash" : "drive-harddisk";
+                        } else if (!size.isEmpty()) {
+                            dev.name = QString("%1 Volume").arg(size);
+                            dev.iconName = isRemovable ? "media-flash" : "drive-harddisk";
+                        } else if (!model.isEmpty()) {
+                            dev.name = QString("%1 (%2)").arg(model, size);
+                            dev.iconName = isRemovable ? "media-flash" : "drive-harddisk";
+                        } else {
+                            dev.name = QString("%1 (%2)").arg(name, size);
+                            dev.iconName = isRemovable ? "media-flash" : "drive-harddisk";
+                        }
+
+                        if (dev.isMounted) {
+                            QStorageInfo st(dev.mountPath);
+                            if (st.isValid()) {
+                                dev.totalBytes = st.bytesTotal();
+                                dev.freeBytes = st.bytesAvailable();
+                            }
+                        }
+
+                        newDevices.append(dev);
+                    }
+                }
+
+                QJsonArray children = obj["children"].toArray();
+                for (const QJsonValue &childVal : children) {
+                    self(childVal.toObject(), model, self);
+                }
+            };
+
+            for (const QJsonValue &val : blockdevices) {
+                parseDevice(val.toObject(), QString(), parseDevice);
+            }
+        }
+
+        QMetaObject::invokeMethod(this, [this, newDevices = std::move(newDevices), newNetwork = std::move(newNetwork)]() mutable {
+            m_isScanning = false;
+            bool changed = (m_devices != newDevices || m_networkMounts != newNetwork);
+            if (changed) {
+                m_devices = std::move(newDevices);
+                m_networkMounts = std::move(newNetwork);
+                emit devicesChanged();
+            }
+        });
+    });
 }
 
 bool DeviceManager::mountDevice(const QString &deviceNode, QString *outMountPath, QString *error, QWidget *parentWidget) {

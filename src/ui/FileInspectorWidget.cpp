@@ -185,10 +185,21 @@ void FileInspectorWidget::setupUi() {
     connect(m_sha256Btn, &QPushButton::clicked, this, &FileInspectorWidget::onCalculateSha256Clicked);
     layout->addWidget(m_sha256Btn);
 
-    layout->addStretch(1);
-
     scrollArea->setWidget(content);
     rootLayout->addWidget(scrollArea);
+
+    connect(&ThumbnailProvider::instance(), &ThumbnailProvider::thumbnailReady, this, [this](const QString &path, const QIcon &icon) {
+        if (m_currentFilePath == path) {
+            QPixmap pix = icon.pixmap(150, 150);
+            QFileInfo fi(path);
+            QString ext = fi.suffix().toLower();
+            if (ext == "mp4" || ext == "mkv" || ext == "webm" || ext == "avi" || ext == "mov" || ext == "flv" || ext == "wmv" || ext == "m4v") {
+                m_previewImageLabel->setPixmap(drawPlayBadge(pix));
+            } else {
+                m_previewImageLabel->setPixmap(pix);
+            }
+        }
+    });
 
     setStyleSheet(QString(
         "FileInspectorWidget {"
@@ -275,26 +286,10 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
         }
     } else if (isVideo) {
         m_dimensionsLabel->show();
+        m_dimensionsLabel->setText(tr("<b>Type:</b> Video (analyzing...)"));
         m_textPreviewLabel->hide();
 
-        QString tmpOut = QString("/tmp/insp_video_%1.jpg").arg(qHash(filePath));
-        QProcess proc;
-        proc.start("ffmpegthumbnailer", { "-i", filePath, "-o", tmpOut, "-s", "300", "-q", "8" });
-        if (!proc.waitForFinished(2000) || !QFile::exists(tmpOut)) {
-            proc.start("ffmpeg", { "-ss", "00:00:01", "-i", filePath, "-vframes", "1", "-vf", "scale=300:-1", tmpOut, "-y" });
-            proc.waitForFinished(2000);
-        }
-
-        QImage frame;
-        if (QFile::exists(tmpOut)) {
-            frame.load(tmpOut);
-            QFile::remove(tmpOut);
-        }
-
-        if (!frame.isNull()) {
-            QPixmap pix = QPixmap::fromImage(frame).scaled(150, 150, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            m_previewImageLabel->setPixmap(drawPlayBadge(pix));
-        } else if (ThumbnailProvider::instance().hasThumbnail(filePath)) {
+        if (ThumbnailProvider::instance().hasThumbnail(filePath)) {
             QPixmap pix = ThumbnailProvider::instance().getThumbnail(filePath).pixmap(150, 150);
             m_previewImageLabel->setPixmap(drawPlayBadge(pix));
         } else {
@@ -302,69 +297,71 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
             ThumbnailProvider::instance().requestThumbnail(filePath, mime.name());
         }
 
-        // Query video metadata via ffprobe
-        QProcess probeProc;
-        probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration:stream=width,height", "-of", "default=noprint_wrappers=1", filePath });
-        if (probeProc.waitForFinished(1000)) {
-            QString probeOut = probeProc.readAllStandardOutput();
-            int vidW = 0, vidH = 0;
-            double dur = 0;
-            for (const QString &line : probeOut.split('\n')) {
-                if (line.startsWith("width=")) vidW = line.mid(6).toInt();
-                else if (line.startsWith("height=")) vidH = line.mid(7).toInt();
-                else if (line.startsWith("duration=")) dur = line.mid(9).toDouble();
+        // Query video metadata asynchronously
+        QThreadPool::globalInstance()->start([this, filePath]() {
+            QProcess probeProc;
+            probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration:stream=width,height", "-of", "default=noprint_wrappers=1", filePath });
+            if (probeProc.waitForFinished(2000)) {
+                QString probeOut = probeProc.readAllStandardOutput();
+                int vidW = 0, vidH = 0;
+                double dur = 0;
+                for (const QString &line : probeOut.split('\n')) {
+                    if (line.startsWith("width=")) vidW = line.mid(6).toInt();
+                    else if (line.startsWith("height=")) vidH = line.mid(7).toInt();
+                    else if (line.startsWith("duration=")) dur = line.mid(9).toDouble();
+                }
+                int m = static_cast<int>(dur) / 60;
+                int s = static_cast<int>(dur) % 60;
+                QString durStr = QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
+                QMetaObject::invokeMethod(this, [this, filePath, vidW, vidH, durStr]() {
+                    if (m_currentFilePath == filePath) {
+                        if (vidW > 0 && vidH > 0) {
+                            m_dimensionsLabel->setText(tr("<b>Resolution:</b> %1 × %2 px (%3)").arg(vidW).arg(vidH).arg(durStr));
+                        } else {
+                            m_dimensionsLabel->setText(tr("<b>Duration:</b> %1").arg(durStr));
+                        }
+                    }
+                });
             }
-            int m = static_cast<int>(dur) / 60;
-            int s = static_cast<int>(dur) % 60;
-            QString durStr = QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
-            if (vidW > 0 && vidH > 0) {
-                m_dimensionsLabel->setText(tr("<b>Resolution:</b> %1 × %2 px (%3)").arg(vidW).arg(vidH).arg(durStr));
-            } else {
-                m_dimensionsLabel->setText(tr("<b>Duration:</b> %1").arg(durStr));
-            }
-        } else {
-            m_dimensionsLabel->setText(tr("<b>Type:</b> Video"));
-        }
+        });
     } else if (isPdf) {
         m_dimensionsLabel->hide();
         m_textPreviewLabel->hide();
 
-        QString tmpPrefix = QString("/tmp/insp_pdf_%1").arg(qHash(filePath));
-        QProcess proc;
-        proc.start("pdftoppm", { "-png", "-r", "120", "-f", "1", "-l", "1", "-singlefile", filePath, tmpPrefix });
-        if (proc.waitForFinished(3000) && QFile::exists(tmpPrefix + ".png")) {
-            QImage pdfImg(tmpPrefix + ".png");
-            QFile::remove(tmpPrefix + ".png");
-            if (!pdfImg.isNull()) {
-                m_previewImageLabel->setPixmap(QPixmap::fromImage(pdfImg).scaled(150, 150, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            } else {
-                m_previewImageLabel->setPixmap(QIcon::fromTheme("application-pdf").pixmap(64, 64));
-            }
+        if (ThumbnailProvider::instance().hasThumbnail(filePath)) {
+            m_previewImageLabel->setPixmap(ThumbnailProvider::instance().getThumbnail(filePath).pixmap(150, 150));
         } else {
             m_previewImageLabel->setPixmap(QIcon::fromTheme("application-pdf").pixmap(64, 64));
+            ThumbnailProvider::instance().requestThumbnail(filePath, mime.name());
         }
     } else if (isAudio) {
         m_dimensionsLabel->show();
+        m_dimensionsLabel->setText(tr("<b>Type:</b> Audio (analyzing...)"));
         m_textPreviewLabel->hide();
         m_previewImageLabel->setPixmap(QIcon::fromTheme("audio-x-generic").pixmap(64, 64));
 
-        QProcess probeProc;
-        probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration,bit_rate", "-of", "default=noprint_wrappers=1", filePath });
-        if (probeProc.waitForFinished(1000)) {
-            QString probeOut = probeProc.readAllStandardOutput();
-            double dur = 0;
-            int bitRate = 0;
-            for (const QString &line : probeOut.split('\n')) {
-                if (line.startsWith("duration=")) dur = line.mid(9).toDouble();
-                else if (line.startsWith("bit_rate=")) bitRate = line.mid(9).toInt();
+        // Query audio metadata asynchronously
+        QThreadPool::globalInstance()->start([this, filePath]() {
+            QProcess probeProc;
+            probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration,bit_rate", "-of", "default=noprint_wrappers=1", filePath });
+            if (probeProc.waitForFinished(2000)) {
+                QString probeOut = probeProc.readAllStandardOutput();
+                double dur = 0;
+                int bitRate = 0;
+                for (const QString &line : probeOut.split('\n')) {
+                    if (line.startsWith("duration=")) dur = line.mid(9).toDouble();
+                    else if (line.startsWith("bit_rate=")) bitRate = line.mid(9).toInt();
+                }
+                int m = static_cast<int>(dur) / 60;
+                int s = static_cast<int>(dur) % 60;
+                QString durStr = QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
+                QMetaObject::invokeMethod(this, [this, filePath, durStr, bitRate]() {
+                    if (m_currentFilePath == filePath) {
+                        m_dimensionsLabel->setText(tr("<b>Duration:</b> %1 · %2 kbps").arg(durStr).arg(bitRate / 1000));
+                    }
+                });
             }
-            int m = static_cast<int>(dur) / 60;
-            int s = static_cast<int>(dur) % 60;
-            QString durStr = QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
-            m_dimensionsLabel->setText(tr("<b>Duration:</b> %1 · %2 kbps").arg(durStr).arg(bitRate / 1000));
-        } else {
-            m_dimensionsLabel->setText(tr("<b>Type:</b> Audio"));
-        }
+        });
     } else if (info.isDir()) {
         m_dimensionsLabel->hide();
         m_textPreviewLabel->hide();
