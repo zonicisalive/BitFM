@@ -1,6 +1,7 @@
 #include "FileInspectorWidget.h"
 #include "ThemeManager.h"
 #include "ThumbnailProvider.h"
+#include "FileSystemModel.h"
 #include <QFileInfo>
 #include <QMimeDatabase>
 #include <QImageReader>
@@ -367,7 +368,7 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
     } else if (info.isDir()) {
         m_dimensionsLabel->hide();
         m_textPreviewLabel->hide();
-        m_previewImageLabel->setPixmap(QIcon::fromTheme("folder").pixmap(64, 64));
+        m_previewImageLabel->setPixmap(FileSystemModel::getFolderIcon(filePath, info.fileName()).pixmap(64, 64));
         m_fileSizeLabel->setText(tr("<b>Type:</b> Folder"));
     } else {
         m_dimensionsLabel->hide();

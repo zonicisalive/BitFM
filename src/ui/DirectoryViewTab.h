@@ -78,6 +78,7 @@ private:
     FileViewWidget *m_fileView = nullptr;
     BreadcrumbBar *m_breadcrumbBar = nullptr;
     SearchBarWidget *m_searchBar = nullptr;
+    QStackedWidget *m_locationStack = nullptr;
     ErrorBannerWidget *m_errorBanner = nullptr;
     TrashBarWidget *m_trashBar = nullptr;
 

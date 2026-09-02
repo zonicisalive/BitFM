@@ -75,6 +75,7 @@ private:
     BreadcrumbBar *m_breadcrumbBar = nullptr;
     SidebarWidget *m_sidebar = nullptr;
     SearchBarWidget *m_searchBar = nullptr;
+    QStackedWidget *m_locationStack = nullptr;
 
     QToolBar *m_topBar = nullptr;
     QAction *m_actBack = nullptr;

@@ -17,6 +17,9 @@ public:
 
     void updateMatchCount(int matchCount, int totalCount);
 
+    QSize sizeHint() const override { return QSize(300, 34); }
+    QSize minimumSizeHint() const override { return QSize(80, 28); }
+
 signals:
     void searchChanged(const QString &query, bool isRegex);
     void searchClosed();

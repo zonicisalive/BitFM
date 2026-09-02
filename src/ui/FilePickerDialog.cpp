@@ -74,17 +74,29 @@ void FilePickerDialog::setupUi() {
         "  spacing: 4px;"
         "}"
     );
+    m_topBar->setMovable(false);
+    m_topBar->setFloatable(false);
+    m_topBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     m_actBack = m_topBar->addAction(QIcon::fromTheme("go-previous", QIcon::fromTheme("left")), tr("Back (Alt+Left)"), this, &FilePickerDialog::navigateBack);
     m_actForward = m_topBar->addAction(QIcon::fromTheme("go-next", QIcon::fromTheme("right")), tr("Forward (Alt+Right)"), this, &FilePickerDialog::navigateForward);
     m_actUp = m_topBar->addAction(QIcon::fromTheme("go-up", QIcon::fromTheme("up")), tr("Parent Folder (Alt+Up)"), this, &FilePickerDialog::navigateUp);
     m_actHome = m_topBar->addAction(QIcon::fromTheme("go-home", QIcon::fromTheme("user-home")), tr("Home (Alt+Home)"), this, &FilePickerDialog::navigateHome);
 
+    m_locationStack = new QStackedWidget(this);
+    m_locationStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
     m_breadcrumbBar = new BreadcrumbBar(this);
-    m_breadcrumbBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    m_topBar->addWidget(m_breadcrumbBar);
+    m_searchBar = new SearchBarWidget(this);
+
+    m_locationStack->addWidget(m_breadcrumbBar);
+    m_locationStack->addWidget(m_searchBar);
+    m_locationStack->setCurrentWidget(m_breadcrumbBar);
+
+    m_topBar->addWidget(m_locationStack);
 
     m_actSearch = m_topBar->addAction(QIcon::fromTheme("edit-find", QIcon::fromTheme("search")), tr("Search (Ctrl+F)"), this, &FilePickerDialog::toggleSearch);
+    m_actSearch->setCheckable(true);
     m_actNewFolder = m_topBar->addAction(QIcon::fromTheme("folder-new"), tr("New Folder (Ctrl+Shift+N)"), this, &FilePickerDialog::createNewFolder);
     m_actToggleHidden = m_topBar->addAction(QIcon::fromTheme("view-hidden"), tr("Show Hidden Files (Ctrl+H)"), this, &FilePickerDialog::toggleHiddenFiles);
     m_actToggleViewMode = m_topBar->addAction(QIcon::fromTheme("view-list-icons"), tr("Toggle View Mode"), this, &FilePickerDialog::toggleViewMode);
@@ -101,15 +113,16 @@ void FilePickerDialog::setupUi() {
 
     mainLayout->addWidget(m_topBar);
 
-    // 2. Collapsible Search Bar
-    m_searchBar = new SearchBarWidget(this);
-    mainLayout->addWidget(m_searchBar);
-
     connect(m_searchBar, &SearchBarWidget::searchChanged, this, &FilePickerDialog::onSearchChanged);
     connect(m_proxyModel, &FileFilterProxyModel::filterChanged, this, &FilePickerDialog::onFilterChanged);
     connect(m_searchBar, &SearchBarWidget::searchClosed, this, [this]() {
         m_fileModel->cancelSearch();
         m_proxyModel->setSearchPattern(QString());
+        if (m_locationStack && m_breadcrumbBar) {
+            m_locationStack->setCurrentWidget(m_breadcrumbBar);
+            m_breadcrumbBar->activateBreadcrumbMode();
+        }
+        if (m_actSearch) m_actSearch->setChecked(false);
     });
     connect(&m_searchDebounceTimer, &QTimer::timeout, this, [this]() {
         if (!m_lastSearchPattern.isEmpty() && m_searchBar->isActive()) {
@@ -329,13 +342,18 @@ void FilePickerDialog::navigateHome() {
 }
 
 void FilePickerDialog::toggleSearch() {
-    if (!m_searchBar) return;
-    if (m_searchBar->isActive()) {
+    if (!m_searchBar || !m_locationStack) return;
+    if (m_locationStack->currentWidget() == m_searchBar) {
         m_searchBar->deactivate();
         m_fileModel->cancelSearch();
         m_proxyModel->setSearchPattern(QString());
+        m_locationStack->setCurrentWidget(m_breadcrumbBar);
+        m_breadcrumbBar->activateBreadcrumbMode();
+        if (m_actSearch) m_actSearch->setChecked(false);
     } else {
+        m_locationStack->setCurrentWidget(m_searchBar);
         m_searchBar->activate();
+        if (m_actSearch) m_actSearch->setChecked(true);
     }
 }
 

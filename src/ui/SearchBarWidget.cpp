@@ -8,48 +8,46 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
     : QWidget(parent)
 {
     QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->setContentsMargins(10, 6, 10, 6);
-    layout->setSpacing(8);
+    layout->setContentsMargins(8, 2, 8, 2);
+    layout->setSpacing(6);
+    setObjectName("SearchBarWidget");
 
     auto updateStyles = [this]() {
         setStyleSheet(QString(
-            "SearchBarWidget {"
+            "QWidget#SearchBarWidget {"
             "  background-color: %1;"
-            "  border-top: 1px solid %2;"
+            "  border: 1.5px solid %2;"
+            "  border-radius: 9px;"
+            "  padding: 2px 4px;"
             "}"
             "QLineEdit {"
-            "  border: 1.5px solid %3;"
-            "  border-radius: 8px;"
-            "  padding: 5px 10px;"
-            "  background-color: %4;"
-            "  color: %5;"
-            "  font-size: 13px;"
-            "}"
-            "QLineEdit:focus {"
-            "  border: 1.5px solid %6;"
+            "  border: none;"
+            "  background-color: transparent;"
+            "  color: %3;"
+            "  font-size: 12.5px;"
+            "  padding: 2px 4px;"
             "}"
             "QToolButton {"
-            "  border: 1px solid %2;"
+            "  border: 1px solid transparent;"
             "  border-radius: 6px;"
-            "  padding: 4px 8px;"
+            "  padding: 2px 6px;"
             "  background: transparent;"
-            "  color: %5;"
+            "  color: %4;"
             "}"
             "QToolButton:hover {"
-            "  background-color: %7;"
+            "  background-color: %5;"
+            "  color: %3;"
             "}"
             "QToolButton:checked {"
-            "  background-color: %8;"
+            "  background-color: %6;"
             "  color: #ffffff;"
-            "  border: 1px solid %6;"
+            "  border: 1px solid %2;"
             "}"
         )
-        .arg(ThemeManager::BG_SURFACE)
-        .arg(ThemeManager::BORDER)
-        .arg(ThemeManager::BORDER_FOCUS)
         .arg(ThemeManager::BG_BASE)
-        .arg(ThemeManager::TEXT_PRIMARY)
         .arg(ThemeManager::ACCENT)
+        .arg(ThemeManager::TEXT_PRIMARY)
+        .arg(ThemeManager::TEXT_MUTED)
         .arg(ThemeManager::BG_HOVER)
         .arg(ThemeManager::BG_SELECTION));
     };
@@ -62,7 +60,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
     layout->addWidget(iconLabel);
 
     m_lineEdit = new QLineEdit(this);
-    m_lineEdit->setPlaceholderText(tr("Filter files... (Press Esc to close)"));
+    m_lineEdit->setPlaceholderText(tr("Search files & folders... (Press Esc to close)"));
     m_lineEdit->setClearButtonEnabled(true);
     layout->addWidget(m_lineEdit, 1);
 
@@ -73,7 +71,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
     layout->addWidget(m_regexBtn);
 
     m_matchCountLabel = new QLabel(this);
-    m_matchCountLabel->setStyleSheet("color: palette(placeholder-text); font-size: 12px; margin-right: 4px;");
+    m_matchCountLabel->setStyleSheet(QString("color: %1; font-size: 11px; margin-right: 4px;").arg(ThemeManager::TEXT_MUTED));
     layout->addWidget(m_matchCountLabel);
 
     m_closeBtn = new QToolButton(this);
@@ -86,7 +84,6 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
     connect(m_closeBtn, &QToolButton::clicked, this, &SearchBarWidget::onCloseClicked);
 
     m_lineEdit->installEventFilter(this);
-    hide(); // Hidden by default
 }
 
 void SearchBarWidget::activate() {
@@ -97,12 +94,11 @@ void SearchBarWidget::activate() {
 
 void SearchBarWidget::deactivate() {
     m_lineEdit->clear();
-    hide();
     emit searchClosed();
 }
 
 bool SearchBarWidget::isActive() const {
-    return isVisible();
+    return isVisible() && !m_lineEdit->text().isEmpty();
 }
 
 void SearchBarWidget::updateMatchCount(int matchCount, int totalCount) {

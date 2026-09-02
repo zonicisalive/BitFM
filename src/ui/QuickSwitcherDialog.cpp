@@ -1,6 +1,7 @@
 #include "QuickSwitcherDialog.h"
 #include "ThemeManager.h"
 #include "TagManager.h"
+#include "FileSystemModel.h"
 #include <QHBoxLayout>
 #include <QStandardPaths>
 #include <QDir>
@@ -151,7 +152,7 @@ void QuickSwitcherDialog::indexCurrentDirectory() {
     while (it.hasNext() && count < 600) {
         it.next();
         QFileInfo info = it.fileInfo();
-        QString icon = info.isDir() ? "folder" : "text-x-generic";
+        QString icon = info.isDir() ? FileSystemModel::getFolderIconName(info.absoluteFilePath(), info.fileName()) : "text-x-generic";
         m_allItems.append({ info.fileName(), info.absoluteFilePath(), info.isDir() ? "Folder" : "File", icon, info.isDir() });
         count++;
     }

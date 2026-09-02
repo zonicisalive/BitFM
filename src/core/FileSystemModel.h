@@ -70,6 +70,9 @@ public:
     int folderCount() const;
     qint64 totalSizeBytes() const;
 
+    static QIcon getFolderIcon(const QString &folderPath, const QString &folderName = QString());
+    static QString getFolderIconName(const QString &folderPath, const QString &folderName = QString());
+
     void searchRecursive(const QString &pattern, bool isRegex = false);
     void cancelSearch();
     bool isSearching() const;

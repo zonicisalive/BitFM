@@ -19,6 +19,9 @@ public:
     void activateBreadcrumbMode();
     void setErrorStyle(bool isError);
 
+    QSize sizeHint() const override { return QSize(300, 34); }
+    QSize minimumSizeHint() const override { return QSize(80, 28); }
+
 signals:
     void pathChanged(const QString &newPath);
     void pathNavigationError(const QString &inputPath, const QString &errorMessage);

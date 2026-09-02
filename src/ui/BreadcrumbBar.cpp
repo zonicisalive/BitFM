@@ -46,7 +46,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
             "  border-radius: 9px;"
             "  padding: 2px 4px;"
             "}"
-            "QPushButton.crumb-btn {"
+            "QPushButton[class~='crumb-btn'] {"
             "  background: transparent;"
             "  border: none;"
             "  border-radius: 6px;"
@@ -55,11 +55,11 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
             "  font-size: 12.5px;"
             "  color: %3;"
             "}"
-            "QPushButton.crumb-btn:hover {"
+            "QPushButton[class~='crumb-btn']:hover {"
             "  background-color: %4;"
             "  color: %5;"
             "}"
-            "QLabel.crumb-sep {"
+            "QLabel[class~='crumb-sep'] {"
             "  color: %6;"
             "  font-size: 11px;"
             "  background: transparent;"
@@ -380,11 +380,15 @@ void BreadcrumbBar::onTextChanged(const QString &) {
 }
 
 bool BreadcrumbBar::eventFilter(QObject *watched, QEvent *event) {
-    if (watched == m_pathEdit && event->type() == QEvent::KeyPress) {
-        QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-        if (keyEvent->key() == Qt::Key_Escape) {
+    if (watched == m_pathEdit) {
+        if (event->type() == QEvent::KeyPress) {
+            QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+            if (keyEvent->key() == Qt::Key_Escape) {
+                activateBreadcrumbMode();
+                return true;
+            }
+        } else if (event->type() == QEvent::FocusOut) {
             activateBreadcrumbMode();
-            return true;
         }
     }
     return QWidget::eventFilter(watched, event);

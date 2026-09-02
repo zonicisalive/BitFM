@@ -1,5 +1,6 @@
 #include "FileSystemModel.h"
 #include "TagManager.h"
+#include "UserEnvironment.h"
 #include <QDir>
 #include <QFileInfo>
 #include <QMimeData>
@@ -7,7 +8,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QDirIterator>
-#include <QtConcurrent/QtConcurrent>
+#include <QThreadPool>
 #include <QRegularExpression>
 #include <algorithm>
 #include <cerrno>
@@ -344,6 +345,99 @@ int FileSystemModel::fileCount() const { return m_fileCount; }
 int FileSystemModel::folderCount() const { return m_folderCount; }
 qint64 FileSystemModel::totalSizeBytes() const { return m_totalSize; }
 
+QString FileSystemModel::getFolderIconName(const QString &folderPath, const QString &folderName) {
+    QString normPath = QDir::cleanPath(folderPath);
+    QString homePath = QDir::cleanPath(UserEnvironment::realUserHome());
+    if (normPath == homePath) return "user-home";
+    if (normPath == "/") return "drive-harddisk-root";
+
+    QString trashBase = QDir::cleanPath(UserEnvironment::userTrashPath());
+    if (normPath == trashBase || normPath == trashBase + "/files") return "user-trash";
+
+    // XDG standard user directories
+    static const QString dlPath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
+    static const QString docPath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+    static const QString picPath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation));
+    static const QString musicPath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::MusicLocation));
+    static const QString vidPath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::MoviesLocation));
+    static const QString deskPath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::DesktopLocation));
+    static const QString templPath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::TemplatesLocation));
+    static const QString pubPath = QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::PublicShareLocation));
+
+    if (!dlPath.isEmpty() && normPath == dlPath) return "folder-download";
+    if (!docPath.isEmpty() && normPath == docPath) return "folder-documents";
+    if (!picPath.isEmpty() && normPath == picPath) return "folder-pictures";
+    if (!musicPath.isEmpty() && normPath == musicPath) return "folder-music";
+    if (!vidPath.isEmpty() && normPath == vidPath) return "folder-videos";
+    if (!deskPath.isEmpty() && normPath == deskPath) return "user-desktop";
+    if (!templPath.isEmpty() && normPath == templPath) return "folder-templates";
+    if (!pubPath.isEmpty() && normPath == pubPath) return "folder-publicshare";
+
+    QString name = folderName.trimmed().toLower();
+    if (name.isEmpty()) name = QFileInfo(folderPath).fileName().toLower();
+
+    if (name == "downloads" || name == "download") return "folder-download";
+    if (name == "pictures" || name == "photos" || name == "images" || name == "screenshots" || name == "camera" || name == "wallpapers" || name == "wallpaper") return "folder-pictures";
+    if (name == "documents" || name == "docs" || name == "document" || name == "papers") return "folder-documents";
+    if (name == "music" || name == "audio" || name == "songs" || name == "sound" || name == "sounds") return "folder-music";
+    if (name == "videos" || name == "movies" || name == "video" || name == "clips" || name == "films") return "folder-videos";
+    if (name == "desktop") return "user-desktop";
+    if (name == "trash" || name == ".trash") return "user-trash";
+    if (name == "templates") return "folder-templates";
+    if (name == "public" || name == "publicshare" || name == "shared") return "folder-publicshare";
+    if (name == ".git" || name == "git" || name == "github" || name == "gitlab") return "folder-git";
+    if (name == "code" || name == "development" || name == "dev" || name == "projects" || name == "workspace" || name == "repos" || name == "repositories" || name == "src" || name == "source") return "folder-development";
+    if (name == ".config" || name == "config" || name == "settings") return "folder-config";
+    if (name == "games" || name == "gaming") return "folder-games";
+    if (name == "steam" || name == ".steam") return "folder-steam";
+    if (name == "backups" || name == "backup" || name == "archive" || name == "archives") return "folder-backup";
+    if (name == "notes" || name == "obsidian" || name == "journal") return "folder-notes";
+    if (name == "torrents" || name == "torrent") return "folder-torrent";
+    if (name == ".cache" || name == "cache" || name == "temp" || name == "tmp") return "folder-temp";
+    if (name == "root" || name == "etc" || name == "usr" || name == "var" || name == "sys" || name == "proc" || name == "boot") return "folder-root";
+
+    if (!normPath.isEmpty() && QFile::exists(normPath + "/.git")) {
+        return "folder-git";
+    }
+
+    return "folder";
+}
+
+QIcon FileSystemModel::getFolderIcon(const QString &folderPath, const QString &folderName) {
+    QString iconName = getFolderIconName(folderPath, folderName);
+    
+    QStringList fallbacks;
+    if (iconName == "folder-download") fallbacks = { "folder-downloads", "folder" };
+    else if (iconName == "folder-pictures") fallbacks = { "folder-images", "folder-photo", "folder" };
+    else if (iconName == "folder-documents") fallbacks = { "folder-txt", "folder" };
+    else if (iconName == "folder-music") fallbacks = { "folder-sound", "folder" };
+    else if (iconName == "folder-videos") fallbacks = { "folder-video", "folder" };
+    else if (iconName == "user-desktop") fallbacks = { "folder-desktop", "folder" };
+    else if (iconName == "user-home") fallbacks = { "folder-home", "folder" };
+    else if (iconName == "user-trash") fallbacks = { "folder-trash", "folder" };
+    else if (iconName == "folder-publicshare") fallbacks = { "folder-public", "folder" };
+    else if (iconName == "folder-git") fallbacks = { "folder-github", "folder-development", "folder-code", "folder" };
+    else if (iconName == "folder-development") fallbacks = { "folder-code", "folder-git", "folder" };
+    else if (iconName == "folder-config") fallbacks = { "preferences-system", "folder" };
+    else if (iconName == "folder-games") fallbacks = { "applications-games", "folder" };
+    else if (iconName == "folder-backup") fallbacks = { "folder-tar", "folder" };
+    else if (iconName == "folder-notes") fallbacks = { "folder-obsidian", "folder-txt", "folder" };
+    else if (iconName == "folder-temp") fallbacks = { "folder-cache", "folder" };
+    else if (iconName == "folder-root") fallbacks = { "drive-harddisk-root", "folder-system", "folder" };
+    else fallbacks = { "folder-open" };
+
+    if (QIcon::hasThemeIcon(iconName)) {
+        return QIcon::fromTheme(iconName);
+    }
+    for (const QString &fb : fallbacks) {
+        if (QIcon::hasThemeIcon(fb)) {
+            return QIcon::fromTheme(fb);
+        }
+    }
+
+    return QIcon::fromTheme("folder", QIcon::fromTheme("folder-open"));
+}
+
 void FileSystemModel::onDirectoryChangedByWatcher(const QString &path) {
     if (path == m_currentPath) {
         m_watcherDebounceTimer.start();
@@ -397,7 +491,7 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
     const QString rootPath = m_currentPath;
     const bool showHidden = m_showHidden;
 
-    QtConcurrent::run(QThreadPool::globalInstance(), [this, searchId, rootPath, pattern, isRegex, showHidden]() {
+    QThreadPool::globalInstance()->start([this, searchId, rootPath, pattern, isRegex, showHidden]() {
         QVector<FileItem> found;
         QDir::Filters filters = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System;
         if (showHidden) filters |= QDir::Hidden;
@@ -446,7 +540,7 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
                     item.formattedSize = (subCount == 0) ? tr("Empty") : (subCount == 1 ? tr("1 item") : tr("%1 items").arg(subCount));
                     item.mimeTypeName = "inode/directory";
                     item.mimeComment = tr("Folder");
-                    item.icon = QIcon::fromTheme("folder", QIcon::fromTheme("folder-open"));
+                    item.icon = getFolderIcon(item.absolutePath, item.name);
                 } else {
                     item.sizeBytes = info.size();
                     item.formattedSize = FileItem::formatFileSize(item.sizeBytes);
@@ -616,7 +710,7 @@ void FileSystemModel::loadDirectoryInternal() {
             item.formattedSize = (subCount == 0) ? tr("Empty") : (subCount == 1 ? tr("1 item") : tr("%1 items").arg(subCount));
             item.mimeTypeName = "inode/directory";
             item.mimeComment = tr("Folder");
-            item.icon = QIcon::fromTheme("folder", QIcon::fromTheme("folder-open"));
+            item.icon = getFolderIcon(item.absolutePath, item.name);
             folders++;
         } else {
             item.sizeBytes = info.size();

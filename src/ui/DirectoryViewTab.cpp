@@ -24,10 +24,10 @@ DirectoryViewTab::DirectoryViewTab(const QString &initialPath, QWidget *parent)
     m_proxyModel = new FileFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_fileModel);
 
+    setupToolBar();
     setupUi();
     m_fileView->setViewMode(static_cast<ViewMode>(AppSettings::instance().viewMode()));
     m_fileView->setGridIconSize(AppSettings::instance().zoomLevel());
-    setupToolBar();
     navigateTo(initialPath, false);
 
     // Keep all tabs in sync with global settings
@@ -57,10 +57,90 @@ void DirectoryViewTab::setupUi() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
+    layout->addWidget(m_toolBar);
+
+    m_errorBanner = new ErrorBannerWidget(this);
+    layout->addWidget(m_errorBanner);
+
+    m_trashBar = new TrashBarWidget(this);
+    layout->addWidget(m_trashBar);
+
+    m_fileView = new FileViewWidget(m_fileModel, m_proxyModel, this);
+    layout->addWidget(m_fileView, 1);
+
+    // Connections
+    connect(m_fileView, &FileViewWidget::openPathRequested, this, [this](const QString &path) {
+        if (FileOperations::isTrashPath(m_currentPath)) {
+            auto res = QMessageBox::question(this, tr("Restore Item"),
+                tr("Do you want to restore '%1' from the Trash?").arg(QFileInfo(path).fileName()),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+            if (res == QMessageBox::Yes) {
+                FileOperations ops;
+                ops.restoreFromTrash({ path }, this);
+                m_fileModel->refresh();
+            }
+            return;
+        }
+        if (QFileInfo(path).isDir()) {
+            navigateTo(path);
+        } else {
+            AppLauncher::instance().openPath(path);
+        }
+    });
+    connect(m_fileView, &FileViewWidget::statusMessageRequested, this, &DirectoryViewTab::statusMessageRequested);
+    connect(m_fileView, &FileViewWidget::fileSelectionChanged, this, [this](const QStringList &selected) {
+        updateTrashBar();
+        emit fileSelectionChanged(selected);
+    });
+    connect(m_fileView, &FileViewWidget::zoomChanged, this, &DirectoryViewTab::zoomChanged);
+    connect(m_fileView, &FileViewWidget::previewRequested, this, &DirectoryViewTab::quickPreviewRequested);
+    connect(m_fileView, &FileViewWidget::searchRequested, this, &DirectoryViewTab::openSearch);
+
+    connect(m_fileModel, &FileSystemModel::directoryLoaded, this, &DirectoryViewTab::onDirectoryLoaded);
+    connect(m_fileModel, &FileSystemModel::directoryLoadError, this, &DirectoryViewTab::onDirectoryLoadError);
+
+    connect(m_searchBar, &SearchBarWidget::searchChanged, this, &DirectoryViewTab::onSearchChanged);
+    connect(m_searchBar, &SearchBarWidget::searchClosed, this, &DirectoryViewTab::closeSearch);
+
+    connect(m_trashBar, &TrashBarWidget::restoreRequested, this, [this]() {
+        QStringList sel = m_fileView->selectedPaths();
+        if (sel.isEmpty()) {
+            QString trashFiles = UserEnvironment::userTrashPath() + "/files";
+            QDir dir(trashFiles);
+            for (const QFileInfo &fi : dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden)) {
+                sel.append(fi.absoluteFilePath());
+            }
+        }
+        if (!sel.isEmpty()) {
+            FileOperations ops;
+            ops.restoreFromTrash(sel, this);
+            m_fileModel->refresh();
+        }
+    });
+
+    connect(m_trashBar, &TrashBarWidget::deleteRequested, this, [this]() {
+        QStringList sel = m_fileView->selectedPaths();
+        if (!sel.isEmpty()) {
+            FileOperations ops;
+            ops.deletePermanently(sel, this);
+            m_fileModel->refresh();
+        }
+    });
+
+    connect(m_trashBar, &TrashBarWidget::emptyTrashRequested, this, [this]() {
+        FileOperations ops;
+        ops.emptyTrash(this);
+        m_fileModel->refresh();
+    });
+}
+
+void DirectoryViewTab::setupToolBar() {
     m_toolBar = new QToolBar(this);
+    m_toolBar->setFixedHeight(44);
     m_toolBar->setMovable(false);
+    m_toolBar->setFloatable(false);
+    m_toolBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_toolBar->setIconSize(QSize(18, 18));
-    m_toolBar->setFixedHeight(48);
     m_toolBar->setStyleSheet(QString(
         "QToolBar {"
         "  background: %1;"
@@ -107,93 +187,6 @@ void DirectoryViewTab::setupUi() {
     .arg(ThemeManager::ACCENT)           // %8 checked accent
     );
 
-    layout->addWidget(m_toolBar);
-
-    m_errorBanner = new ErrorBannerWidget(this);
-    layout->addWidget(m_errorBanner);
-
-    m_trashBar = new TrashBarWidget(this);
-    layout->addWidget(m_trashBar);
-
-    m_fileView = new FileViewWidget(m_fileModel, m_proxyModel, this);
-    layout->addWidget(m_fileView, 1);
-
-    m_searchBar = new SearchBarWidget(this);
-    layout->addWidget(m_searchBar);
-
-    // Connections
-    connect(m_fileView, &FileViewWidget::openPathRequested, this, [this](const QString &path) {
-        if (FileOperations::isTrashPath(m_currentPath)) {
-            auto res = QMessageBox::question(this, tr("Restore Item"),
-                tr("Do you want to restore '%1' from the Trash?").arg(QFileInfo(path).fileName()),
-                QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
-            if (res == QMessageBox::Yes) {
-                FileOperations ops;
-                ops.restoreFromTrash({ path }, this);
-                m_fileModel->refresh();
-            }
-            return;
-        }
-        if (QFileInfo(path).isDir()) {
-            navigateTo(path);
-        } else {
-            AppLauncher::instance().openPath(path);
-        }
-    });
-    connect(m_fileView, &FileViewWidget::statusMessageRequested, this, &DirectoryViewTab::statusMessageRequested);
-    connect(m_fileView, &FileViewWidget::fileSelectionChanged, this, [this](const QStringList &selected) {
-        updateTrashBar();
-        emit fileSelectionChanged(selected);
-    });
-    connect(m_fileView, &FileViewWidget::zoomChanged, this, &DirectoryViewTab::zoomChanged);
-    connect(m_fileView, &FileViewWidget::previewRequested, this, &DirectoryViewTab::quickPreviewRequested);
-    connect(m_fileView, &FileViewWidget::searchRequested, this, &DirectoryViewTab::openSearch);
-
-    connect(m_fileModel, &FileSystemModel::directoryLoaded, this, &DirectoryViewTab::onDirectoryLoaded);
-    connect(m_fileModel, &FileSystemModel::directoryLoadError, this, &DirectoryViewTab::onDirectoryLoadError);
-
-    connect(m_searchBar, &SearchBarWidget::searchChanged, this, &DirectoryViewTab::onSearchChanged);
-    connect(m_proxyModel, &FileFilterProxyModel::filterChanged, this, &DirectoryViewTab::onFilterChanged);
-    connect(m_searchBar, &SearchBarWidget::searchClosed, this, [this]() {
-        m_fileModel->cancelSearch();
-        m_proxyModel->setSearchPattern(QString());
-    });
-
-    connect(m_trashBar, &TrashBarWidget::restoreRequested, this, [this]() {
-        QStringList sel = m_fileView->selectedPaths();
-        if (sel.isEmpty()) {
-            QString trashFiles = UserEnvironment::userTrashPath() + "/files";
-            QDir dir(trashFiles);
-            for (const QFileInfo &fi : dir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden)) {
-                sel.append(fi.absoluteFilePath());
-            }
-        }
-        if (!sel.isEmpty()) {
-            FileOperations ops;
-            ops.restoreFromTrash(sel, this);
-            m_fileModel->refresh();
-        }
-    });
-
-    connect(m_trashBar, &TrashBarWidget::deleteRequested, this, [this]() {
-        QStringList sel = m_fileView->selectedPaths();
-        if (!sel.isEmpty()) {
-            FileOperations ops;
-            ops.deletePermanently(sel, this);
-            m_fileModel->refresh();
-        }
-    });
-
-    connect(m_trashBar, &TrashBarWidget::emptyTrashRequested, this, [this]() {
-        FileOperations ops;
-        ops.emptyTrash(this);
-        m_fileModel->refresh();
-    });
-}
-
-void DirectoryViewTab::setupToolBar() {
-    m_toolBar->setFixedHeight(44);
-
     // Navigation group (Clean GNOME-style Back, Forward, Up/Parent, and Home)
     m_actBack    = m_toolBar->addAction(QIcon::fromTheme("go-previous", QIcon::fromTheme("back")), tr("Back (Alt+Left)"),    this, &DirectoryViewTab::navigateBack);
     m_actForward = m_toolBar->addAction(QIcon::fromTheme("go-next", QIcon::fromTheme("forward")),     tr("Forward (Alt+Right)"), this, &DirectoryViewTab::navigateForward);
@@ -207,10 +200,18 @@ void DirectoryViewTab::setupToolBar() {
 
     m_toolBar->addSeparator();
 
-    // Breadcrumb — expanding pill container
+    // Integrated Location & Search Stack (Breadcrumbs when browsing, Search input when searching)
+    m_locationStack = new QStackedWidget(this);
+    m_locationStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
     m_breadcrumbBar = new BreadcrumbBar(this);
-    m_breadcrumbBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    m_toolBar->addWidget(m_breadcrumbBar);
+    m_searchBar = new SearchBarWidget(this);
+
+    m_locationStack->addWidget(m_breadcrumbBar);
+    m_locationStack->addWidget(m_searchBar);
+    m_locationStack->setCurrentWidget(m_breadcrumbBar);
+
+    m_toolBar->addWidget(m_locationStack);
 
     connect(m_breadcrumbBar, &BreadcrumbBar::pathChanged, this, [this](const QString &p) {
         if (QFileInfo(p).isFile()) {
@@ -229,7 +230,15 @@ void DirectoryViewTab::setupToolBar() {
 
     // Right-side action buttons
     m_actSearch = m_toolBar->addAction(QIcon::fromTheme("edit-find"), tr("Search (Ctrl+F)"),
-        this, &DirectoryViewTab::openSearch);
+        this, [this]() {
+            if (m_locationStack && m_locationStack->currentWidget() == m_searchBar) {
+                closeSearch();
+            } else {
+                openSearch();
+            }
+        });
+    m_actSearch->setCheckable(true);
+    m_actSearch->setShortcut(QKeySequence::Find);
 
     // Clean View Mode Direct Toggle Button (Grid <-> List)
     m_viewModeBtn = new QToolButton(m_toolBar);
@@ -461,12 +470,24 @@ void DirectoryViewTab::toggleViewMode() {
     }
 }
 
-void DirectoryViewTab::openSearch()   { m_searchBar->activate(); }
-void DirectoryViewTab::closeSearch()  {
+void DirectoryViewTab::openSearch() {
+    if (m_locationStack && m_searchBar) {
+        m_locationStack->setCurrentWidget(m_searchBar);
+        m_searchBar->activate();
+    }
+    if (m_actSearch) m_actSearch->setChecked(true);
+}
+
+void DirectoryViewTab::closeSearch() {
     m_searchDebounceTimer.stop();
-    m_searchBar->deactivate();
-    m_fileModel->cancelSearch();
-    m_proxyModel->setSearchPattern(QString());
+    if (m_searchBar) m_searchBar->deactivate();
+    if (m_fileModel) m_fileModel->cancelSearch();
+    if (m_proxyModel) m_proxyModel->setSearchPattern(QString());
+    if (m_locationStack && m_breadcrumbBar) {
+        m_locationStack->setCurrentWidget(m_breadcrumbBar);
+        m_breadcrumbBar->activateBreadcrumbMode();
+    }
+    if (m_actSearch) m_actSearch->setChecked(false);
 }
 
 void DirectoryViewTab::showErrorMessage(const QString &title, const QString &message) {
