@@ -11,6 +11,10 @@
 ![Wayland](https://img.shields.io/badge/Wayland-Native-orange.svg?style=for-the-badge&logo=wayland)
 ![License](https://img.shields.io/badge/License-GPL--3.0-purple.svg?style=for-the-badge)
 
+[![Stars](https://img.shields.io/github/stars/zonicisalive/BitFM?style=for-the-badge&color=yellow)](https://github.com/zonicisalive/BitFM/stargazers)
+[![Issues](https://img.shields.io/github/issues/zonicisalive/BitFM?style=for-the-badge&color=red)](https://github.com/zonicisalive/BitFM/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/zonicisalive/BitFM?style=for-the-badge&color=blue)](https://github.com/zonicisalive/BitFM/commits)
+
 **A fast, modern, and modular Linux file manager engineered with C++ and Qt.**  
 *Crafted for speed, pixel-perfect aesthetics, and seamless integration on Wayland (Niri, Hyprland, Sway, GNOME, KDE Plasma, Cosmic) & X11.*
 
@@ -150,7 +154,7 @@ sudo dnf install -y \
 
 ```bash
 # Clone the repository
-git clone https://github.com/ZonicExists/BitFM.git
+git clone https://github.com/zonicisalive/BitFM.git
 cd BitFM
 
 # Run the universal installer (auto-detects dependencies and sets up Wayland portals)
@@ -192,6 +196,16 @@ border=#434844
 accent=#a5d0bb
 foreground=#e2e2e0
 ```
+
+---
+
+## Support
+
+If BitFM saves you time, a star helps more people find it.
+
+- **Found a bug or have a feature idea?** [Open an issue](https://github.com/zonicisalive/BitFM/issues)
+- **Questions or feedback?** [support@zonicisalive.com](mailto:support@zonicisalive.com)
+- **More from the author:** [zonicisalive.com](https://zonicisalive.com) · [@zonicisalive](https://github.com/zonicisalive)
 
 ---
 
