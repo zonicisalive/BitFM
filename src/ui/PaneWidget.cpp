@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QPainter>
+#include <QPaintEvent>
 #include <QAbstractButton>
 
 class TabCloseButton : public QAbstractButton {
@@ -103,7 +104,7 @@ PaneWidget::PaneWidget(const QString &initialPath, bool primary, QWidget *parent
 
 void PaneWidget::setupUi() {
     QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(1, 1, 1, 1);
     layout->setSpacing(0);
 
     // Header bar: nav + location/search + composed actions (+ ☰ on the primary pane)
@@ -137,17 +138,19 @@ void PaneWidget::setupUi() {
     m_tabWidget->tabBar()->setAutoHide(true);
 
     auto updateStyles = [this]() {
+        update();
         m_tabWidget->setStyleSheet(ThemeManager::css(QString(
             "QTabWidget::pane {"
             "  border: none;"
-            "  background: %1;"
+            "  background: transparent;"
             "}"
             "QTabWidget::tab-bar {"
             "  alignment: left;"
             "}"
             "QTabBar {"
             "  background: %2;"
-            "  border-bottom: 1px solid %3;"
+            "  border: none;"
+            "  qproperty-drawBase: 0;"
             "}"
             "QTabBar::tab {"
             "  background: transparent;"
@@ -157,8 +160,8 @@ void PaneWidget::setupUi() {
             "  min-width: 90px;"
             "  max-width: 220px;"
             "  border: 1px solid transparent;"
-            "  border-radius: 7px;"
-            "  margin: 3px 2px;"
+            "  border-radius: 14px /*fixed*/;"
+            "  margin: 4px 3px;"
             "  font-size: 12px;"
             "  font-weight: 500;"
             "}"
@@ -167,25 +170,23 @@ void PaneWidget::setupUi() {
             "  font-weight: 600;"
             "  background: %1;"
             "  border: 1px solid %3;"
-            "  border-radius: 7px;"
             "}"
             "QTabBar::tab:hover:!selected {"
             "  color: %6;"
             "  background: %7;"
-            "  border-radius: 7px;"
             "}"
             "QTabBar::scroller {"
             "  width: 28px;"
             "}"
         )
-        .arg(ThemeManager::BG_BASE)         // %1 pane bg
-        .arg(ThemeManager::BG_SURFACE)      // %2 tab bar bg
+        .arg(ThemeManager::BG_OVERLAY)      // %1 selected tab pill
+        .arg("transparent")                 // %2 tab bar bg
         .arg(ThemeManager::BORDER)          // %3 bottom border
         .arg(ThemeManager::TEXT_SECONDARY)  // %4 unselected tab text
         .arg(ThemeManager::ACCENT)          // %5 selected tab text / accent
         .arg(ThemeManager::TEXT_PRIMARY)    // %6 hover text
         .arg(ThemeManager::BG_HOVER)        // %7 hover bg
-        .arg(ThemeManager::px(30))          // %8 tab height
+        .arg(ThemeManager::px(28))          // %8 tab height
         ));
     };
 
@@ -250,16 +251,18 @@ bool PaneWidget::isActive() const { return m_isActive; }
 void PaneWidget::setActive(bool active) {
     if (m_isActive == active) return;
     m_isActive = active;
+    update();
+}
 
-    if (m_isActive) {
-        setStyleSheet(ThemeManager::css(QString(
-            "PaneWidget { border-left: 2px solid %1; }"
-        ).arg(ThemeManager::ACCENT)));
-    } else {
-        setStyleSheet(ThemeManager::css(QString(
-            "PaneWidget { border-left: 2px solid transparent; }"
-        )));
-    }
+void PaneWidget::setHighlightEnabled(bool on) {
+    if (m_highlight == on) return;
+    m_highlight = on;
+    update();
+}
+
+void PaneWidget::paintEvent(QPaintEvent *) {
+    QPainter p(this);
+    ThemeManager::paintCard(p, rect(), (m_highlight && m_isActive) ? ThemeManager::ACCENT : QString());
 }
 
 QString PaneWidget::currentPath() const {

@@ -1,4 +1,5 @@
 #include "TerminalDrawerWidget.h"
+#include <QPainter>
 #include "ThemeManager.h"
 #include "UserEnvironment.h"
 #include <QVBoxLayout>
@@ -226,9 +227,10 @@ void TerminalDrawerWidget::setupUi() {
     mainLayout->addWidget(inputContainer);
 
     auto updateStyles = [header, titleLabel, clearBtn, extTermBtn, inputContainer, inputPill, this]() {
+        update();
         header->setStyleSheet(ThemeManager::css(QString(
-            "QWidget { background: %1; border-top: 1px solid %2; border-bottom: 1px solid %2; }"
-        ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
+            "QWidget { background: transparent; border-bottom: 1px solid %1; }"
+        ).arg(ThemeManager::BORDER)));
 
         titleLabel->setStyleSheet(ThemeManager::css(QString("font-weight: 700; font-size: 12px; color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
 
@@ -267,7 +269,7 @@ void TerminalDrawerWidget::setupUi() {
             "}"
         ).arg(ThemeManager::BG_BASE, ThemeManager::TEXT_PRIMARY)));
 
-        inputContainer->setStyleSheet(ThemeManager::css(QString("background: %1; border-top: 1px solid %2;").arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
+        inputContainer->setStyleSheet(ThemeManager::css(QString("background: transparent; border-top: 1px solid %1;").arg(ThemeManager::BORDER)));
 
         inputPill->setStyleSheet(ThemeManager::css(QString(
             "background-color: %1;"
@@ -506,4 +508,9 @@ bool TerminalDrawerWidget::eventFilter(QObject *watched, QEvent *event) {
         }
     }
     return QWidget::eventFilter(watched, event);
+}
+
+void TerminalDrawerWidget::paintEvent(QPaintEvent *) {
+    QPainter p(this);
+    ThemeManager::paintCard(p, rect());
 }

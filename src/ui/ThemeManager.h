@@ -4,6 +4,8 @@
 #include <QApplication>
 #include <QString>
 #include <QStringList>
+#include <QPainter>
+#include <QRect>
 
 enum class ThemeMode {
     Builtin = 0,
@@ -64,6 +66,9 @@ public:
 
     // ── Design tokens (Preferences → Appearance) ──
     static int radius();                       // corner radius in px (0..16)
+    static int cardRadius();                   // radius of the floating panels (radius + 4)
+    // Paint a floating-panel card (surface fill + 1px border) covering `rect`.
+    static void paintCard(QPainter &p, const QRect &rect, const QString &borderColor = QString());
     static int density();                      // 0 compact, 1 normal, 2 spacious
     static double densityScale();              // 0.75 / 1.0 / 1.3
     static int px(int base);                   // density-scaled size for code paths
@@ -92,6 +97,7 @@ public:
     static QString externalStyleCssPath();
 
     // Dynamic color tokens tracking the active theme
+    static QString BG_BACKDROP;   // window ground the floating panels sit on
     static QString BG_BASE;
     static QString BG_SURFACE;
     static QString BG_OVERLAY;

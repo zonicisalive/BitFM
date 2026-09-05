@@ -15,6 +15,7 @@
 #include <QTimer>
 
 // Initialize static color variables
+QString ThemeManager::BG_BACKDROP   = "#000000";
 QString ThemeManager::BG_BASE       = "#000000";
 QString ThemeManager::BG_SURFACE     = "#0d0d10";
 QString ThemeManager::BG_OVERLAY     = "#16161c";
@@ -312,6 +313,17 @@ QColor ThemeManager::toColor(const QString &cssColor) {
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
 int ThemeManager::radius() { return AppSettings::instance().cornerRadius(); }
+int ThemeManager::cardRadius() { return radius() + 4; }
+
+void ThemeManager::paintCard(QPainter &p, const QRect &rect, const QString &borderColor) {
+    p.setRenderHint(QPainter::Antialiasing, true);
+    QPen pen(toColor(borderColor.isEmpty() ? BORDER : borderColor));
+    pen.setWidthF(1.0);
+    p.setPen(pen);
+    p.setBrush(toColor(BG_SURFACE));
+    const qreal r = cardRadius();
+    p.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), r, r);
+}
 int ThemeManager::density() { return AppSettings::instance().density(); }
 double ThemeManager::densityScale() {
     switch (density()) { case 0: return 0.75; case 2: return 1.3; default: return 1.0; }
@@ -366,13 +378,16 @@ void ThemeManager::updateStaticColors(const ThemeColors &c) {
     bool translucent = AppSettings::instance().isTranslucencyEnabled();
     double opacity = AppSettings::instance().windowOpacity();
 
+    const QString backdrop = QColor(c.bgBase).darker(c.isDark ? 135 : 106).name();
     if (translucent) {
+        BG_BACKDROP   = hexToRgba(backdrop, opacity);
         BG_BASE       = hexToRgba(c.bgBase, opacity);
         BG_SURFACE     = hexToRgba(c.bgSurface, qBound(0.2, opacity * 1.06, 1.0));
         BG_OVERLAY     = hexToRgba(c.bgOverlay, qBound(0.2, opacity * 1.12, 1.0));
         BG_HOVER       = hexToRgba(c.bgHover, qBound(0.2, opacity * 1.18, 1.0));
         BG_SELECTION   = hexToRgba(c.bgSelection, 0.85);
     } else {
+        BG_BACKDROP   = backdrop;
         BG_BASE       = c.bgBase;
         BG_SURFACE     = c.bgSurface;
         BG_OVERLAY     = c.bgOverlay;
@@ -443,11 +458,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
 
         /* ─── Splitter ─── */
         "QSplitter::handle {"
-        "  background-color: %3;"
-        "  width: 1px; height: 1px;"
-        "}"
-        "QSplitter::handle:hover {"
-        "  background-color: %4;"
+        "  background-color: transparent;"
         "}"
 
         /* ─── ToolBar ─── */

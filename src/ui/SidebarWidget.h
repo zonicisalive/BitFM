@@ -20,6 +20,9 @@ public slots:
 signals:
     void locationSelected(const QString &path);
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
 private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);
     void onCustomContextMenuRequested(const QPoint &pos);

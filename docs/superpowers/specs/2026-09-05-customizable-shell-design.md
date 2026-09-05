@@ -14,6 +14,15 @@ stylesheet, lazily created dialogs/pages).
 - `DirectoryViewTab` keeps model/view/search logic and emits `searchMatchCount`,
   `searchOpenRequested`; `PaneWidget` routes the current tab ⇄ its `HeaderBar`.
 
+## Look: floating panels (approved 2026-09-06)
+- Sidebar, pane, inspector and terminal drawer are rounded cards (`ThemeManager::cardRadius()`
+  = radius + 4, default 12) painted in `paintEvent` via `ThemeManager::paintCard()` — a
+  stylesheet on a container widget leaks a default palette into its children, so cards are
+  painted, not styled. Cards sit on `BG_BACKDROP` (base darkened 35% dark / 6% light) with
+  8px transparent splitter gaps; the header bar and tab strip are transparent on the card,
+  tabs are pills; views are transparent so the card shows through.
+- Active pane in dual mode gets an accent card border.
+
 ## Tokens (`ThemeManager`)
 - `radius()` 0–16 (default 6), `density()` 0/1/2 (padding scale 0.75/1/1.3),
   `fontFamily/fontSize`, `iconTheme`.

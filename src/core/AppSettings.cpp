@@ -212,7 +212,7 @@ void AppSettings::setWindowOpacity(double opacity) {
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
 int AppSettings::cornerRadius() const {
-    return qBound(0, QSettings().value("appearance/radius", 6).toInt(), 16);
+    return qBound(0, QSettings().value("appearance/radius", 8).toInt(), 16);
 }
 
 void AppSettings::setCornerRadius(int px) {

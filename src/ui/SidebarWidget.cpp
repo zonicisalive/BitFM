@@ -39,7 +39,7 @@ SidebarWidget::SidebarWidget(QWidget *parent)
 
 void SidebarWidget::setupUi() {
     QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setContentsMargins(1, 1, 1, 1);
     layout->setSpacing(0);
 
     // App name header matching the reference topbar
@@ -125,10 +125,11 @@ void SidebarWidget::setupUi() {
     m_treeWidget->setFocusPolicy(Qt::NoFocus);
 
     auto updateStyles = [header, appName, this]() {
+        update();
         header->setFixedHeight(ThemeManager::px(44));
         header->setStyleSheet(ThemeManager::css(QString(
-            "QWidget { background-color: %1; border-bottom: 1px solid %2; }"
-        ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
+            "QWidget { background-color: transparent; border-bottom: 1px solid %1; }"
+        ).arg(ThemeManager::BORDER)));
 
         appName->setStyleSheet(ThemeManager::css(QString(
             "font-size: 13px; font-weight: 700; color: %1; background: transparent; border: none; padding-left: 2px;"
@@ -166,7 +167,7 @@ void SidebarWidget::setupUi() {
             "  background: transparent;"
             "}"
         )
-        .arg(ThemeManager::BG_SURFACE)
+        .arg("transparent")
         .arg(ThemeManager::TEXT_SECONDARY)
         .arg(ThemeManager::BG_HOVER)
         .arg(ThemeManager::TEXT_PRIMARY)
@@ -488,4 +489,9 @@ void SidebarWidget::highlightPath(const QString &path) {
         m_treeWidget->clearSelection();
         m_treeWidget->setCurrentItem(nullptr);
     }
+}
+
+void SidebarWidget::paintEvent(QPaintEvent *) {
+    QPainter p(this);
+    ThemeManager::paintCard(p, rect());
 }

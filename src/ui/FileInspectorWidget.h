@@ -21,6 +21,9 @@ public:
 signals:
     void openFileRequested(const QString &filePath);
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
 private slots:
     void onCopyPathClicked();
     void onCalculateSha256Clicked();

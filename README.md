@@ -32,6 +32,7 @@
   - **Icon Grid (`Ctrl+1`)**: Modern card-style grid with edge-to-edge justification, centered icons, symlink emblems, folder item counts, and 3-line file metadata.
   - **Detailed List (`Ctrl+2`)**: Full-featured tabular view with interactive resizable columns, sorting indicators, and date/size formatting.
   - **Compact View (`Ctrl+3`)**: Flowing multi-column horizontal list with scalable icons, dynamic row heights, and zoom support.
+- **Floating-panel layout** — sidebar, file pane, inspector and terminal drawer are rounded cards on a darker backdrop; header bar with breadcrumb/search and a composable action cluster replaces the toolbar and menubar (classic menubar available in Layout).
 - **Preferences (`Ctrl+,`)** — Appearance (themes, accent, corner radius, density, font, icon theme), Layout (sidebar/inspector side, menubar, status bar), Toolbar (compose the header bar), Shortcuts (rebind every action):
   - **10 Built-in Presets**: *Modern GNOME (Adwaita Dark)*, *OLED Pitch Black*, *Midnight Cyberpunk*, *Nord Frost*, *Gruvbox Warm Dark*, *Dracula Gothic*, *Rosé Pine*, *GitHub Dark*, *Catppuccin Mocha*, *Pure Light*.
   - **Accent Color Studio**: 9 instant presets with custom RGB/HEX color picker.

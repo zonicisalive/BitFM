@@ -56,12 +56,11 @@ MainWindow::MainWindow(QWidget *parent)
 }
 
 void MainWindow::setupUi() {
+    // Floating-panel layout: sidebar / panes / inspector are rounded cards separated by
+    // transparent splitter gaps over a darker backdrop.
     m_mainSplitter = new QSplitter(Qt::Horizontal, this);
-    m_mainSplitter->setHandleWidth(1);
-    m_mainSplitter->setStyleSheet(ThemeManager::css(QString(
-        "QSplitter::handle { background: %1; }"
-        "QSplitter::handle:hover { background: %2; }"
-    ).arg(ThemeManager::BORDER).arg(ThemeManager::ACCENT)));
+    m_mainSplitter->setHandleWidth(8);
+    m_mainSplitter->setChildrenCollapsible(false);
 
     // 1. Left Column: Sidebar
     m_sidebar = new SidebarWidget(this);
@@ -69,10 +68,10 @@ void MainWindow::setupUi() {
 
     // 2. Middle Column: Vertical Splitter containing (Panes on top, Terminal Drawer on bottom)
     m_contentSplitter = new QSplitter(Qt::Vertical, this);
-    m_contentSplitter->setHandleWidth(2);
+    m_contentSplitter->setHandleWidth(8);
 
     m_panesSplitter = new QSplitter(Qt::Horizontal, this);
-    m_panesSplitter->setHandleWidth(2);
+    m_panesSplitter->setHandleWidth(8);
 
     QString initialPath;
     for (const QString &arg : QCoreApplication::arguments().mid(1)) {
@@ -142,6 +141,8 @@ void MainWindow::setupUi() {
     if (AppSettings::instance().isDualPaneEnabled()) {
         m_secondaryPane->setVisible(true);
         ActionRegistry::instance().action("view.split")->setChecked(true);
+        m_primaryPane->setHighlightEnabled(true);
+        m_secondaryPane->setHighlightEnabled(true);
         QList<int> paneSizes = AppSettings::instance().panesSplitterSizes();
         if (paneSizes.size() == 2 && paneSizes[0] > 0 && paneSizes[1] > 0) {
             m_panesSplitter->setSizes(paneSizes);
@@ -163,9 +164,19 @@ void MainWindow::setupUi() {
     bool isRoot = (geteuid() == 0 || qgetenv("USER") == "root");
 
     QWidget *centralContainer = new QWidget(this);
+    centralContainer->setObjectName("Backdrop");
     QVBoxLayout *centralLayout = new QVBoxLayout(centralContainer);
     centralLayout->setContentsMargins(0, 0, 0, 0);
     centralLayout->setSpacing(0);
+    auto applyBackdrop = [this, centralContainer]() {
+        centralContainer->setStyleSheet(QString("#Backdrop { background: %1; }").arg(ThemeManager::BG_BACKDROP));
+        statusBar()->setStyleSheet(ThemeManager::css(QString(
+            "QStatusBar { background: %1; border: none; padding: 2px 12px; }"
+        ).arg(ThemeManager::BG_BACKDROP)));
+        m_mainSplitter->setContentsMargins(8, 8, 8, 4);
+    };
+    applyBackdrop();
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, applyBackdrop);
 
     if (isRoot) {
         QWidget *rootBanner = new QWidget(centralContainer);
@@ -737,6 +748,8 @@ void MainWindow::toggleDualPane() {
     bool willShow = !m_secondaryPane->isVisible();
     m_secondaryPane->setVisible(willShow);
     ActionRegistry::instance().action("view.split")->setChecked(willShow);
+    m_primaryPane->setHighlightEnabled(willShow);
+    m_secondaryPane->setHighlightEnabled(willShow);
 
     if (willShow) {
         m_secondaryPane->navigateTo(m_primaryPane->currentPath());

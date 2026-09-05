@@ -459,7 +459,7 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
             "  font-weight: 600;"
             "  font-size: 11px;"
             "}"
-        ).arg(ThemeManager::BG_BASE, ThemeManager::BG_SURFACE, ThemeManager::TEXT_MUTED, ThemeManager::BORDER).arg(ThemeManager::px(34))));
+        ).arg("transparent", "transparent", ThemeManager::TEXT_MUTED, ThemeManager::BORDER).arg(ThemeManager::px(34))));
 
         m_listView->setStyleSheet(ThemeManager::css(QString(
             "QListView {"
@@ -480,7 +480,7 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
             "  background-color: %4;"
             "  color: #ffffff;"
             "}"
-        ).arg(ThemeManager::BG_BASE, ThemeManager::TEXT_PRIMARY, ThemeManager::BG_HOVER, ThemeManager::BG_SELECTION)));
+        ).arg("transparent", ThemeManager::TEXT_PRIMARY, ThemeManager::BG_HOVER, ThemeManager::BG_SELECTION)));
 
         m_tableView->viewport()->update();
         m_listView->viewport()->update();
@@ -661,7 +661,7 @@ void FileViewWidget::setupTableView() {
     m_tableView->setItemDelegate(m_rowDelegate);
 
     m_tableView->horizontalHeader()->setMinimumSectionSize(60);
-    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColName, QHeaderView::Stretch);
+    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColName, QHeaderView::Interactive);
     m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColSize, QHeaderView::Interactive);
     m_tableView->horizontalHeader()->resizeSection(FileSystemModel::ColSize, 100);
     m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColType, QHeaderView::Interactive);
@@ -676,6 +676,10 @@ void FileViewWidget::setupTableView() {
     if (!savedHeaderState.isEmpty()) {
         m_tableView->horizontalHeader()->restoreState(savedHeaderState);
     }
+    m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColName, QHeaderView::Interactive);
+    connect(m_tableView->horizontalHeader(), &QHeaderView::sectionResized, this, [this](int logical, int, int) {
+        if (logical != FileSystemModel::ColName) fitNameColumn();
+    });
 
     // Apply saved sort column and order
     int sortCol = AppSettings::instance().sortColumn();
@@ -832,7 +836,18 @@ void FileViewWidget::resizeEvent(QResizeEvent *event) {
     if (m_emptyStateWidget) {
         m_emptyStateWidget->setGeometry(rect());
     }
+    fitNameColumn();
     updateGridGeometry();
+}
+
+// Name column takes the remaining width but never less than fits icon + a readable name;
+// below that the table scrolls horizontally instead of rendering empty names.
+void FileViewWidget::fitNameColumn() {
+    QHeaderView *h = m_tableView->horizontalHeader();
+    int others = 0;
+    for (int c = 1; c < h->count(); ++c) if (!h->isSectionHidden(c)) others += h->sectionSize(c);
+    int available = m_tableView->viewport()->width() - others;
+    h->resizeSection(FileSystemModel::ColName, qMax(220, available));
 }
 
 void FileViewWidget::showEvent(QShowEvent *event) {

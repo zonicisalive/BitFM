@@ -112,7 +112,7 @@ void HeaderBar::applyStyle() {
     const int iconPx = ThemeManager::px(18);
     for (QToolButton *b : findChildren<QToolButton*>()) b->setIconSize(QSize(iconPx, iconPx));
     setStyleSheet(ThemeManager::css(QString(
-        "#HeaderBar { background: %1; border-bottom: 1px solid %2; }"
+        "#HeaderBar { background: transparent; border-bottom: 1px solid %2; }"
         "#HeaderBar QToolButton { background: transparent; color: %3; border: none; border-radius: 7px; padding: 5px 7px; min-width: 24px; }"
         "#HeaderBar QToolButton:hover { background: %4; color: %5; }"
         "#HeaderBar QToolButton:pressed, #HeaderBar QToolButton:checked { background: %6; color: %7; }"

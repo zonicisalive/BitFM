@@ -21,6 +21,9 @@ signals:
     void closeRequested();
     void directoryChanged(const QString &newDir);
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
 private slots:
     void executeCommand();
     void onProcessReadyRead();

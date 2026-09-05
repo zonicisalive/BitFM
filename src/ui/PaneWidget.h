@@ -25,6 +25,7 @@ public:
 
     bool isActive() const;
     void setActive(bool active);
+    void setHighlightEnabled(bool on);   // accent outline on the active pane (dual-pane only)
 
     QString currentPath() const;
 
@@ -48,6 +49,7 @@ signals:
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
+    void paintEvent(QPaintEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
@@ -64,4 +66,5 @@ private:
     CustomTabWidget *m_tabWidget = nullptr;
     bool m_isActive = false;
     bool m_primary = false;
+    bool m_highlight = false;
 };

@@ -196,10 +196,7 @@ void FileInspectorWidget::applyStyles() {
         "QPushButton:hover { background-color: %4; }"
     ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::BG_HOVER)));
     setStyleSheet(ThemeManager::css(QString(
-        "FileInspectorWidget {"
-        "  background-color: %1;"
-        "  border-left: 1px solid %2;"
-        "}"
+        "FileInspectorWidget { background: transparent; }"
         "QGroupBox {"
         "  font-weight: bold;"
         "  border: 1px solid %2;"
@@ -505,4 +502,9 @@ void FileInspectorWidget::onCalculateSha256Clicked() {
     });
 
     watcher->setFuture(future);
+}
+
+void FileInspectorWidget::paintEvent(QPaintEvent *) {
+    QPainter p(this);
+    ThemeManager::paintCard(p, rect());
 }
