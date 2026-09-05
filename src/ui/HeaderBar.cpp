@@ -112,7 +112,7 @@ void HeaderBar::rebuildToolbar() {
 }
 
 void HeaderBar::applyStyle() {
-    const int h = ThemeManager::px(38);
+    const int h = qMax(ThemeManager::px(38), fontMetrics().height() + 22);
     setFixedHeight(h);
     const int iconPx = ThemeManager::px(18);
     for (QToolButton *b : findChildren<QToolButton*>()) b->setIconSize(QSize(iconPx, iconPx));

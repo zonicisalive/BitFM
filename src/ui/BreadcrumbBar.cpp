@@ -394,5 +394,5 @@ bool BreadcrumbBar::eventFilter(QObject *watched, QEvent *event) {
     return QWidget::eventFilter(watched, event);
 }
 
-QSize BreadcrumbBar::sizeHint() const { return QSize(300, ThemeManager::px(34)); }
-QSize BreadcrumbBar::minimumSizeHint() const { return QSize(80, ThemeManager::px(28)); }
+QSize BreadcrumbBar::sizeHint() const { return QSize(300, qMax(ThemeManager::px(34), fontMetrics().height() + 16)); }
+QSize BreadcrumbBar::minimumSizeHint() const { return QSize(80, qMax(ThemeManager::px(28), fontMetrics().height() + 12)); }
