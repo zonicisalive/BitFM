@@ -26,13 +26,13 @@ void AboutDialog::setupUi() {
 
     QWidget *card = new QWidget(this);
     card->setObjectName("aboutCard");
-    card->setStyleSheet(QString(
+    card->setStyleSheet(ThemeManager::css(QString(
         "#aboutCard {"
         "  background-color: %1;"
         "  border: 1px solid %2;"
         "  border-radius: 14px;"
         "}"
-    ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER)));
 
     auto *shadow = new QGraphicsDropShadowEffect(this);
     shadow->setBlurRadius(24);
@@ -50,11 +50,11 @@ void AboutDialog::setupUi() {
 
     // Pill Tab Bar Container
     QWidget *pillContainer = new QWidget(card);
-    pillContainer->setStyleSheet(QString(
+    pillContainer->setStyleSheet(ThemeManager::css(QString(
         "background-color: %1;"
         "border-radius: 8px;"
         "padding: 2px;"
-    ).arg(ThemeManager::BG_SURFACE));
+    ).arg(ThemeManager::BG_SURFACE)));
 
     QHBoxLayout *pillLayout = new QHBoxLayout(pillContainer);
     pillLayout->setContentsMargins(3, 3, 3, 3);
@@ -74,15 +74,15 @@ void AboutDialog::setupUi() {
     ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::TEXT_PRIMARY);
 
     m_tabAboutBtn = new QPushButton(tr("About"), pillContainer);
-    m_tabAboutBtn->setStyleSheet(pillBtnStyle);
+    m_tabAboutBtn->setStyleSheet(ThemeManager::css(pillBtnStyle));
     m_tabAboutBtn->setCursor(Qt::PointingHandCursor);
 
     m_tabCreditsBtn = new QPushButton(tr("Credits"), pillContainer);
-    m_tabCreditsBtn->setStyleSheet(pillBtnStyle);
+    m_tabCreditsBtn->setStyleSheet(ThemeManager::css(pillBtnStyle));
     m_tabCreditsBtn->setCursor(Qt::PointingHandCursor);
 
     m_tabLicenseBtn = new QPushButton(tr("License"), pillContainer);
-    m_tabLicenseBtn->setStyleSheet(pillBtnStyle);
+    m_tabLicenseBtn->setStyleSheet(ThemeManager::css(pillBtnStyle));
     m_tabLicenseBtn->setCursor(Qt::PointingHandCursor);
 
     pillLayout->addWidget(m_tabAboutBtn);
@@ -96,12 +96,12 @@ void AboutDialog::setupUi() {
     QPushButton *closeBtn = new QPushButton("✕", card);
     closeBtn->setFixedSize(28, 28);
     closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet(QString(
+    closeBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton {"
         "  background-color: %1;"
         "  color: %2;"
         "  border: none;"
-        "  border-radius: 14px;"
+        "  border-radius: 14px /*fixed*/;"
         "  font-size: 12px;"
         "  font-weight: bold;"
         "}"
@@ -109,7 +109,7 @@ void AboutDialog::setupUi() {
         "  background-color: %3;"
         "  color: #ffffff;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE, ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER));
+    ).arg(ThemeManager::BG_SURFACE, ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER)));
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
     topLayout->addWidget(closeBtn);
 
@@ -157,9 +157,9 @@ void AboutDialog::switchTab(int index) {
         "QPushButton:hover { color: %2; }"
     ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::TEXT_PRIMARY);
 
-    m_tabAboutBtn->setStyleSheet(index == 0 ? activeStyle : inactiveStyle);
-    m_tabCreditsBtn->setStyleSheet(index == 1 ? activeStyle : inactiveStyle);
-    m_tabLicenseBtn->setStyleSheet(index == 2 ? activeStyle : inactiveStyle);
+    m_tabAboutBtn->setStyleSheet(ThemeManager::css(index == 0 ? activeStyle : inactiveStyle));
+    m_tabCreditsBtn->setStyleSheet(ThemeManager::css(index == 1 ? activeStyle : inactiveStyle));
+    m_tabLicenseBtn->setStyleSheet(ThemeManager::css(index == 2 ? activeStyle : inactiveStyle));
 }
 
 QWidget* AboutDialog::createAboutTab() {
@@ -180,13 +180,13 @@ QWidget* AboutDialog::createAboutTab() {
     // App Name
     QLabel *titleLabel = new QLabel("BitFM", tab);
     titleLabel->setAlignment(Qt::AlignCenter);
-    titleLabel->setStyleSheet(QString("font-size: 17px; font-weight: 800; color: %1;").arg(ThemeManager::TEXT_PRIMARY));
+    titleLabel->setStyleSheet(ThemeManager::css(QString("font-size: 17px; font-weight: 800; color: %1;").arg(ThemeManager::TEXT_PRIMARY)));
     layout->addWidget(titleLabel);
 
     // Version
     QLabel *verLabel = new QLabel("Version 1.0.0", tab);
     verLabel->setAlignment(Qt::AlignCenter);
-    verLabel->setStyleSheet(QString("font-size: 12px; color: %1; font-weight: 500;").arg(ThemeManager::TEXT_MUTED));
+    verLabel->setStyleSheet(ThemeManager::css(QString("font-size: 12px; color: %1; font-weight: 500;").arg(ThemeManager::TEXT_MUTED)));
     layout->addWidget(verLabel);
 
     // Description
@@ -195,7 +195,7 @@ QWidget* AboutDialog::createAboutTab() {
            "crafted with Qt 6 & C++20."), tab);
     descLabel->setAlignment(Qt::AlignCenter);
     descLabel->setWordWrap(true);
-    descLabel->setStyleSheet(QString("font-size: 12px; color: %1; line-height: 1.4;").arg(ThemeManager::TEXT_SECONDARY));
+    descLabel->setStyleSheet(ThemeManager::css(QString("font-size: 12px; color: %1; line-height: 1.4;").arg(ThemeManager::TEXT_SECONDARY)));
     layout->addWidget(descLabel);
 
     // Website Link
@@ -214,7 +214,7 @@ QWidget* AboutDialog::createAboutTab() {
         "<a href='https://github.com/ZonicExists' style='color: #89b4fa; text-decoration: none; font-size: 11px;'>https://github.com/ZonicExists</a>", tab);
     copyrightLabel->setOpenExternalLinks(true);
     copyrightLabel->setAlignment(Qt::AlignCenter);
-    copyrightLabel->setStyleSheet(QString("font-size: 11px; color: %1;").arg(ThemeManager::TEXT_MUTED));
+    copyrightLabel->setStyleSheet(ThemeManager::css(QString("font-size: 11px; color: %1;").arg(ThemeManager::TEXT_MUTED)));
     layout->addWidget(copyrightLabel);
 
     return tab;
@@ -227,20 +227,20 @@ QWidget* AboutDialog::createCreditsTab() {
     layout->setSpacing(12);
 
     QLabel *heading = new QLabel(tr("Created & Maintained By"), tab);
-    heading->setStyleSheet(QString("font-size: 14px; font-weight: bold; color: %1;").arg(ThemeManager::TEXT_PRIMARY));
+    heading->setStyleSheet(ThemeManager::css(QString("font-size: 14px; font-weight: bold; color: %1;").arg(ThemeManager::TEXT_PRIMARY)));
     layout->addWidget(heading);
 
     QLabel *author = new QLabel(
         "<b>Zonic</b> — Lead Developer & Architect<br/>"
         "<a href='https://github.com/ZonicExists' style='color: #89b4fa; text-decoration: underline;'>https://github.com/ZonicExists</a>", tab);
     author->setOpenExternalLinks(true);
-    author->setStyleSheet(QString("font-size: 12px; color: %1;").arg(ThemeManager::TEXT_SECONDARY));
+    author->setStyleSheet(ThemeManager::css(QString("font-size: 12px; color: %1;").arg(ThemeManager::TEXT_SECONDARY)));
     layout->addWidget(author);
 
     layout->addSpacing(8);
 
     QLabel *techHeading = new QLabel(tr("Technologies & Open Source"), tab);
-    techHeading->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(ThemeManager::TEXT_PRIMARY));
+    techHeading->setStyleSheet(ThemeManager::css(QString("font-size: 13px; font-weight: bold; color: %1;").arg(ThemeManager::TEXT_PRIMARY)));
     layout->addWidget(techHeading);
 
     QLabel *techList = new QLabel(
@@ -248,7 +248,7 @@ QWidget* AboutDialog::createCreditsTab() {
         "• <b>C++20</b> — Modern Fast Native Engine<br/>"
         "• <b>Papirus / XDG</b> — System Icon Standard<br/>"
         "• <b>Freedesktop Standards</b> — XBEL, Trash & GVFS", tab);
-    techList->setStyleSheet(QString("font-size: 12px; color: %1; line-height: 1.5;").arg(ThemeManager::TEXT_MUTED));
+    techList->setStyleSheet(ThemeManager::css(QString("font-size: 12px; color: %1; line-height: 1.5;").arg(ThemeManager::TEXT_MUTED)));
     layout->addWidget(techList);
 
     layout->addStretch(1);
@@ -263,7 +263,7 @@ QWidget* AboutDialog::createLicenseTab() {
     QTextBrowser *licenseView = new QTextBrowser(tab);
     licenseView->setReadOnly(true);
     licenseView->setOpenExternalLinks(true);
-    licenseView->setStyleSheet(QString(
+    licenseView->setStyleSheet(ThemeManager::css(QString(
         "QTextBrowser {"
         "  background-color: %1;"
         "  border: 1px solid %2;"
@@ -273,7 +273,7 @@ QWidget* AboutDialog::createLicenseTab() {
         "  font-family: monospace;"
         "  font-size: 11px;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER, ThemeManager::TEXT_SECONDARY));
+    ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER, ThemeManager::TEXT_SECONDARY)));
 
     licenseView->setPlainText(
         "MIT License\n\n"

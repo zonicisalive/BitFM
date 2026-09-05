@@ -13,7 +13,7 @@ FileOperationProgressDialog::FileOperationProgressDialog(const QString &title, Q
     setModal(true);
     resize(460, 170);
 
-    setStyleSheet(QString(
+    setStyleSheet(ThemeManager::css(QString(
         "QDialog {"
         "  background-color: %1;"
         "  color: %2;"
@@ -48,18 +48,18 @@ FileOperationProgressDialog::FileOperationProgressDialog(const QString &title, Q
     .arg(ThemeManager::BORDER)
     .arg(ThemeManager::BG_BASE)
     .arg(ThemeManager::ACCENT)
-    .arg(ThemeManager::BG_HOVER));
+    .arg(ThemeManager::BG_HOVER)));
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(18, 16, 18, 16);
     layout->setSpacing(10);
 
     m_titleLabel = new QLabel(QString("<b>%1</b>").arg(title), this);
-    m_titleLabel->setStyleSheet("font-size: 14px;");
+    m_titleLabel->setStyleSheet(ThemeManager::css("font-size: 14px;"));
     layout->addWidget(m_titleLabel);
 
     m_currentFileLabel = new QLabel(tr("Preparing..."), this);
-    m_currentFileLabel->setStyleSheet(QString("color: %1; font-size: 12px;").arg(ThemeManager::TEXT_SECONDARY));
+    m_currentFileLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px;").arg(ThemeManager::TEXT_SECONDARY)));
     layout->addWidget(m_currentFileLabel);
 
     m_progressBar = new QProgressBar(this);
@@ -75,11 +75,11 @@ FileOperationProgressDialog::FileOperationProgressDialog(const QString &title, Q
     statsLayout->setSpacing(2);
 
     m_counterLabel = new QLabel(this);
-    m_counterLabel->setStyleSheet(QString("color: %1; font-size: 11.5px;").arg(ThemeManager::TEXT_MUTED));
+    m_counterLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11.5px;").arg(ThemeManager::TEXT_MUTED)));
     statsLayout->addWidget(m_counterLabel);
 
     m_speedLabel = new QLabel(this);
-    m_speedLabel->setStyleSheet(QString("color: %1; font-size: 11.5px;").arg(ThemeManager::TEXT_MUTED));
+    m_speedLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11.5px;").arg(ThemeManager::TEXT_MUTED)));
     statsLayout->addWidget(m_speedLabel);
 
     bottomLayout->addLayout(statsLayout, 1);

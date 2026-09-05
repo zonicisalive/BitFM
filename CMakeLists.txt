@@ -91,8 +91,12 @@ set(UI_SOURCES
     src/ui/UnlockDeviceDialog.cpp
     src/ui/AboutDialog.h
     src/ui/AboutDialog.cpp
-    src/ui/ThemeControllerDialog.h
-    src/ui/ThemeControllerDialog.cpp
+    src/ui/ActionRegistry.h
+    src/ui/ActionRegistry.cpp
+    src/ui/HeaderBar.h
+    src/ui/HeaderBar.cpp
+    src/ui/PreferencesDialog.h
+    src/ui/PreferencesDialog.cpp
     src/ui/OpenWithDialog.h
     src/ui/OpenWithDialog.cpp
     src/ui/FilePickerDialog.h
@@ -138,4 +142,9 @@ install(FILES src/resources/bitfm.png DESTINATION share/icons/hicolor/256x256/ap
 install(FILES data/bitfm.1 DESTINATION share/man/man1)
 install(FILES data/bitfm.portal DESTINATION share/xdg-desktop-portal/portals)
 install(FILES data/org.freedesktop.impl.portal.desktop.bitfm.service data/org.freedesktop.FileManager1.service DESTINATION share/dbus-1/services)
-install(FILES data/xdg-desktop-portal-bitfm.service DESTINATION lib/systemd/user)
+if (CMAKE_INSTALL_PREFIX MATCHES "^$ENV{HOME}/")
+    # systemd does not search <prefix>/lib/systemd/user for user prefixes
+    install(FILES data/xdg-desktop-portal-bitfm.service DESTINATION "$ENV{HOME}/.config/systemd/user")
+else()
+    install(FILES data/xdg-desktop-portal-bitfm.service DESTINATION lib/systemd/user)
+endif()

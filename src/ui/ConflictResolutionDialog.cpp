@@ -1,4 +1,5 @@
 #include "ConflictResolutionDialog.h"
+#include "ThemeManager.h"
 #include "VfsTypes.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -94,7 +95,7 @@ void ConflictResolutionDialog::setupUi(const QString &sourcePath, const QString 
     buttonsLayout->addWidget(skipBtn);
 
     QPushButton *overwriteBtn = new QPushButton(QIcon::fromTheme("dialog-warning"), tr("Overwrite"), this);
-    overwriteBtn->setStyleSheet("QPushButton { font-weight: bold; }");
+    overwriteBtn->setStyleSheet(ThemeManager::css("QPushButton { font-weight: bold; }"));
     connect(overwriteBtn, &QPushButton::clicked, this, &ConflictResolutionDialog::onOverwriteClicked);
     buttonsLayout->addWidget(overwriteBtn);
 

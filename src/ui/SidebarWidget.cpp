@@ -44,10 +44,9 @@ void SidebarWidget::setupUi() {
 
     // App name header matching the reference topbar
     QWidget *header = new QWidget(this);
-    header->setFixedHeight(44);
-    header->setStyleSheet(QString(
+    header->setStyleSheet(ThemeManager::css(QString(
         "QWidget { background-color: %1; border-bottom: 1px solid %2; }"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER)));
 
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(12, 0, 10, 0);
@@ -58,9 +57,9 @@ void SidebarWidget::setupUi() {
     headerLayout->addWidget(appIcon);
 
     QLabel *appName = new QLabel("Files", header);
-    appName->setStyleSheet(QString(
+    appName->setStyleSheet(ThemeManager::css(QString(
         "font-size: 13px; font-weight: 700; color: %1; background: transparent; border: none; padding-left: 2px;"
-    ).arg(ThemeManager::TEXT_PRIMARY));
+    ).arg(ThemeManager::TEXT_PRIMARY)));
     headerLayout->addWidget(appName, 1);
 
     QToolButton *sidebarMenuBtn = new QToolButton(header);
@@ -69,11 +68,11 @@ void SidebarWidget::setupUi() {
     sidebarMenuBtn->setFixedSize(26, 26);
     sidebarMenuBtn->setCursor(Qt::PointingHandCursor);
     sidebarMenuBtn->setPopupMode(QToolButton::InstantPopup);
-    sidebarMenuBtn->setStyleSheet(
+    sidebarMenuBtn->setStyleSheet(ThemeManager::css(
         "QToolButton { border: none; font-size: 15px; font-weight: bold; border-radius: 6px; color: " + QString(ThemeManager::TEXT_SECONDARY) + "; background: transparent; }"
         "QToolButton:hover { background: rgba(255,255,255,0.08); color: #ffffff; }"
         "QToolButton::menu-indicator { image: none; width: 0; }"
-    );
+    ));
 
     QMenu *sMenu = new QMenu(sidebarMenuBtn);
     auto *newWinAct = sMenu->addAction(QIcon::fromTheme("window-new"), tr("New Window (Ctrl+N)"));
@@ -126,15 +125,16 @@ void SidebarWidget::setupUi() {
     m_treeWidget->setFocusPolicy(Qt::NoFocus);
 
     auto updateStyles = [header, appName, this]() {
-        header->setStyleSheet(QString(
+        header->setFixedHeight(ThemeManager::px(44));
+        header->setStyleSheet(ThemeManager::css(QString(
             "QWidget { background-color: %1; border-bottom: 1px solid %2; }"
-        ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER));
+        ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
 
-        appName->setStyleSheet(QString(
+        appName->setStyleSheet(ThemeManager::css(QString(
             "font-size: 13px; font-weight: 700; color: %1; background: transparent; border: none; padding-left: 2px;"
-        ).arg(ThemeManager::TEXT_PRIMARY));
+        ).arg(ThemeManager::TEXT_PRIMARY)));
 
-        m_treeWidget->setStyleSheet(QString(
+        m_treeWidget->setStyleSheet(ThemeManager::css(QString(
             "QTreeWidget {"
             "  background-color: %1;"
             "  border: none;"
@@ -143,7 +143,7 @@ void SidebarWidget::setupUi() {
             "  outline: 0;"
             "}"
             "QTreeWidget::item {"
-            "  height: 32px;"
+            "  height: %7px;"
             "  padding: 0 10px 0 10px;"
             "  border-radius: 8px;"
             "  margin: 1px 0;"
@@ -161,7 +161,7 @@ void SidebarWidget::setupUi() {
             "  color: %6;"
             "  font-size: 10px;"
             "  font-weight: 500;"
-            "  height: 24px;"
+            "  height: %8px;"
             "  padding-top: 6px;"
             "  background: transparent;"
             "}"
@@ -171,7 +171,9 @@ void SidebarWidget::setupUi() {
         .arg(ThemeManager::BG_HOVER)
         .arg(ThemeManager::TEXT_PRIMARY)
         .arg(ThemeManager::BG_SELECTION)
-        .arg(ThemeManager::TEXT_MUTED));
+        .arg(ThemeManager::TEXT_MUTED)
+        .arg(ThemeManager::px(32))
+        .arg(ThemeManager::px(24))));
     };
 
     updateStyles();
@@ -409,7 +411,7 @@ void SidebarWidget::onCustomContextMenuRequested(const QPoint &pos) {
             saveBookmarksToSettings();
             QTimer::singleShot(0, this, &SidebarWidget::populateAll);
         });
-    } else if (isRemovable || path.contains("/gvfs/")) {
+    } else if ((isRemovable || path.contains("/gvfs/")) && !path.startsWith("device:")) {
         QAction *ejectAct = menu.addAction(QIcon::fromTheme("media-eject"), tr("⏏ Unmount / Eject"));
         connect(ejectAct, &QAction::triggered, this, [this, path]() {
             QString err;

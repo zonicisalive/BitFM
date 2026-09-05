@@ -5,10 +5,10 @@
 TrashBarWidget::TrashBarWidget(QWidget *parent)
     : QWidget(parent)
 {
-    setFixedHeight(48);
 
     auto updateStyles = [this]() {
-        setStyleSheet(QString(
+        setFixedHeight(ThemeManager::px(48));
+        setStyleSheet(ThemeManager::css(QString(
             "TrashBarWidget {"
             "  background-color: %1;"
             "  border-bottom: 1px solid %2;"
@@ -57,7 +57,7 @@ TrashBarWidget::TrashBarWidget(QWidget *parent)
         .arg(ThemeManager::TEXT_MUTED)
         .arg(ThemeManager::BG_OVERLAY)
         .arg(ThemeManager::BG_HOVER)
-        .arg(ThemeManager::ACCENT));
+        .arg(ThemeManager::ACCENT)));
     };
 
     updateStyles();

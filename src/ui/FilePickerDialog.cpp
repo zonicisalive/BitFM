@@ -66,14 +66,14 @@ void FilePickerDialog::setupUi() {
     m_topBar = new QToolBar(this);
     m_topBar->setIconSize(QSize(18, 18));
     m_topBar->setFixedHeight(44);
-    m_topBar->setStyleSheet(
+    m_topBar->setStyleSheet(ThemeManager::css(
         "QToolBar {"
         "  background-color: " + QString(ThemeManager::BG_SURFACE) + ";"
         "  border-bottom: 1px solid " + QString(ThemeManager::BORDER) + ";"
         "  padding: 4px 8px;"
         "  spacing: 4px;"
         "}"
-    );
+    ));
     m_topBar->setMovable(false);
     m_topBar->setFloatable(false);
     m_topBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -124,6 +124,7 @@ void FilePickerDialog::setupUi() {
         }
         if (m_actSearch) m_actSearch->setChecked(false);
     });
+    m_searchDebounceTimer.setSingleShot(true);
     connect(&m_searchDebounceTimer, &QTimer::timeout, this, [this]() {
         if (!m_lastSearchPattern.isEmpty() && m_searchBar->isActive()) {
             m_fileModel->searchRecursive(m_lastSearchPattern, m_lastSearchRegex);
@@ -171,13 +172,13 @@ void FilePickerDialog::setupUi() {
     // 4. Bottom Control Bar
     QWidget *bottomBar = new QWidget(this);
     bottomBar->setObjectName("bottomBar");
-    bottomBar->setStyleSheet(
+    bottomBar->setStyleSheet(ThemeManager::css(
         "QWidget#bottomBar {"
         "  background-color: " + QString(ThemeManager::BG_SURFACE) + ";"
         "  border-top: 1px solid " + QString(ThemeManager::BORDER) + ";"
         "  padding: 8px 12px;"
         "}"
-    );
+    ));
 
     QVBoxLayout *botVLayout = new QVBoxLayout(bottomBar);
     botVLayout->setContentsMargins(12, 10, 12, 10);
@@ -186,10 +187,10 @@ void FilePickerDialog::setupUi() {
     // Row 1: File/Folder name input
     QHBoxLayout *row1 = new QHBoxLayout();
     QLabel *fnLabel = new QLabel((m_mode == PickerMode::ChooseFolder) ? tr("Folder:") : tr("File name:"), bottomBar);
-    fnLabel->setStyleSheet("color: " + QString(ThemeManager::TEXT_PRIMARY) + "; font-weight: 500; min-width: 70px;");
+    fnLabel->setStyleSheet(ThemeManager::css("color: " + QString(ThemeManager::TEXT_PRIMARY) + "; font-weight: 500; min-width: 70px;"));
     m_fileNameEdit = new QLineEdit(bottomBar);
     m_fileNameEdit->setText(m_defaultName);
-    m_fileNameEdit->setStyleSheet(
+    m_fileNameEdit->setStyleSheet(ThemeManager::css(
         "QLineEdit {"
         "  background-color: " + QString(ThemeManager::BG_OVERLAY) + ";"
         "  color: " + QString(ThemeManager::TEXT_PRIMARY) + ";"
@@ -201,7 +202,7 @@ void FilePickerDialog::setupUi() {
         "QLineEdit:focus {"
         "  border: 1px solid " + QString(ThemeManager::ACCENT) + ";"
         "}"
-    );
+    ));
     connect(m_fileNameEdit, &QLineEdit::returnPressed, this, &FilePickerDialog::onActionAccept);
     row1->addWidget(fnLabel);
     row1->addWidget(m_fileNameEdit);
@@ -210,13 +211,13 @@ void FilePickerDialog::setupUi() {
     // Row 2: Filter combo & Buttons
     QHBoxLayout *row2 = new QHBoxLayout();
     QLabel *typeLabel = new QLabel(tr("Files of type:"), bottomBar);
-    typeLabel->setStyleSheet("color: " + QString(ThemeManager::TEXT_SECONDARY) + "; min-width: 70px;");
+    typeLabel->setStyleSheet(ThemeManager::css("color: " + QString(ThemeManager::TEXT_SECONDARY) + "; min-width: 70px;"));
     m_filterCombo = new QComboBox(bottomBar);
     m_filterCombo->addItem(tr("All Files (*)"), "*");
     m_filterCombo->addItem(tr("Documents (*.pdf, *.txt, *.md, *.docx)"), "*.pdf;*.txt;*.md;*.docx");
     m_filterCombo->addItem(tr("Images (*.png, *.jpg, *.jpeg, *.webp, *.svg)"), "*.png;*.jpg;*.jpeg;*.webp;*.svg");
     m_filterCombo->addItem(tr("Audio & Video (*.mp4, *.mkv, *.mp3, *.wav)"), "*.mp4;*.mkv;*.mp3;*.wav");
-    m_filterCombo->setStyleSheet(
+    m_filterCombo->setStyleSheet(ThemeManager::css(
         "QComboBox {"
         "  background-color: " + QString(ThemeManager::BG_OVERLAY) + ";"
         "  color: " + QString(ThemeManager::TEXT_PRIMARY) + ";"
@@ -225,7 +226,7 @@ void FilePickerDialog::setupUi() {
         "  padding: 4px 8px;"
         "  min-width: 220px;"
         "}"
-    );
+    ));
 
     connect(m_filterCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
         if (idx < 0) return;
@@ -244,7 +245,7 @@ void FilePickerDialog::setupUi() {
     row2->addStretch();
 
     m_cancelBtn = new QPushButton(tr("Cancel"), bottomBar);
-    m_cancelBtn->setStyleSheet(
+    m_cancelBtn->setStyleSheet(ThemeManager::css(
         "QPushButton {"
         "  background: " + QString(ThemeManager::BG_BASE) + ";"
         "  color: " + QString(ThemeManager::TEXT_PRIMARY) + ";"
@@ -254,13 +255,13 @@ void FilePickerDialog::setupUi() {
         "  font-weight: 500;"
         "}"
         "QPushButton:hover { background: " + QString(ThemeManager::BG_HOVER) + "; }"
-    );
+    ));
     connect(m_cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
 
     QString actionText = (m_mode == PickerMode::SaveFile) ? tr("Save") : ((m_mode == PickerMode::ChooseFolder) ? tr("Select Folder") : tr("Open"));
     m_acceptBtn = new QPushButton(actionText, bottomBar);
     m_acceptBtn->setDefault(true);
-    m_acceptBtn->setStyleSheet(
+    m_acceptBtn->setStyleSheet(ThemeManager::css(
         "QPushButton {"
         "  background: " + QString(ThemeManager::ACCENT) + ";"
         "  color: #000000;"
@@ -270,7 +271,7 @@ void FilePickerDialog::setupUi() {
         "  font-weight: 600;"
         "}"
         "QPushButton:hover { background: #00e08b; }"
-    );
+    ));
     connect(m_acceptBtn, &QPushButton::clicked, this, &FilePickerDialog::onActionAccept);
 
     row2->addWidget(m_cancelBtn);
@@ -278,7 +279,7 @@ void FilePickerDialog::setupUi() {
     botVLayout->addLayout(row2);
 
     mainLayout->addWidget(bottomBar);
-    setStyleSheet("QDialog { background-color: " + QString(ThemeManager::BG_BASE) + "; }");
+    setStyleSheet(ThemeManager::css("QDialog { background-color: " + QString(ThemeManager::BG_BASE) + "; }"));
 
     // Global Shortcuts within Dialog
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_F), this, SLOT(toggleSearch()));
@@ -538,6 +539,7 @@ void FilePickerDialog::onActionAccept() {
     }
 
     if (m_mode == PickerMode::OpenFile && validSelectedFiles.size() > 1) {
+        if (!m_multiple) validSelectedFiles = { validSelectedFiles.first() };
         m_resultPaths = validSelectedFiles;
         m_resultPath = validSelectedFiles.first();
         accept();
@@ -563,7 +565,7 @@ void FilePickerDialog::onActionAccept() {
                 }
             }
         }
-        if (parsedPaths.size() > 1) {
+        if (parsedPaths.size() > 1 && m_multiple) {
             m_resultPaths = parsedPaths;
             m_resultPath = parsedPaths.first();
             accept();
@@ -571,8 +573,8 @@ void FilePickerDialog::onActionAccept() {
         }
     }
 
-    // 3. Single selection from view when input matches or is empty
-    if (validSelectedFiles.size() == 1 && (inputName.isEmpty() || inputName == QFileInfo(validSelectedFiles.first()).fileName())) {
+    // 3. Single selection from view when input matches or is empty (save mode must still confirm overwrite below)
+    if (m_mode == PickerMode::OpenFile && validSelectedFiles.size() == 1 && (inputName.isEmpty() || inputName == QFileInfo(validSelectedFiles.first()).fileName())) {
         m_resultPath = validSelectedFiles.first();
         m_resultPaths = validSelectedFiles;
         accept();

@@ -57,9 +57,9 @@ public:
         // Background color determination
         QColor bgColor;
         if (isSelected) {
-            bgColor = QColor(ThemeManager::BG_SELECTION);
+            bgColor = ThemeManager::toColor(ThemeManager::BG_SELECTION);
         } else if (isHovered) {
-            bgColor = QColor(ThemeManager::BG_HOVER);
+            bgColor = ThemeManager::toColor(ThemeManager::BG_HOVER);
         }
 
         if (bgColor.isValid()) {
@@ -68,12 +68,12 @@ public:
 
             if (col == 0) {
                 QPainterPath path;
-                path.addRoundedRect(rect.adjusted(6, 2, 0, -2), 8, 8);
+                path.addRoundedRect(rect.adjusted(6, 2, 0, -2), ThemeManager::radius(), ThemeManager::radius());
                 painter->fillPath(path, bgColor);
                 painter->fillRect(QRect(rect.right() - 8, rect.top() + 2, 9, rect.height() - 4), bgColor);
             } else if (col == totalCols - 1) {
                 QPainterPath path;
-                path.addRoundedRect(rect.adjusted(0, 2, -6, -2), 8, 8);
+                path.addRoundedRect(rect.adjusted(0, 2, -6, -2), ThemeManager::radius(), ThemeManager::radius());
                 painter->fillPath(path, bgColor);
                 painter->fillRect(QRect(rect.left(), rect.top() + 2, 9, rect.height() - 4), bgColor);
             } else {
@@ -230,9 +230,9 @@ public:
 
         // Background hover/selection card
         if (isSelected || isHovered) {
-            QColor bg = isSelected ? QColor(ThemeManager::BG_SELECTION) : QColor(ThemeManager::BG_HOVER);
+            QColor bg = isSelected ? ThemeManager::toColor(ThemeManager::BG_SELECTION) : ThemeManager::toColor(ThemeManager::BG_HOVER);
             QPainterPath path;
-            path.addRoundedRect(card, 8, 8);
+            path.addRoundedRect(card, ThemeManager::radius(), ThemeManager::radius());
             painter->fillPath(path, bg);
             if (isSelected) {
                 painter->strokePath(path, QPen(QColor(ThemeManager::ACCENT), 1.2));
@@ -323,7 +323,7 @@ public:
     QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &) const override {
         QSize iconSize = option.decorationSize;
         if (!iconSize.isValid() || iconSize.width() < 24) iconSize = QSize(60, 60);
-        return QSize(iconSize.width() + 44, iconSize.height() + 70);
+        return QSize(iconSize.width() + ThemeManager::px(44), iconSize.height() + ThemeManager::px(70));
     }
 
 private:
@@ -353,9 +353,9 @@ public:
         QRect card = cell.adjusted(2, 2, -2, -2);
 
         if (isSelected || isHovered) {
-            QColor bg = isSelected ? QColor(ThemeManager::BG_SELECTION) : QColor(ThemeManager::BG_HOVER);
+            QColor bg = isSelected ? ThemeManager::toColor(ThemeManager::BG_SELECTION) : ThemeManager::toColor(ThemeManager::BG_HOVER);
             QPainterPath path;
-            path.addRoundedRect(card, 6, 6);
+            path.addRoundedRect(card, ThemeManager::radius(), ThemeManager::radius());
             painter->fillPath(path, bg);
             if (isSelected) {
                 painter->strokePath(path, QPen(QColor(ThemeManager::ACCENT), 1.0));
@@ -415,7 +415,7 @@ public:
     }
 
     QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &) const override {
-        int h = option.decorationSize.isValid() ? option.decorationSize.height() + 10 : 32;
+        int h = option.decorationSize.isValid() ? option.decorationSize.height() + ThemeManager::px(10) : ThemeManager::px(32);
         return QSize(220, h);
     }
 
@@ -438,7 +438,7 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
     setupCompactView();
 
     auto updateStyles = [this]() {
-        m_tableView->setStyleSheet(QString(
+        m_tableView->setStyleSheet(ThemeManager::css(QString(
             "QTableView {"
             "  background-color: %1;"
             "  border: none;"
@@ -446,7 +446,7 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
             "  padding: 0px;"
             "}"
             "QTableView::item {"
-            "  height: 34px;"
+            "  height: %5px;"
             "  border: none;"
             "  padding: 0px;"
             "}"
@@ -459,9 +459,9 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
             "  font-weight: 600;"
             "  font-size: 11px;"
             "}"
-        ).arg(ThemeManager::BG_BASE, ThemeManager::BG_SURFACE, ThemeManager::TEXT_MUTED, ThemeManager::BORDER));
+        ).arg(ThemeManager::BG_BASE, ThemeManager::BG_SURFACE, ThemeManager::TEXT_MUTED, ThemeManager::BORDER).arg(ThemeManager::px(34))));
 
-        m_listView->setStyleSheet(QString(
+        m_listView->setStyleSheet(ThemeManager::css(QString(
             "QListView {"
             "  background-color: %1;"
             "  border: none;"
@@ -480,14 +480,18 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
             "  background-color: %4;"
             "  color: #ffffff;"
             "}"
-        ).arg(ThemeManager::BG_BASE, ThemeManager::TEXT_PRIMARY, ThemeManager::BG_HOVER, ThemeManager::BG_SELECTION));
+        ).arg(ThemeManager::BG_BASE, ThemeManager::TEXT_PRIMARY, ThemeManager::BG_HOVER, ThemeManager::BG_SELECTION)));
 
         m_tableView->viewport()->update();
         m_listView->viewport()->update();
     };
 
     updateStyles();
-    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, updateStyles);
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this, updateStyles]() {
+        updateStyles();
+        m_tableView->verticalHeader()->setDefaultSectionSize(ThemeManager::px(34));
+        updateGridGeometry();
+    });
 
     m_stackedWidget->addWidget(m_tableView);
     m_stackedWidget->addWidget(m_listView);
@@ -507,7 +511,7 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
 
     m_emptyStateText = new QLabel(tr("This folder is empty"), m_emptyStateWidget);
     m_emptyStateText->setAlignment(Qt::AlignCenter);
-    m_emptyStateText->setStyleSheet("color: " + QString(ThemeManager::TEXT_MUTED) + "; font-size: 13px; font-weight: 500;");
+    m_emptyStateText->setStyleSheet(ThemeManager::css("color: " + QString(ThemeManager::TEXT_MUTED) + "; font-size: 13px; font-weight: 500;"));
 
     emptyLayout->addWidget(m_emptyStateIcon);
     emptyLayout->addWidget(m_emptyStateText);
@@ -518,6 +522,7 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
     connect(m_proxyModel, &QAbstractItemModel::modelReset, this, &FileViewWidget::updateEmptyState);
     connect(m_proxyModel, &QAbstractItemModel::layoutChanged, this, &FileViewWidget::updateEmptyState);
     connect(m_sourceModel, &FileSystemModel::directoryLoaded, this, &FileViewWidget::updateEmptyState);
+    connect(m_sourceModel, &FileSystemModel::filesDropped, this, &FileViewWidget::handleDroppedFiles);
 
     connect(&TagManager::instance(), &TagManager::tagsChanged, this, [this]() {
         m_tableView->viewport()->update();
@@ -559,7 +564,7 @@ bool FileViewWidget::hasClipboardFiles() const {
             }
         }
     }
-    return !m_clipboardPaths.isEmpty();
+    return false;
 }
 
 QStringList FileViewWidget::getClipboardPaths(bool *outIsCut) const {
@@ -614,11 +619,6 @@ QStringList FileViewWidget::getClipboardPaths(bool *outIsCut) const {
         }
     }
 
-    if (paths.isEmpty()) {
-        paths = m_clipboardPaths;
-        isCut = m_isCutOperation;
-    }
-
     if (outIsCut) *outIsCut = isCut;
     return paths;
 }
@@ -651,6 +651,7 @@ void FileViewWidget::setupTableView() {
     m_tableView->setShowGrid(false);
     m_tableView->setAlternatingRowColors(false);
     m_tableView->verticalHeader()->hide();
+    m_tableView->verticalHeader()->setDefaultSectionSize(ThemeManager::px(34));
     m_tableView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_tableView->setMouseTracking(true);
     m_tableView->viewport()->setMouseTracking(true);
@@ -807,7 +808,9 @@ void FileViewWidget::setViewMode(ViewMode mode) {
 ViewMode FileViewWidget::viewMode() const { return m_viewMode; }
 
 void FileViewWidget::setGridIconSize(int size) {
-    m_currentGridSize = qBound(32, size, 128);
+    int clamped = qBound(32, size, 128);
+    if (clamped == m_currentGridSize) return;
+    m_currentGridSize = clamped;
     m_listView->setIconSize(QSize(m_currentGridSize, m_currentGridSize));
     if (m_compactView) {
         int compactIcon = qBound(16, m_currentGridSize / 2, 48);
@@ -891,7 +894,7 @@ void FileViewWidget::updateGridGeometry() {
 
         if (cvw > 30) {
             int compactIcon = qBound(16, m_currentGridSize / 2, 48);
-            int compactRowH = compactIcon + 10;
+            int compactRowH = compactIcon + ThemeManager::px(10);
             int minColW = compactIcon + 175;
             int usableW = qMax(50, cvw - 24);
             int cols = qMax(1, usableW / minColW);
@@ -1319,18 +1322,13 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         auto *zoomNormalAct = menu.addAction(QIcon::fromTheme("zoom-original"), tr("Normal Size"));
 
         connect(zoomInAct, &QAction::triggered, this, [this]() {
-            int newSize = qBound(32, m_currentGridSize + 8, 160);
-            setGridIconSize(newSize);
-            emit zoomChanged(newSize);
+            setGridIconSize(m_currentGridSize + 8);
         });
         connect(zoomOutAct, &QAction::triggered, this, [this]() {
-            int newSize = qBound(32, m_currentGridSize - 8, 160);
-            setGridIconSize(newSize);
-            emit zoomChanged(newSize);
+            setGridIconSize(m_currentGridSize - 8);
         });
         connect(zoomNormalAct, &QAction::triggered, this, [this]() {
             setGridIconSize(56);
-            emit zoomChanged(56);
         });
 
         // Properties & Refresh
@@ -1356,7 +1354,8 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
 }
 
 void FileViewWidget::contextMenuEvent(QContextMenuEvent *event) {
-    onCustomContextMenuRequested(event->pos());
+    QAbstractItemView *view = currentActiveView();
+    onCustomContextMenuRequested(view ? view->viewport()->mapFrom(this, event->pos()) : event->pos());
 }
 
 void FileViewWidget::onNewFolderAction() {
@@ -1673,14 +1672,28 @@ void FileViewWidget::dropEvent(QDropEvent *event) {
         if (url.isLocalFile()) sourcePaths.append(url.toLocalFile());
     }
     if (sourcePaths.isEmpty()) return;
-
-    QString destDir = m_sourceModel->currentDirectory();
-    QWidget *dlgParent = window() ? window() : this;
-    if (event->dropAction() == Qt::MoveAction)
-        m_fileOps.moveFiles(sourcePaths, destDir, dlgParent);
-    else
-        m_fileOps.copyFiles(sourcePaths, destDir, dlgParent);
     event->acceptProposedAction();
+    handleDroppedFiles(sourcePaths, m_sourceModel->currentDirectory(), event->dropAction());
+}
+
+void FileViewWidget::handleDroppedFiles(const QStringList &sourcePaths, const QString &destDir, Qt::DropAction action) {
+    if (sourcePaths.isEmpty() || !destDir.startsWith('/')) return;
+
+    // Dropping items back into the folder they already live in is a no-op, not a duplicate.
+    bool allSameDir = true;
+    for (const QString &p : sourcePaths) {
+        if (QDir::cleanPath(QFileInfo(p).absolutePath()) != QDir::cleanPath(destDir)) { allSameDir = false; break; }
+    }
+    if (allSameDir) return;
+
+    QWidget *dlgParent = window() ? window() : this;
+    // Run after the drop event fully unwinds: the file dialogs pump a nested event loop.
+    QTimer::singleShot(0, this, [this, sourcePaths, destDir, action, dlgParent]() {
+        bool ok = (action == Qt::MoveAction)
+            ? m_fileOps.moveFiles(sourcePaths, destDir, dlgParent)
+            : m_fileOps.copyFiles(sourcePaths, destDir, dlgParent);
+        if (ok) m_sourceModel->refresh();
+    });
 }
 
 bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
@@ -1697,7 +1710,6 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                 int newSize = qBound(32, m_currentGridSize + step, 160);
                 if (newSize != m_currentGridSize) {
                     setGridIconSize(newSize);
-                    emit zoomChanged(newSize);
                 }
                 return true;
             }
@@ -1786,7 +1798,7 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                     }
                     return true;
                 } else if (ke->key() == Qt::Key_Period) {
-                    m_sourceModel->setShowHidden(!m_sourceModel->showHidden());
+                    AppSettings::instance().setShowHiddenFiles(!m_sourceModel->showHidden());
                     return true;
                 }
             }
@@ -1908,7 +1920,7 @@ void FileViewWidget::keyPressEvent(QKeyEvent *event) {
             event->accept();
             return;
         } else if (event->key() == Qt::Key_Period) {
-            m_sourceModel->setShowHidden(!m_sourceModel->showHidden());
+            AppSettings::instance().setShowHiddenFiles(!m_sourceModel->showHidden());
             event->accept();
             return;
         }

@@ -13,7 +13,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
     setObjectName("SearchBarWidget");
 
     auto updateStyles = [this]() {
-        setStyleSheet(QString(
+        setStyleSheet(ThemeManager::css(QString(
             "QWidget#SearchBarWidget {"
             "  background-color: %1;"
             "  border: 1.5px solid %2;"
@@ -49,7 +49,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
         .arg(ThemeManager::TEXT_PRIMARY)
         .arg(ThemeManager::TEXT_MUTED)
         .arg(ThemeManager::BG_HOVER)
-        .arg(ThemeManager::BG_SELECTION));
+        .arg(ThemeManager::BG_SELECTION)));
     };
 
     updateStyles();
@@ -71,7 +71,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
     layout->addWidget(m_regexBtn);
 
     m_matchCountLabel = new QLabel(this);
-    m_matchCountLabel->setStyleSheet(QString("color: %1; font-size: 11px; margin-right: 4px;").arg(ThemeManager::TEXT_MUTED));
+    m_matchCountLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11px; margin-right: 4px;").arg(ThemeManager::TEXT_MUTED)));
     layout->addWidget(m_matchCountLabel);
 
     m_closeBtn = new QToolButton(this);
@@ -132,3 +132,6 @@ bool SearchBarWidget::eventFilter(QObject *watched, QEvent *event) {
     }
     return QWidget::eventFilter(watched, event);
 }
+
+QSize SearchBarWidget::sizeHint() const { return QSize(300, ThemeManager::px(34)); }
+QSize SearchBarWidget::minimumSizeHint() const { return QSize(80, ThemeManager::px(28)); }

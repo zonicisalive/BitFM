@@ -1,4 +1,6 @@
 #include "BatchRenameDialog.h"
+#include <QDateTime>
+#include <QDir>
 #include "ThemeManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -25,11 +27,11 @@ void BatchRenameDialog::setupUi() {
     // 1. Controls Tabs
     m_modeTabs = new QTabWidget(this);
     m_modeTabs->setFixedHeight(140);
-    m_modeTabs->setStyleSheet(QString(
+    m_modeTabs->setStyleSheet(ThemeManager::css(QString(
         "QTabWidget::pane { border: 1px solid %1; border-radius: 8px; background: %2; }"
         "QTabBar::tab { background: transparent; padding: 6px 14px; color: %3; border: none; font-size: 12px; }"
         "QTabBar::tab:selected { color: %4; border-bottom: 2px solid %4; font-weight: 600; }"
-    ).arg(ThemeManager::BORDER).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::ACCENT));
+    ).arg(ThemeManager::BORDER).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::ACCENT)));
 
     // Tab 1: Find & Replace
     QWidget *findTab = new QWidget();
@@ -115,17 +117,17 @@ void BatchRenameDialog::setupUi() {
     m_previewTable->verticalHeader()->hide();
     m_previewTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_previewTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_previewTable->setStyleSheet(QString(
+    m_previewTable->setStyleSheet(ThemeManager::css(QString(
         "QTableWidget { background: %1; border: 1px solid %2; border-radius: 8px; color: %3; }"
         "QHeaderView::section { background: %4; color: %5; border: none; border-bottom: 1px solid %2; padding: 6px; font-weight: 600; font-size: 11px; }"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::TEXT_MUTED));
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::TEXT_MUTED)));
 
     mainLayout->addWidget(m_previewTable, 1);
 
     // 3. Footer
     QHBoxLayout *footerLayout = new QHBoxLayout();
     m_statusLabel = new QLabel(this);
-    m_statusLabel->setStyleSheet(QString("color: %1; font-size: 12px;").arg(ThemeManager::TEXT_SECONDARY));
+    m_statusLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px;").arg(ThemeManager::TEXT_SECONDARY)));
     footerLayout->addWidget(m_statusLabel, 1);
 
     m_cancelBtn = new QPushButton(tr("Cancel"), this);
@@ -133,10 +135,10 @@ void BatchRenameDialog::setupUi() {
     footerLayout->addWidget(m_cancelBtn);
 
     m_renameBtn = new QPushButton(tr("Rename Files"), this);
-    m_renameBtn->setStyleSheet(QString(
+    m_renameBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: %1; color: #1e1e2e; font-weight: 600; border-radius: 6px; padding: 6px 16px; }"
         "QPushButton:hover { background: %2; }"
-    ).arg(ThemeManager::ACCENT).arg(ThemeManager::ACCENT_PRESS));
+    ).arg(ThemeManager::ACCENT).arg(ThemeManager::ACCENT_PRESS)));
     connect(m_renameBtn, &QPushButton::clicked, this, &BatchRenameDialog::applyRename);
     footerLayout->addWidget(m_renameBtn);
 
@@ -235,9 +237,15 @@ void BatchRenameDialog::updatePreview() {
 
         if (newName != origName) changedCount++;
 
+        QString targetPath = QFileInfo(m_originalPaths[i]).dir().filePath(newName);
+        bool clashesOutsideBatch = newName != origName && QFileInfo::exists(targetPath) && !m_originalPaths.contains(targetPath);
         if (seenNewNames.contains(newName)) {
             itemStatus->setText(tr("Duplicate Name"));
             itemStatus->setForeground(QColor("#f38ba8")); // danger
+            hasConflicts = true;
+        } else if (clashesOutsideBatch) {
+            itemStatus->setText(tr("Already Exists"));
+            itemStatus->setForeground(QColor("#f38ba8"));
             hasConflicts = true;
         } else if (newName != origName) {
             itemStatus->setText(tr("Renamed"));
@@ -256,7 +264,7 @@ void BatchRenameDialog::updatePreview() {
 
     m_renameBtn->setEnabled(!hasConflicts && changedCount > 0);
     if (hasConflicts) {
-        m_statusLabel->setText(tr("<font color='#f38ba8'>⚠️ Conflict detected: multiple files have the same target name.</font>"));
+        m_statusLabel->setText(tr("<font color='#f38ba8'>⚠️ Conflict detected: a target name is duplicated or already exists.</font>"));
     } else {
         m_statusLabel->setText(tr("%1 of %2 files will be renamed.").arg(changedCount).arg(m_originalPaths.size()));
     }
@@ -266,20 +274,35 @@ void BatchRenameDialog::applyRename() {
     int successCount = 0;
     QString firstError;
 
+    // Two phases: park every changed file under a unique temp name first, so a rename whose
+    // target is another batch member's current name (swaps, shifted numbering) cannot fail.
+    struct Step { QString tmpPath; QString newName; QString origName; };
+    QList<Step> pending;
+    const QString stamp = QString::number(QDateTime::currentMSecsSinceEpoch());
+    int idx = 0;
     for (const auto &pair : m_renames) {
         const QString &oldPath = pair.first;
         const QString &newName = pair.second;
-
         if (QFileInfo(oldPath).fileName() == newName) {
             successCount++;
             continue;
         }
-
+        QString tmpName = QString(".bitfm-rename-%1-%2").arg(stamp).arg(idx++);
         QString err;
-        if (m_fileOps.renameFile(oldPath, newName, &err)) {
-            successCount++;
+        if (m_fileOps.renameFile(oldPath, tmpName, &err)) {
+            pending.append({ QFileInfo(oldPath).dir().filePath(tmpName), newName, QFileInfo(oldPath).fileName() });
         } else if (firstError.isEmpty()) {
             firstError = err;
+        }
+    }
+    for (const Step &st : pending) {
+        QString err;
+        if (m_fileOps.renameFile(st.tmpPath, st.newName, &err)) {
+            successCount++;
+        } else {
+            if (firstError.isEmpty()) firstError = err;
+            // Leave nothing parked under a temp name: put the original name back
+            m_fileOps.renameFile(st.tmpPath, st.origName, nullptr);
         }
     }
 

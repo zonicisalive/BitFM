@@ -20,13 +20,13 @@ void ConnectServerDialog::setupUi() {
 
     QWidget *card = new QWidget(this);
     card->setObjectName("ConnectCard");
-    card->setStyleSheet(QString(
+    card->setStyleSheet(ThemeManager::css(QString(
         "#ConnectCard {"
         "  background-color: %1;"
         "  border: 1px solid %2;"
         "  border-radius: 12px;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER)));
 
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(20, 18, 20, 18);
@@ -35,20 +35,20 @@ void ConnectServerDialog::setupUi() {
     // Header
     QHBoxLayout *header = new QHBoxLayout();
     QLabel *icon = new QLabel("🌐", card);
-    icon->setStyleSheet("font-size: 18px; background: transparent;");
+    icon->setStyleSheet(ThemeManager::css("font-size: 18px; background: transparent;"));
     header->addWidget(icon);
 
     QLabel *title = new QLabel(tr("Connect to Remote Server / SFTP"), card);
-    title->setStyleSheet(QString("font-size: 14px; font-weight: 700; color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY));
+    title->setStyleSheet(ThemeManager::css(QString("font-size: 14px; font-weight: 700; color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
     header->addWidget(title, 1);
 
     QPushButton *closeBtn = new QPushButton("✕", card);
     closeBtn->setFixedSize(24, 24);
     closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet(QString(
+    closeBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; border-radius: 4px; font-size: 13px; }"
         "QPushButton:hover { background: rgba(255, 255, 255, 0.15); color: #ffffff; }"
-    ).arg(ThemeManager::TEXT_SECONDARY));
+    ).arg(ThemeManager::TEXT_SECONDARY)));
     connect(closeBtn, &QPushButton::clicked, this, &ConnectServerDialog::reject);
     header->addWidget(closeBtn);
 
@@ -60,23 +60,23 @@ void ConnectServerDialog::setupUi() {
 
     auto makeEdit = [card]() {
         QLineEdit *e = new QLineEdit(card);
-        e->setStyleSheet(QString(
+        e->setStyleSheet(ThemeManager::css(QString(
             "QLineEdit { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 6px 10px; font-size: 12px; }"
             "QLineEdit:focus { border: 1px solid %4; }"
-        ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::ACCENT));
+        ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::ACCENT)));
         return e;
     };
     auto makeKey = [](const QString &text, QWidget *parent) {
         QLabel *l = new QLabel(text, parent);
-        l->setStyleSheet(QString("color: %1; font-size: 12px; font-weight: 600; background: transparent;").arg(ThemeManager::TEXT_MUTED));
+        l->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; font-weight: 600; background: transparent;").arg(ThemeManager::TEXT_MUTED)));
         return l;
     };
 
     m_protocolCombo = new QComboBox(card);
     m_protocolCombo->addItems({ "SFTP (SSH)", "FTP", "SMB (Windows Share)", "WebDAV" });
-    m_protocolCombo->setStyleSheet(QString(
+    m_protocolCombo->setStyleSheet(ThemeManager::css(QString(
         "QComboBox { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 5px 10px; }"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER)));
     connect(m_protocolCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ConnectServerDialog::onProtocolChanged);
     form->addRow(makeKey(tr("Type:"), card), m_protocolCombo);
 
@@ -88,9 +88,9 @@ void ConnectServerDialog::setupUi() {
     m_portSpin = new QSpinBox(card);
     m_portSpin->setRange(1, 65535);
     m_portSpin->setValue(22);
-    m_portSpin->setStyleSheet(QString(
+    m_portSpin->setStyleSheet(ThemeManager::css(QString(
         "QSpinBox { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 4px; }"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER)));
     hostPortBox->addWidget(m_portSpin);
     form->addRow(makeKey(tr("Server & Port:"), card), hostPortBox);
 
@@ -110,24 +110,24 @@ void ConnectServerDialog::setupUi() {
     cardLayout->addLayout(form);
 
     m_statusLabel = new QLabel(card);
-    m_statusLabel->setStyleSheet(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED));
+    m_statusLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED)));
     cardLayout->addWidget(m_statusLabel);
 
     // Footer
     QHBoxLayout *footer = new QHBoxLayout();
     m_cancelBtn = new QPushButton(tr("Cancel"), card);
-    m_cancelBtn->setStyleSheet(QString(
+    m_cancelBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 6px 14px; }"
         "QPushButton:hover { background: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::BG_HOVER));
+    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::BG_HOVER)));
     connect(m_cancelBtn, &QPushButton::clicked, this, &ConnectServerDialog::reject);
     footer->addWidget(m_cancelBtn);
 
     m_connectBtn = new QPushButton(tr("Connect"), card);
-    m_connectBtn->setStyleSheet(QString(
+    m_connectBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: %1; color: #1e1e2e; font-weight: 600; border-radius: 6px; padding: 6px 18px; }"
         "QPushButton:hover { background: %2; }"
-    ).arg(ThemeManager::ACCENT).arg(ThemeManager::ACCENT_PRESS));
+    ).arg(ThemeManager::ACCENT).arg(ThemeManager::ACCENT_PRESS)));
     connect(m_connectBtn, &QPushButton::clicked, this, &ConnectServerDialog::onConnectClicked);
     footer->addWidget(m_connectBtn);
 

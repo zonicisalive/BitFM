@@ -27,12 +27,12 @@
 - **High-Performance C++ Core**: Zero-overhead asynchronous directory loading, non-blocking recursive search, and low-latency file operations.
 - **Wayland Acrylic Translucency & Hardware Blur**:
   - Full `Qt::WA_TranslucentBackground` integration with native compositor blur (*Hyprland, Niri, Sway, Wayfire, KDE KWin*).
-  - Dynamic RGBA color token mapping with live opacity slider (40%–100%) and translucency toggle in Theme Controller Studio.
+  - Dynamic RGBA color token mapping with live opacity slider (40%–100%) and translucency toggle in Preferences → Appearance.
 - **Three View Modes**:
   - **Icon Grid (`Ctrl+1`)**: Modern card-style grid with edge-to-edge justification, centered icons, symlink emblems, folder item counts, and 3-line file metadata.
   - **Detailed List (`Ctrl+2`)**: Full-featured tabular view with interactive resizable columns, sorting indicators, and date/size formatting.
   - **Compact View (`Ctrl+3`)**: Flowing multi-column horizontal list with scalable icons, dynamic row heights, and zoom support.
-- **Theme Controller Studio (`Ctrl+Shift+T`)**:
+- **Preferences (`Ctrl+,`)** — Appearance (themes, accent, corner radius, density, font, icon theme), Layout (sidebar/inspector side, menubar, status bar), Toolbar (compose the header bar), Shortcuts (rebind every action):
   - **10 Built-in Presets**: *Modern GNOME (Adwaita Dark)*, *OLED Pitch Black*, *Midnight Cyberpunk*, *Nord Frost*, *Gruvbox Warm Dark*, *Dracula Gothic*, *Rosé Pine*, *GitHub Dark*, *Catppuccin Mocha*, *Pure Light*.
   - **Accent Color Studio**: 9 instant presets with custom RGB/HEX color picker.
   - **Live External Theme Sync**: Inotify watcher on `~/.config/BitFM/theme.conf` and `~/.config/BitFM/theme.json` to dynamically synchronize colors in real time.
@@ -75,7 +75,7 @@
 | **`Ctrl + 1`** | Switch to Icon Grid View |
 | **`Ctrl + 2`** | Switch to Detailed List View |
 | **`Ctrl + 3`** | Switch to Compact View |
-| **`Ctrl + Shift + T`** | Open Theme Controller Studio |
+| **`Ctrl + ,`** | Open Preferences |
 | **`Ctrl + T`** | Open New Tab |
 | **`Ctrl + W`** | Close Current Tab |
 | **`Ctrl + F`** / **`/`** | Toggle Instant Search Bar |
@@ -116,7 +116,7 @@
 sudo pacman -S --needed \
     base-devel \
     cmake \
-    qt6-base \
+    qt6-base qt6-svg \
     udisks2 \
     ffmpegthumbnailer \
     ffmpeg \
@@ -129,7 +129,7 @@ sudo apt update
 sudo apt install -y \
     build-essential \
     cmake \
-    qt6-base-dev \
+    qt6-base-dev libqt6svg6-dev \
     libudisks2-dev \
     ffmpegthumbnailer \
     ffmpeg \
@@ -141,7 +141,7 @@ sudo apt install -y \
 sudo dnf install -y \
     gcc-c++ \
     cmake \
-    qt6-qtbase-devel \
+    qt6-qtbase-devel qt6-qtsvg-devel \
     udisks2-devel \
     ffmpegthumbnailer \
     ffmpeg \

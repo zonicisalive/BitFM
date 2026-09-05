@@ -17,6 +17,9 @@
 #include <QUrl>
 #include <QDirIterator>
 #include <sys/stat.h>
+#include <QtConcurrent>
+#include <QFutureWatcher>
+#include <QPointer>
 
 FilePropertiesDialog::FilePropertiesDialog(const QString &filePath, QWidget *parent)
     : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint), m_filePath(filePath), m_fileInfo(filePath)
@@ -33,13 +36,13 @@ void FilePropertiesDialog::setupUi() {
 
     QWidget *card = new QWidget(this);
     card->setObjectName("PropertiesCard");
-    card->setStyleSheet(QString(
+    card->setStyleSheet(ThemeManager::css(QString(
         "#PropertiesCard {"
         "  background-color: %1;"
         "  border: 1px solid %2;"
         "  border-radius: 12px;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER)));
 
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(20, 18, 20, 18);
@@ -52,9 +55,9 @@ void FilePropertiesDialog::setupUi() {
     m_iconLabel = new QLabel(card);
     m_iconLabel->setFixedSize(52, 52);
     m_iconLabel->setAlignment(Qt::AlignCenter);
-    m_iconLabel->setStyleSheet(QString(
+    m_iconLabel->setStyleSheet(ThemeManager::css(QString(
         "QLabel { background-color: %1; border: 1px solid %2; border-radius: 10px; }"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER)));
     headerLayout->addWidget(m_iconLabel);
 
     QVBoxLayout *titleLayout = new QVBoxLayout();
@@ -66,15 +69,15 @@ void FilePropertiesDialog::setupUi() {
     nf.setPointSize(13);
     nf.setBold(true);
     m_nameEdit->setFont(nf);
-    m_nameEdit->setStyleSheet(QString(
+    m_nameEdit->setStyleSheet(ThemeManager::css(QString(
         "QLineEdit { background: transparent; color: %1; border: none; padding: 0; }"
-    ).arg(ThemeManager::TEXT_PRIMARY));
+    ).arg(ThemeManager::TEXT_PRIMARY)));
     titleLayout->addWidget(m_nameEdit);
 
     m_typeBadge = new QLabel(card);
-    m_typeBadge->setStyleSheet(QString(
+    m_typeBadge->setStyleSheet(ThemeManager::css(QString(
         "color: %1; font-size: 11px; background: transparent;"
-    ).arg(ThemeManager::TEXT_MUTED));
+    ).arg(ThemeManager::TEXT_MUTED)));
     titleLayout->addWidget(m_typeBadge);
 
     headerLayout->addLayout(titleLayout, 1);
@@ -82,10 +85,10 @@ void FilePropertiesDialog::setupUi() {
     QPushButton *closeTopBtn = new QPushButton("✕", card);
     closeTopBtn->setFixedSize(26, 26);
     closeTopBtn->setCursor(Qt::PointingHandCursor);
-    closeTopBtn->setStyleSheet(QString(
+    closeTopBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; border-radius: 6px; font-size: 13px; }"
         "QPushButton:hover { background: rgba(255, 255, 255, 0.15); color: #ffffff; }"
-    ).arg(ThemeManager::TEXT_SECONDARY));
+    ).arg(ThemeManager::TEXT_SECONDARY)));
     connect(closeTopBtn, &QPushButton::clicked, this, &FilePropertiesDialog::reject);
     headerLayout->addWidget(closeTopBtn);
 
@@ -93,11 +96,11 @@ void FilePropertiesDialog::setupUi() {
 
     // 2. Tab Widget (General & Permissions)
     QTabWidget *tabs = new QTabWidget(card);
-    tabs->setStyleSheet(QString(
+    tabs->setStyleSheet(ThemeManager::css(QString(
         "QTabWidget::pane { border: 1px solid %1; border-radius: 8px; background: %2; }"
         "QTabBar::tab { background: transparent; padding: 6px 16px; color: %3; border: none; font-size: 12px; font-weight: 500; }"
         "QTabBar::tab:selected { color: %4; border-bottom: 2px solid %4; font-weight: 600; }"
-    ).arg(ThemeManager::BORDER).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::ACCENT));
+    ).arg(ThemeManager::BORDER).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::ACCENT)));
 
     // --- Tab 1: General ---
     QWidget *generalTab = new QWidget();
@@ -111,12 +114,12 @@ void FilePropertiesDialog::setupUi() {
 
     auto makeLabel = [](QWidget *parent) {
         QLabel *l = new QLabel(parent);
-        l->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_PRIMARY));
+        l->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
         return l;
     };
     auto makeKeyLabel = [](const QString &text, QWidget *parent) {
         QLabel *l = new QLabel(text, parent);
-        l->setStyleSheet(QString("color: %1; font-size: 12px; font-weight: 600; background: transparent;").arg(ThemeManager::TEXT_MUTED));
+        l->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; font-weight: 600; background: transparent;").arg(ThemeManager::TEXT_MUTED)));
         return l;
     };
 
@@ -128,10 +131,10 @@ void FilePropertiesDialog::setupUi() {
 
     QPushButton *copyBtn = new QPushButton(tr("Copy"), generalTab);
     copyBtn->setCursor(Qt::PointingHandCursor);
-    copyBtn->setStyleSheet(QString(
+    copyBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 4px; padding: 2px 8px; font-size: 11px; }"
         "QPushButton:hover { background: %4; }"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::BG_HOVER));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::BG_HOVER)));
     connect(copyBtn, &QPushButton::clicked, this, &FilePropertiesDialog::onCopyPath);
     pathBox->addWidget(copyBtn);
     form->addRow(makeKeyLabel(tr("Location:"), generalTab), pathBox);
@@ -165,10 +168,10 @@ void FilePropertiesDialog::setupUi() {
 
     m_checksumBtn = new QPushButton(tr("Compute SHA-256"), m_checksumRow);
     m_checksumBtn->setCursor(Qt::PointingHandCursor);
-    m_checksumBtn->setStyleSheet(QString(
+    m_checksumBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 4px; padding: 2px 8px; font-size: 11px; }"
         "QPushButton:hover { background: %4; }"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::BG_HOVER));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::BG_HOVER)));
     connect(m_checksumBtn, &QPushButton::clicked, this, &FilePropertiesDialog::onCalculateChecksum);
     sumBox->addWidget(m_checksumBtn);
 
@@ -198,7 +201,7 @@ void FilePropertiesDialog::setupUi() {
     // Permissions Matrix Box with clean styling (no child borders on labels)
     QWidget *matrixCard = new QWidget(permTab);
     matrixCard->setObjectName("MatrixCard");
-    matrixCard->setStyleSheet(QString(
+    matrixCard->setStyleSheet(ThemeManager::css(QString(
         "#MatrixCard {"
         "  background: %1;"
         "  border: 1px solid %2;"
@@ -206,7 +209,7 @@ void FilePropertiesDialog::setupUi() {
         "  padding: 10px;"
         "}"
         "QLabel { border: none; background: transparent; }"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER)));
 
     QGridLayout *grid = new QGridLayout(matrixCard);
     grid->setSpacing(8);
@@ -234,7 +237,7 @@ void FilePropertiesDialog::setupUi() {
     permLayout->addWidget(matrixCard);
 
     m_octalLabel = makeLabel(permTab);
-    m_octalLabel->setStyleSheet(QString("color: %1; font-family: monospace; font-size: 12px; font-weight: 600;").arg(ThemeManager::ACCENT));
+    m_octalLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-family: monospace; font-size: 12px; font-weight: 600;").arg(ThemeManager::ACCENT)));
     permLayout->addWidget(m_octalLabel);
 
     permLayout->addStretch();
@@ -248,18 +251,18 @@ void FilePropertiesDialog::setupUi() {
     footerLayout->addStretch();
 
     m_applyBtn = new QPushButton(tr("Apply Changes"), card);
-    m_applyBtn->setStyleSheet(QString(
+    m_applyBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: %1; color: #1e1e2e; font-weight: 600; border-radius: 6px; padding: 6px 16px; }"
         "QPushButton:hover { background: %2; }"
-    ).arg(ThemeManager::ACCENT).arg(ThemeManager::ACCENT_PRESS));
+    ).arg(ThemeManager::ACCENT).arg(ThemeManager::ACCENT_PRESS)));
     connect(m_applyBtn, &QPushButton::clicked, this, &FilePropertiesDialog::onApplyPermissions);
     footerLayout->addWidget(m_applyBtn);
 
     m_closeBtn = new QPushButton(tr("Close"), card);
-    m_closeBtn->setStyleSheet(QString(
+    m_closeBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; padding: 6px 16px; }"
         "QPushButton:hover { background: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::BG_HOVER));
+    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BORDER).arg(ThemeManager::BG_HOVER)));
     connect(m_closeBtn, &QPushButton::clicked, this, &FilePropertiesDialog::accept);
     footerLayout->addWidget(m_closeBtn);
 
@@ -292,25 +295,29 @@ void FilePropertiesDialog::populateData() {
     QString typeComment = mime.comment().isEmpty() ? (m_fileInfo.isDir() ? tr("Folder") : mime.name()) : mime.comment();
 
     if (m_fileInfo.isDir()) {
-        // Recursive folder size and item count
-        QDirIterator it(m_filePath, QDir::AllEntries | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
-        qint64 totalBytes = 0;
-        int files = 0, folders = 0;
-        while (it.hasNext()) {
-            it.next();
-            QFileInfo fi = it.fileInfo();
-            if (fi.isDir()) folders++;
-            else {
-                files++;
-                totalBytes += fi.size();
+        // Recursive folder size and item count, off the GUI thread (can be huge)
+        m_typeBadge->setText(typeComment);
+        m_sizeLabel->setText(tr("Calculating..."));
+        struct DirStats { qint64 bytes = 0; int files = 0; int folders = 0; };
+        auto *watcher = new QFutureWatcher<DirStats>(this);
+        connect(watcher, &QFutureWatcher<DirStats>::finished, this, [this, watcher, typeComment]() {
+            DirStats st = watcher->result();
+            m_typeBadge->setText(QString("%1 · %2").arg(typeComment, FileItem::formatFileSize(st.bytes)));
+            m_sizeLabel->setText(QString("%1 (%2 bytes) · %3 files, %4 folders")
+                .arg(FileItem::formatFileSize(st.bytes)).arg(st.bytes).arg(st.files).arg(st.folders));
+            watcher->deleteLater();
+        });
+        watcher->setFuture(QtConcurrent::run([path = m_filePath]() {
+            DirStats st;
+            QDirIterator it(path, QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                it.next();
+                QFileInfo fi = it.fileInfo();
+                if (fi.isDir() && !fi.isSymLink()) st.folders++;
+                else { st.files++; st.bytes += fi.size(); }
             }
-        }
-        m_typeBadge->setText(QString("%1 · %2").arg(typeComment, FileItem::formatFileSize(totalBytes)));
-        m_sizeLabel->setText(QString("%1 (%2 bytes) · %3 files, %4 folders")
-            .arg(FileItem::formatFileSize(totalBytes))
-            .arg(totalBytes)
-            .arg(files)
-            .arg(folders));
+            return st;
+        }));
 
         m_checksumRow->hide();
     } else {
@@ -387,25 +394,26 @@ void FilePropertiesDialog::onCopyPath() {
 void FilePropertiesDialog::onCalculateChecksum() {
     m_checksumBtn->setEnabled(false);
     m_checksumLabel->setText(tr("Computing SHA-256..."));
-    QApplication::processEvents();
 
-    QFile file(m_filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        m_checksumLabel->setText(tr("Cannot open file"));
+    auto *watcher = new QFutureWatcher<QString>(this);
+    connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher]() {
+        QString sha = watcher->result();
+        if (sha.isEmpty()) {
+            m_checksumLabel->setText(tr("Error hashing file"));
+        } else {
+            m_checksumLabel->setText(sha.left(16) + "..." + sha.right(8));
+            m_checksumLabel->setToolTip(sha);
+        }
         m_checksumBtn->setEnabled(true);
-        return;
-    }
-
-    QCryptographicHash hash(QCryptographicHash::Sha256);
-    if (hash.addData(&file)) {
-        QString sha = hash.result().toHex();
-        m_checksumLabel->setText(sha.left(16) + "..." + sha.right(8));
-        m_checksumLabel->setToolTip(sha);
-    } else {
-        m_checksumLabel->setText(tr("Error hashing file"));
-    }
-    file.close();
-    m_checksumBtn->setEnabled(true);
+        watcher->deleteLater();
+    });
+    watcher->setFuture(QtConcurrent::run([path = m_filePath]() -> QString {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) return QString();
+        QCryptographicHash hash(QCryptographicHash::Sha256);
+        if (!hash.addData(&file)) return QString();
+        return QString::fromLatin1(hash.result().toHex());
+    }));
 }
 
 void FilePropertiesDialog::onApplyPermissions() {
@@ -420,7 +428,15 @@ void FilePropertiesDialog::onApplyPermissions() {
     if (m_otherWrite->isChecked()) p |= QFile::WriteOther;
     if (m_otherExec->isChecked()) p |= QFile::ExeOther;
 
-    if (QFile::setPermissions(m_filePath, p)) {
+    // Preserve setuid/setgid/sticky, which QFile::setPermissions would silently strip
+    struct stat st{};
+    mode_t special = (::stat(QFile::encodeName(m_filePath).constData(), &st) == 0) ? (st.st_mode & (S_ISUID | S_ISGID | S_ISVTX)) : 0;
+    mode_t mode = special
+        | (m_ownerRead->isChecked() ? S_IRUSR : 0) | (m_ownerWrite->isChecked() ? S_IWUSR : 0) | (m_ownerExec->isChecked() ? S_IXUSR : 0)
+        | (m_groupRead->isChecked() ? S_IRGRP : 0) | (m_groupWrite->isChecked() ? S_IWGRP : 0) | (m_groupExec->isChecked() ? S_IXGRP : 0)
+        | (m_otherRead->isChecked() ? S_IROTH : 0) | (m_otherWrite->isChecked() ? S_IWOTH : 0) | (m_otherExec->isChecked() ? S_IXOTH : 0);
+    Q_UNUSED(p);
+    if (::chmod(QFile::encodeName(m_filePath).constData(), mode) == 0) {
         m_octalLabel->setText(tr("Permissions: %1 (Applied)").arg(formatOctalPermissions()));
         accept();
     } else {

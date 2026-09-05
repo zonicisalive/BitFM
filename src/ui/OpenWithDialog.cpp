@@ -46,7 +46,7 @@ void OpenWithDialog::setupUi() {
         QFileInfo fi(m_filePaths.first());
         QLabel *titleLabel = new QLabel(this);
         titleLabel->setText(tr("<h3>Open <b>%1</b> with:</h3>").arg(fi.fileName()));
-        titleLabel->setStyleSheet("color: " + QString(ThemeManager::TEXT_PRIMARY) + ";");
+        titleLabel->setStyleSheet(ThemeManager::css("color: " + QString(ThemeManager::TEXT_PRIMARY) + ";"));
         mainLayout->addWidget(titleLabel);
     }
 
@@ -54,7 +54,7 @@ void OpenWithDialog::setupUi() {
     m_searchEdit = new QLineEdit(this);
     m_searchEdit->setPlaceholderText(tr("🔍 Search installed applications…"));
     m_searchEdit->setClearButtonEnabled(true);
-    m_searchEdit->setStyleSheet(
+    m_searchEdit->setStyleSheet(ThemeManager::css(
         "QLineEdit {"
         "  background-color: " + QString(ThemeManager::BG_OVERLAY) + ";"
         "  color: " + QString(ThemeManager::TEXT_PRIMARY) + ";"
@@ -66,14 +66,14 @@ void OpenWithDialog::setupUi() {
         "QLineEdit:focus {"
         "  border: 1px solid " + QString(ThemeManager::ACCENT) + ";"
         "}"
-    );
+    ));
     connect(m_searchEdit, &QLineEdit::textChanged, this, &OpenWithDialog::onFilterChanged);
     mainLayout->addWidget(m_searchEdit);
 
     // Apps list
     m_appList = new QListWidget(this);
     m_appList->setIconSize(QSize(32, 32));
-    m_appList->setStyleSheet(
+    m_appList->setStyleSheet(ThemeManager::css(
         "QListWidget {"
         "  background-color: " + QString(ThemeManager::BG_OVERLAY) + ";"
         "  color: " + QString(ThemeManager::TEXT_PRIMARY) + ";"
@@ -94,17 +94,17 @@ void OpenWithDialog::setupUi() {
         "  background-color: " + QString(ThemeManager::BG_SELECTION) + ";"
         "  color: #ffffff;"
         "}"
-    );
+    ));
     connect(m_appList, &QListWidget::itemDoubleClicked, this, &OpenWithDialog::onItemDoubleClicked);
     mainLayout->addWidget(m_appList);
 
     // Custom Command Input
     QHBoxLayout *customCmdLayout = new QHBoxLayout();
     QLabel *cmdLabel = new QLabel(tr("Custom command:"), this);
-    cmdLabel->setStyleSheet("color: " + QString(ThemeManager::TEXT_SECONDARY) + ";");
+    cmdLabel->setStyleSheet(ThemeManager::css("color: " + QString(ThemeManager::TEXT_SECONDARY) + ";"));
     m_customCmdEdit = new QLineEdit(this);
     m_customCmdEdit->setPlaceholderText(tr("e.g. mpv, gedit, code"));
-    m_customCmdEdit->setStyleSheet(
+    m_customCmdEdit->setStyleSheet(ThemeManager::css(
         "QLineEdit {"
         "  background-color: " + QString(ThemeManager::BG_OVERLAY) + ";"
         "  color: " + QString(ThemeManager::TEXT_PRIMARY) + ";"
@@ -112,7 +112,7 @@ void OpenWithDialog::setupUi() {
         "  border-radius: 6px;"
         "  padding: 5px 8px;"
         "}"
-    );
+    ));
     customCmdLayout->addWidget(cmdLabel);
     customCmdLayout->addWidget(m_customCmdEdit);
     mainLayout->addLayout(customCmdLayout);
@@ -120,7 +120,7 @@ void OpenWithDialog::setupUi() {
     // Set Default Checkbox
     if (!m_mimeType.isEmpty()) {
         m_setDefCheckBox = new QCheckBox(tr("Always use this application for '%1' files").arg(m_mimeType), this);
-        m_setDefCheckBox->setStyleSheet("color: " + QString(ThemeManager::TEXT_SECONDARY) + ";");
+        m_setDefCheckBox->setStyleSheet(ThemeManager::css("color: " + QString(ThemeManager::TEXT_SECONDARY) + ";"));
         mainLayout->addWidget(m_setDefCheckBox);
     }
 
@@ -129,7 +129,7 @@ void OpenWithDialog::setupUi() {
     btnLayout->addStretch();
 
     m_cancelBtn = new QPushButton(tr("Cancel"), this);
-    m_cancelBtn->setStyleSheet(
+    m_cancelBtn->setStyleSheet(ThemeManager::css(
         "QPushButton {"
         "  background: " + QString(ThemeManager::BG_SURFACE) + ";"
         "  color: " + QString(ThemeManager::TEXT_PRIMARY) + ";"
@@ -139,12 +139,12 @@ void OpenWithDialog::setupUi() {
         "  font-weight: 500;"
         "}"
         "QPushButton:hover { background: " + QString(ThemeManager::BG_HOVER) + "; }"
-    );
+    ));
     connect(m_cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
 
     m_openBtn = new QPushButton(tr("Open"), this);
     m_openBtn->setDefault(true);
-    m_openBtn->setStyleSheet(
+    m_openBtn->setStyleSheet(ThemeManager::css(
         "QPushButton {"
         "  background: " + QString(ThemeManager::ACCENT) + ";"
         "  color: #000000;"
@@ -154,14 +154,14 @@ void OpenWithDialog::setupUi() {
         "  font-weight: 600;"
         "}"
         "QPushButton:hover { background: #00e08b; }"
-    );
+    ));
     connect(m_openBtn, &QPushButton::clicked, this, &OpenWithDialog::onOpenClicked);
 
     btnLayout->addWidget(m_cancelBtn);
     btnLayout->addWidget(m_openBtn);
     mainLayout->addLayout(btnLayout);
 
-    setStyleSheet("QDialog { background-color: " + QString(ThemeManager::BG_BASE) + "; }");
+    setStyleSheet(ThemeManager::css("QDialog { background-color: " + QString(ThemeManager::BG_BASE) + "; }"));
 }
 
 void OpenWithDialog::populateApps() {

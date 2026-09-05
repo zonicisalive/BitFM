@@ -25,6 +25,7 @@ public:
     ViewMode viewMode() const;
 
     void setGridIconSize(int size);
+    void handleDroppedFiles(const QStringList &sourcePaths, const QString &destDir, Qt::DropAction action);
     int gridIconSize() const;
 
     QStringList selectedPaths() const;

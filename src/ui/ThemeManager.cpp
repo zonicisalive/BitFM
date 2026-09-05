@@ -1,4 +1,6 @@
 #include "ThemeManager.h"
+#include <QRegularExpression>
+#include <memory>
 #include "AppSettings.h"
 #include <QFont>
 #include <QFontDatabase>
@@ -46,6 +48,10 @@ ThemeManager::ThemeManager() {
         else setTheme(m_currentTheme);
     });
     connect(&AppSettings::instance(), &AppSettings::windowOpacityChanged, this, [this](double) {
+        if (isExternalSyncEnabled()) checkAndReloadExternalTheme();
+        else setTheme(m_currentTheme);
+    });
+    connect(&AppSettings::instance(), &AppSettings::appearanceTokensChanged, this, [this]() {
         if (isExternalSyncEnabled()) checkAndReloadExternalTheme();
         else setTheme(m_currentTheme);
     });
@@ -290,6 +296,70 @@ QString ThemeManager::hexToRgba(const QString &hexOrRgb, double alpha) {
     QColor c(hexOrRgb);
     if (!c.isValid()) return hexOrRgb;
     return QString("rgba(%1, %2, %3, %4)").arg(c.red()).arg(c.green()).arg(c.blue()).arg(alpha, 0, 'f', 2);
+}
+
+QColor ThemeManager::toColor(const QString &cssColor) {
+    QColor c(cssColor);
+    if (c.isValid()) return c;
+    static const QRegularExpression rx(R"(rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([0-9.]+))?\s*\))");
+    auto m = rx.match(cssColor);
+    if (!m.hasMatch()) return QColor();
+    QColor out(m.captured(1).toInt(), m.captured(2).toInt(), m.captured(3).toInt());
+    if (!m.captured(4).isEmpty()) out.setAlphaF(qBound(0.0, m.captured(4).toDouble(), 1.0));
+    return out;
+}
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+int ThemeManager::radius() { return AppSettings::instance().cornerRadius(); }
+int ThemeManager::density() { return AppSettings::instance().density(); }
+double ThemeManager::densityScale() {
+    switch (density()) { case 0: return 0.75; case 2: return 1.3; default: return 1.0; }
+}
+int ThemeManager::px(int base) { return qRound(base * densityScale()); }
+int ThemeManager::baseFontSize() {
+    int s = AppSettings::instance().fontSize();
+    return s > 0 ? s : 13;
+}
+
+// One regex pass per stylesheet string; only runs when a theme/token changes.
+QString ThemeManager::css(const QString &sheet) {
+    // Every stylesheet in the codebase was authored against radius 6-7px, density normal, 13px font.
+    const double radiusScale = radius() / 6.0;
+    const double padScale = densityScale();
+    const double fontScale = baseFontSize() / 13.0;
+    if (qFuzzyCompare(radiusScale, 1.0) && qFuzzyCompare(padScale, 1.0) && qFuzzyCompare(fontScale, 1.0)) return sheet;
+
+    static const QRegularExpression decl(R"((border(?:-[a-z]+)*-radius|padding(?:-[a-z]+)?|font-size)\s*:\s*([^;{}]*?)(\s*/\*fixed\*/)?\s*;)");
+    static const QRegularExpression num(R"((\d+(?:\.\d+)?)px)");
+
+    QString out;
+    out.reserve(sheet.size() + 32);
+    int last = 0;
+    auto it = decl.globalMatch(sheet);
+    while (it.hasNext()) {
+        auto m = it.next();
+        out += QStringView(sheet).mid(last, m.capturedStart() - last);
+        last = m.capturedEnd();
+        if (!m.captured(3).isEmpty()) { out += m.captured(0); continue; }
+        const QString prop = m.captured(1);
+        double scale = prop.startsWith("border") ? radiusScale : (prop == "font-size" ? fontScale : padScale);
+        QString value = m.captured(2);
+        QString scaled;
+        int vlast = 0;
+        auto vit = num.globalMatch(value);
+        while (vit.hasNext()) {
+            auto vm = vit.next();
+            scaled += QStringView(value).mid(vlast, vm.capturedStart() - vlast);
+            double v = vm.captured(1).toDouble() * scale;
+            scaled += QString::number(prop == "font-size" ? qRound(v * 2) / 2.0 : qRound(v)) + "px";
+            vlast = vm.capturedEnd();
+        }
+        scaled += QStringView(value).mid(vlast);
+        out += prop + ": " + scaled + ";";
+    }
+    out += QStringView(sheet).mid(last);
+    return out;
 }
 
 void ThemeManager::updateStaticColors(const ThemeColors &c) {
@@ -830,22 +900,36 @@ void ThemeManager::setTheme(AppTheme theme) {
         double opacity = AppSettings::instance().windowOpacity();
 
         qApp->setPalette(pal);
-        qApp->setStyleSheet(getModernStyleSheet(c, opacity, translucent));
+        applyAppFont();
+        qApp->setStyleSheet(css(getModernStyleSheet(c, opacity, translucent)));
     }
 
     emit themeChanged(m_currentTheme);
 }
 
+void ThemeManager::applyAppFont() {
+    QFont f = QApplication::font();
+    static const QFont systemFont = QApplication::font();
+    QString family = AppSettings::instance().fontFamily();
+    f = systemFont;
+    if (!family.isEmpty()) f.setFamily(family);
+    int size = AppSettings::instance().fontSize();
+    if (size > 0) f.setPixelSize(size);
+    qApp->setFont(f);
+
+    QString iconTheme = AppSettings::instance().iconTheme();
+    if (!iconTheme.isEmpty() && QIcon::themeName() != iconTheme) QIcon::setThemeName(iconTheme);
+}
+
 void ThemeManager::setThemeByName(const QString &name) {
-    if (name.contains("OLED", Qt::CaseInsensitive) || name.contains("Pitch Black", Qt::CaseInsensitive)) setTheme(AppTheme::OLEDBlack);
-    else if (name.contains("Cyberpunk", Qt::CaseInsensitive)) setTheme(AppTheme::CyberpunkMidnight);
-    else if (name.contains("Nord", Qt::CaseInsensitive)) setTheme(AppTheme::NordFrost);
-    else if (name.contains("Gruvbox", Qt::CaseInsensitive)) setTheme(AppTheme::GruvboxWarm);
-    else if (name.contains("Dracula", Qt::CaseInsensitive)) setTheme(AppTheme::DraculaGothic);
-    else if (name.contains("Rosé", Qt::CaseInsensitive) || name.contains("Rose", Qt::CaseInsensitive)) setTheme(AppTheme::RosePine);
-    else if (name.contains("GitHub", Qt::CaseInsensitive)) setTheme(AppTheme::GitHubDark);
-    else if (name.contains("Light", Qt::CaseInsensitive) || name.contains("Pure Light", Qt::CaseInsensitive)) setTheme(AppTheme::PureLight);
-    else setTheme(AppTheme::CatppuccinMocha);
+    for (int i = 0; i <= static_cast<int>(AppTheme::PureLight); ++i) {
+        AppTheme t = static_cast<AppTheme>(i);
+        if (getThemeColors(t).name.compare(name, Qt::CaseInsensitive) == 0) {
+            setTheme(t);
+            return;
+        }
+    }
+    setTheme(AppTheme::CatppuccinMocha);
 }
 
 AppTheme ThemeManager::currentTheme() const {
@@ -878,13 +962,16 @@ void ThemeManager::applyTheme(QApplication &app) {
     QString currentTheme = QIcon::themeName();
     if (currentTheme.isEmpty() || currentTheme == "hicolor") {
         QStringList candidates = { "Papirus-Dark", "Papirus", "WhiteSur-dark", "breeze-dark", "breeze", "Adwaita", "Yaru" };
+        bool picked = false;
         for (const QString &c : candidates) {
             for (const QString &p : iconPaths) {
                 if (QDir(p + "/" + c).exists()) {
                     QIcon::setThemeName(c);
+                    picked = true;
                     break;
                 }
             }
+            if (picked) break;
         }
     }
 
@@ -930,7 +1017,7 @@ void ThemeManager::applyCustomTheme(const ThemeColors &c) {
         bool translucent = AppSettings::instance().isTranslucencyEnabled();
         double opacity = AppSettings::instance().windowOpacity();
 
-        QString baseCss = getModernStyleSheet(c, opacity, translucent);
+        QString baseCss = css(getModernStyleSheet(c, opacity, translucent));
 
         QString cssPath = externalStyleCssPath();
         if (QFileInfo::exists(cssPath)) {
@@ -941,12 +1028,18 @@ void ThemeManager::applyCustomTheme(const ThemeColors &c) {
         }
 
         qApp->setPalette(pal);
+        applyAppFont();
         qApp->setStyleSheet(baseCss);
     }
 
     emit themeChanged(m_currentTheme);
 }
 
+
+// External theme files are user-edited: ignore invalid colour strings instead of painting black.
+static void pickColor(QString &dst, const QString &value) {
+    if (QColor(value).isValid()) dst = value;
+}
 bool ThemeManager::loadThemeFromFile(const QString &filePath) {
     if (!QFileInfo::exists(filePath)) return false;
 
@@ -962,36 +1055,36 @@ bool ThemeManager::loadThemeFromFile(const QString &filePath) {
         if (o.contains("name")) c.name = o["name"].toString();
         if (o.contains("is_dark")) c.isDark = o["is_dark"].toBool();
         
-        if (o.contains("bg_base")) c.bgBase = o["bg_base"].toString();
-        else if (o.contains("background")) c.bgBase = o["background"].toString();
-        else if (o.contains("bg")) c.bgBase = o["bg"].toString();
+        if (o.contains("bg_base")) pickColor(c.bgBase, o["bg_base"].toString());
+        else if (o.contains("background")) pickColor(c.bgBase, o["background"].toString());
+        else if (o.contains("bg")) pickColor(c.bgBase, o["bg"].toString());
 
-        if (o.contains("bg_surface")) c.bgSurface = o["bg_surface"].toString();
-        else if (o.contains("surface")) c.bgSurface = o["surface"].toString();
+        if (o.contains("bg_surface")) pickColor(c.bgSurface, o["bg_surface"].toString());
+        else if (o.contains("surface")) pickColor(c.bgSurface, o["surface"].toString());
 
-        if (o.contains("bg_overlay")) c.bgOverlay = o["bg_overlay"].toString();
-        else if (o.contains("overlay")) c.bgOverlay = o["overlay"].toString();
+        if (o.contains("bg_overlay")) pickColor(c.bgOverlay, o["bg_overlay"].toString());
+        else if (o.contains("overlay")) pickColor(c.bgOverlay, o["overlay"].toString());
 
-        if (o.contains("bg_hover")) c.bgHover = o["bg_hover"].toString();
-        else if (o.contains("hover")) c.bgHover = o["hover"].toString();
+        if (o.contains("bg_hover")) pickColor(c.bgHover, o["bg_hover"].toString());
+        else if (o.contains("hover")) pickColor(c.bgHover, o["hover"].toString());
 
-        if (o.contains("bg_selection")) c.bgSelection = o["bg_selection"].toString();
-        else if (o.contains("selection")) c.bgSelection = o["selection"].toString();
+        if (o.contains("bg_selection")) pickColor(c.bgSelection, o["bg_selection"].toString());
+        else if (o.contains("selection")) pickColor(c.bgSelection, o["selection"].toString());
 
-        if (o.contains("accent")) c.accent = o["accent"].toString();
-        else if (o.contains("primary")) c.accent = o["primary"].toString();
+        if (o.contains("accent")) pickColor(c.accent, o["accent"].toString());
+        else if (o.contains("primary")) pickColor(c.accent, o["primary"].toString());
 
-        if (o.contains("accent_press")) c.accentPress = o["accent_press"].toString();
+        if (o.contains("accent_press")) pickColor(c.accentPress, o["accent_press"].toString());
         else if (o.contains("accent")) c.accentPress = QColor(c.accent).darker(120).name();
 
-        if (o.contains("text_primary")) c.textPrimary = o["text_primary"].toString();
-        else if (o.contains("foreground")) c.textPrimary = o["foreground"].toString();
-        else if (o.contains("text")) c.textPrimary = o["text"].toString();
+        if (o.contains("text_primary")) pickColor(c.textPrimary, o["text_primary"].toString());
+        else if (o.contains("foreground")) pickColor(c.textPrimary, o["foreground"].toString());
+        else if (o.contains("text")) pickColor(c.textPrimary, o["text"].toString());
 
-        if (o.contains("text_secondary")) c.textSecondary = o["text_secondary"].toString();
-        if (o.contains("text_muted")) c.textMuted = o["text_muted"].toString();
-        if (o.contains("border")) c.border = o["border"].toString();
-        if (o.contains("border_focus")) c.borderFocus = o["border_focus"].toString();
+        if (o.contains("text_secondary")) pickColor(c.textSecondary, o["text_secondary"].toString());
+        if (o.contains("text_muted")) pickColor(c.textMuted, o["text_muted"].toString());
+        if (o.contains("border")) pickColor(c.border, o["border"].toString());
+        if (o.contains("border_focus")) pickColor(c.borderFocus, o["border_focus"].toString());
         else c.borderFocus = c.accent;
 
         applyCustomTheme(c);
@@ -1018,36 +1111,36 @@ bool ThemeManager::loadThemeFromFile(const QString &filePath) {
         if (kv.contains("name")) c.name = kv["name"];
         if (kv.contains("is_dark")) c.isDark = (kv["is_dark"].toLower() == "true" || kv["is_dark"] == "1");
 
-        if (kv.contains("bg_base")) c.bgBase = kv["bg_base"];
-        else if (kv.contains("background")) c.bgBase = kv["background"];
-        else if (kv.contains("bg")) c.bgBase = kv["bg"];
+        if (kv.contains("bg_base")) pickColor(c.bgBase, kv["bg_base"]);
+        else if (kv.contains("background")) pickColor(c.bgBase, kv["background"]);
+        else if (kv.contains("bg")) pickColor(c.bgBase, kv["bg"]);
 
-        if (kv.contains("bg_surface")) c.bgSurface = kv["bg_surface"];
-        else if (kv.contains("surface")) c.bgSurface = kv["surface"];
+        if (kv.contains("bg_surface")) pickColor(c.bgSurface, kv["bg_surface"]);
+        else if (kv.contains("surface")) pickColor(c.bgSurface, kv["surface"]);
 
-        if (kv.contains("bg_overlay")) c.bgOverlay = kv["bg_overlay"];
-        else if (kv.contains("overlay")) c.bgOverlay = kv["overlay"];
+        if (kv.contains("bg_overlay")) pickColor(c.bgOverlay, kv["bg_overlay"]);
+        else if (kv.contains("overlay")) pickColor(c.bgOverlay, kv["overlay"]);
 
-        if (kv.contains("bg_hover")) c.bgHover = kv["bg_hover"];
-        else if (kv.contains("hover")) c.bgHover = kv["hover"];
+        if (kv.contains("bg_hover")) pickColor(c.bgHover, kv["bg_hover"]);
+        else if (kv.contains("hover")) pickColor(c.bgHover, kv["hover"]);
 
-        if (kv.contains("bg_selection")) c.bgSelection = kv["bg_selection"];
-        else if (kv.contains("selection")) c.bgSelection = kv["selection"];
+        if (kv.contains("bg_selection")) pickColor(c.bgSelection, kv["bg_selection"]);
+        else if (kv.contains("selection")) pickColor(c.bgSelection, kv["selection"]);
 
-        if (kv.contains("accent")) c.accent = kv["accent"];
-        else if (kv.contains("primary")) c.accent = kv["primary"];
+        if (kv.contains("accent")) pickColor(c.accent, kv["accent"]);
+        else if (kv.contains("primary")) pickColor(c.accent, kv["primary"]);
 
-        if (kv.contains("accent_press")) c.accentPress = kv["accent_press"];
+        if (kv.contains("accent_press")) pickColor(c.accentPress, kv["accent_press"]);
         else if (kv.contains("accent")) c.accentPress = QColor(c.accent).darker(120).name();
 
-        if (kv.contains("text_primary")) c.textPrimary = kv["text_primary"];
-        else if (kv.contains("foreground")) c.textPrimary = kv["foreground"];
-        else if (kv.contains("text")) c.textPrimary = kv["text"];
+        if (kv.contains("text_primary")) pickColor(c.textPrimary, kv["text_primary"]);
+        else if (kv.contains("foreground")) pickColor(c.textPrimary, kv["foreground"]);
+        else if (kv.contains("text")) pickColor(c.textPrimary, kv["text"]);
 
-        if (kv.contains("text_secondary")) c.textSecondary = kv["text_secondary"];
-        if (kv.contains("text_muted")) c.textMuted = kv["text_muted"];
-        if (kv.contains("border")) c.border = kv["border"];
-        if (kv.contains("border_focus")) c.borderFocus = kv["border_focus"];
+        if (kv.contains("text_secondary")) pickColor(c.textSecondary, kv["text_secondary"]);
+        if (kv.contains("text_muted")) pickColor(c.textMuted, kv["text_muted"]);
+        if (kv.contains("border")) pickColor(c.border, kv["border"]);
+        if (kv.contains("border_focus")) pickColor(c.borderFocus, kv["border_focus"]);
         else c.borderFocus = c.accent;
 
         applyCustomTheme(c);
@@ -1101,11 +1194,24 @@ void ThemeManager::setupExternalThemeWatcher() {
     auto *reloadTimer = new QTimer(this);
     reloadTimer->setSingleShot(true);
     reloadTimer->setInterval(50);
-    connect(reloadTimer, &QTimer::timeout, this, [this, watcher, configDir, jsonPath, confPath, cssPath]() {
+    auto stamp = [jsonPath, confPath, cssPath]() {
+        QString st;
+        for (const QString &p : { jsonPath, confPath, cssPath }) {
+            QFileInfo fi(p);
+            st += fi.exists() ? QString::number(fi.lastModified().toMSecsSinceEpoch()) + ":" + QString::number(fi.size()) + ";" : "-;";
+        }
+        return st;
+    };
+    auto lastStamp = std::make_shared<QString>(stamp());
+    connect(reloadTimer, &QTimer::timeout, this, [this, watcher, jsonPath, confPath, cssPath, stamp, lastStamp]() {
         if (QFileInfo::exists(jsonPath) && !watcher->files().contains(jsonPath)) watcher->addPath(jsonPath);
         if (QFileInfo::exists(confPath) && !watcher->files().contains(confPath)) watcher->addPath(confPath);
         if (QFileInfo::exists(cssPath) && !watcher->files().contains(cssPath)) watcher->addPath(cssPath);
 
+        // The config dir also holds bitfm.conf (QSettings); only restyle when a theme file actually changed.
+        QString now = stamp();
+        if (now == *lastStamp) return;
+        *lastStamp = now;
         checkAndReloadExternalTheme();
     });
 

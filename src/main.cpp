@@ -3,6 +3,8 @@
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QDir>
+#include <QTimer>
+#include <QListWidget>
 #include <QUrl>
 #include <iostream>
 #include <sys/prctl.h>
@@ -77,7 +79,7 @@ int main(int argc, char *argv[]) {
     // Check if an existing BitFM FileManager1 instance is already running
     QDBusConnection session = QDBusConnection::sessionBus();
     if (!parser.isSet(gappOption) && !parser.isSet(saveOption) && !parser.isSet(openOption) && !parser.isSet(folderOption)) {
-        if (session.isConnected() && session.interface() && session.interface()->isServiceRegistered("org.freedesktop.FileManager1")) {
+        if (session.isConnected() && session.interface() && session.interface()->isServiceRegistered("io.bitfm.BitFM")) {
             QDBusInterface iface("org.freedesktop.FileManager1", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1", session);
             if (iface.isValid()) {
                 QStringList uris;
@@ -177,6 +179,29 @@ int main(int argc, char *argv[]) {
         app.setQuitOnLastWindowClosed(false);
     } else {
         window.show();
+    }
+
+    // Debug/CI: BITFM_SCREENSHOT=/path.png grabs the main window after 1.5 s and quits.
+    // Works with QT_QPA_PLATFORM=offscreen, so UI changes can be eyeballed headlessly.
+    // BITFM_SCREENSHOT_PAGE=<n> grabs Preferences page n instead of the main window.
+    const QByteArray shot = qgetenv("BITFM_SCREENSHOT");
+    if (!shot.isEmpty()) {
+        QTimer::singleShot(1500, &window, [&window, shot]() {
+            QWidget *target = &window;
+            bool ok = false;
+            int page = qEnvironmentVariableIntValue("BITFM_SCREENSHOT_PAGE", &ok);
+            if (ok) {
+                window.openPreferences();
+                if (QWidget *dlg = window.findChild<QWidget*>("PreferencesDialog")) {
+                    if (auto *nav = dlg->findChild<QListWidget*>("PrefNav")) nav->setCurrentRow(page);
+                    target = dlg;
+                }
+            }
+            QTimer::singleShot(400, target, [target, shot]() {
+                target->grab().save(QString::fromLocal8Bit(shot));
+                QCoreApplication::quit();
+            });
+        });
     }
 
     return app.exec();

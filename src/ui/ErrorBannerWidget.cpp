@@ -23,12 +23,12 @@ ErrorBannerWidget::ErrorBannerWidget(QWidget *parent)
     tf.setBold(true);
     tf.setPointSizeF(12.5);
     m_titleLabel->setFont(tf);
-    m_titleLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY));
+    m_titleLabel->setStyleSheet(ThemeManager::css(QString("color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
     textLayout->addWidget(m_titleLabel);
 
     m_detailsLabel = new QLabel(this);
     m_detailsLabel->setWordWrap(true);
-    m_detailsLabel->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY));
+    m_detailsLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
     textLayout->addWidget(m_detailsLabel);
 
     mainLayout->addLayout(textLayout, 1);
@@ -36,10 +36,10 @@ ErrorBannerWidget::ErrorBannerWidget(QWidget *parent)
     m_closeBtn = new QToolButton(this);
     m_closeBtn->setText("✕");
     m_closeBtn->setToolTip(tr("Dismiss"));
-    m_closeBtn->setStyleSheet(QString(
+    m_closeBtn->setStyleSheet(ThemeManager::css(QString(
         "QToolButton { border: none; color: %1; font-size: 14px; padding: 4px 6px; border-radius: 5px; background: transparent; }"
         "QToolButton:hover { background: rgba(255,255,255,0.10); }"
-    ).arg(ThemeManager::TEXT_SECONDARY));
+    ).arg(ThemeManager::TEXT_SECONDARY)));
     connect(m_closeBtn, &QToolButton::clicked, this, &ErrorBannerWidget::hideMessage);
     mainLayout->addWidget(m_closeBtn, 0, Qt::AlignTop);
 
@@ -72,12 +72,12 @@ void ErrorBannerWidget::showMessage(const QString &title, const QString &details
 
     m_iconLabel->setPixmap(QIcon::fromTheme(iconName, QIcon::fromTheme("dialog-warning")).pixmap(22, 22));
 
-    setStyleSheet(QString(
+    setStyleSheet(ThemeManager::css(QString(
         "ErrorBannerWidget {"
         "  background-color: %1;"
         "  border-bottom: 2px solid %2;"
         "}"
-    ).arg(bgColor, borderColor));
+    ).arg(bgColor, borderColor)));
 
     show();
 }

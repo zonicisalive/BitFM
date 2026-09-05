@@ -29,13 +29,13 @@ void QuickSwitcherDialog::setupUi() {
 
     QWidget *card = new QWidget(this);
     card->setObjectName("SwitcherCard");
-    card->setStyleSheet(QString(
+    card->setStyleSheet(ThemeManager::css(QString(
         "#SwitcherCard {"
         "  background-color: %1;"
         "  border: 1.5px solid %2;"
         "  border-radius: 12px;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::ACCENT));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::ACCENT)));
 
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(14, 14, 14, 14);
@@ -46,12 +46,12 @@ void QuickSwitcherDialog::setupUi() {
     searchLayout->setSpacing(8);
 
     QLabel *searchIcon = new QLabel("🔍", card);
-    searchIcon->setStyleSheet("font-size: 15px; background: transparent;");
+    searchIcon->setStyleSheet(ThemeManager::css("font-size: 15px; background: transparent;"));
     searchLayout->addWidget(searchIcon);
 
     m_searchEdit = new QLineEdit(card);
     m_searchEdit->setPlaceholderText(tr("Search files, folders, bookmarks... (Press Enter to open)"));
-    m_searchEdit->setStyleSheet(QString(
+    m_searchEdit->setStyleSheet(ThemeManager::css(QString(
         "QLineEdit {"
         "  background: transparent;"
         "  color: %1;"
@@ -60,7 +60,7 @@ void QuickSwitcherDialog::setupUi() {
         "  font-weight: 500;"
         "  padding: 4px;"
         "}"
-    ).arg(ThemeManager::TEXT_PRIMARY));
+    ).arg(ThemeManager::TEXT_PRIMARY)));
     connect(m_searchEdit, &QLineEdit::textChanged, this, &QuickSwitcherDialog::onSearchTextChanged);
     searchLayout->addWidget(m_searchEdit, 1);
 
@@ -69,7 +69,7 @@ void QuickSwitcherDialog::setupUi() {
     // Results list
     m_resultsList = new QListWidget(card);
     m_resultsList->setIconSize(QSize(20, 20));
-    m_resultsList->setStyleSheet(QString(
+    m_resultsList->setStyleSheet(ThemeManager::css(QString(
         "QListWidget {"
         "  background: %1;"
         "  border: 1px solid %2;"
@@ -97,7 +97,7 @@ void QuickSwitcherDialog::setupUi() {
      .arg(ThemeManager::TEXT_PRIMARY)
      .arg(ThemeManager::BG_HOVER)
      .arg(ThemeManager::TEXT_PRIMARY)
-     .arg(ThemeManager::BG_SELECTION));
+     .arg(ThemeManager::BG_SELECTION)));
 
     connect(m_resultsList, &QListWidget::itemActivated, this, &QuickSwitcherDialog::onItemActivated);
     connect(m_resultsList, &QListWidget::itemClicked, this, &QuickSwitcherDialog::onItemActivated);
@@ -105,7 +105,7 @@ void QuickSwitcherDialog::setupUi() {
 
     // Status footer
     m_statusLabel = new QLabel(card);
-    m_statusLabel->setStyleSheet(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED));
+    m_statusLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED)));
     cardLayout->addWidget(m_statusLabel);
 
     rootLayout->addWidget(card);
@@ -200,11 +200,13 @@ void QuickSwitcherDialog::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_Escape) {
         reject();
     } else if (event->key() == Qt::Key_Down) {
-        int next = (m_resultsList->currentRow() + 1) % m_resultsList->count();
-        m_resultsList->setCurrentRow(next);
+        int n = m_resultsList->count();
+        if (n == 0) return;
+        m_resultsList->setCurrentRow((m_resultsList->currentRow() + 1) % n);
     } else if (event->key() == Qt::Key_Up) {
-        int prev = (m_resultsList->currentRow() - 1 + m_resultsList->count()) % m_resultsList->count();
-        m_resultsList->setCurrentRow(prev);
+        int n = m_resultsList->count();
+        if (n == 0) return;
+        m_resultsList->setCurrentRow((m_resultsList->currentRow() - 1 + n) % n);
     } else if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
         onItemActivated(m_resultsList->currentItem());
     } else {

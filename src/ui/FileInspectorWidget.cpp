@@ -1,4 +1,5 @@
 #include "FileInspectorWidget.h"
+#include <QPointer>
 #include "ThemeManager.h"
 #include "ThumbnailProvider.h"
 #include "FileSystemModel.h"
@@ -55,19 +56,6 @@ FileInspectorWidget::FileInspectorWidget(QWidget *parent)
     setupUi();
     clear();
 
-    connect(&ThumbnailProvider::instance(), &ThumbnailProvider::thumbnailReady, this, [this](const QString &path, const QIcon &icon) {
-        if (m_currentFilePath == path) {
-            QPixmap pix = icon.pixmap(150, 150);
-            QFileInfo info(path);
-            QString ext = info.suffix().toLower();
-            bool isVid = (ext == "webm" || ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "flv" || ext == "wmv");
-            if (isVid) {
-                m_previewImageLabel->setPixmap(drawPlayBadge(pix));
-            } else {
-                m_previewImageLabel->setPixmap(pix);
-            }
-        }
-    });
 }
 
 void FileInspectorWidget::setupUi() {
@@ -77,7 +65,7 @@ void FileInspectorWidget::setupUi() {
     QScrollArea *scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
-    scrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
+    scrollArea->setStyleSheet(ThemeManager::css("QScrollArea { background: transparent; border: none; }"));
 
     QWidget *content = new QWidget(scrollArea);
     QVBoxLayout *layout = new QVBoxLayout(content);
@@ -92,9 +80,6 @@ void FileInspectorWidget::setupUi() {
     m_previewImageLabel = new QLabel(previewBox);
     m_previewImageLabel->setAlignment(Qt::AlignCenter);
     m_previewImageLabel->setFixedSize(160, 160);
-    m_previewImageLabel->setStyleSheet(QString(
-        "background-color: %1; border-radius: 10px; border: 1px solid %2; padding: 4px;"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER));
     previewLayout->addWidget(m_previewImageLabel, 0, Qt::AlignCenter);
 
     m_fileNameLabel = new QLabel(previewBox);
@@ -104,12 +89,10 @@ void FileInspectorWidget::setupUi() {
     nameFont.setBold(true);
     nameFont.setPointSize(11);
     m_fileNameLabel->setFont(nameFont);
-    m_fileNameLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY));
     previewLayout->addWidget(m_fileNameLabel);
 
     m_fileTypeLabel = new QLabel(previewBox);
     m_fileTypeLabel->setAlignment(Qt::AlignCenter);
-    m_fileTypeLabel->setStyleSheet(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED));
     previewLayout->addWidget(m_fileTypeLabel);
 
     layout->addWidget(previewBox);
@@ -120,24 +103,19 @@ void FileInspectorWidget::setupUi() {
     detailsLayout->setSpacing(6);
 
     m_fileSizeLabel = new QLabel(detailsBox);
-    m_fileSizeLabel->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY));
     detailsLayout->addWidget(m_fileSizeLabel);
 
     m_dimensionsLabel = new QLabel(detailsBox);
-    m_dimensionsLabel->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY));
     detailsLayout->addWidget(m_dimensionsLabel);
 
     m_modifiedLabel = new QLabel(detailsBox);
-    m_modifiedLabel->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY));
     detailsLayout->addWidget(m_modifiedLabel);
 
     m_permissionsLabel = new QLabel(detailsBox);
-    m_permissionsLabel->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY));
     detailsLayout->addWidget(m_permissionsLabel);
 
     m_checksumLabel = new QLabel(detailsBox);
     m_checksumLabel->setWordWrap(true);
-    m_checksumLabel->setStyleSheet(QString("font-family: monospace; font-size: 11px; color: %1; background: transparent;").arg(ThemeManager::ACCENT));
     detailsLayout->addWidget(m_checksumLabel);
 
     layout->addWidget(detailsBox);
@@ -145,9 +123,6 @@ void FileInspectorWidget::setupUi() {
     // Section 3: Text Snippet Preview (if text)
     m_textPreviewLabel = new QLabel(content);
     m_textPreviewLabel->setWordWrap(true);
-    m_textPreviewLabel->setStyleSheet(QString(
-        "background-color: %1; border: 1px solid %2; border-radius: 8px; padding: 8px; font-family: monospace; font-size: 11px; color: %3;"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY));
     m_textPreviewLabel->hide();
     layout->addWidget(m_textPreviewLabel);
 
@@ -156,10 +131,6 @@ void FileInspectorWidget::setupUi() {
     actionsLayout->setSpacing(6);
 
     m_openBtn = new QPushButton(QIcon::fromTheme("document-open"), tr("Open"), content);
-    m_openBtn->setStyleSheet(QString(
-        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-weight: 500; }"
-        "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_HOVER));
     connect(m_openBtn, &QPushButton::clicked, this, [this]() {
         if (!m_currentFilePath.isEmpty()) {
             AppLauncher::instance().openPath(m_currentFilePath);
@@ -168,20 +139,12 @@ void FileInspectorWidget::setupUi() {
     actionsLayout->addWidget(m_openBtn);
 
     m_copyPathBtn = new QPushButton(QIcon::fromTheme("edit-copy"), tr("Copy Path"), content);
-    m_copyPathBtn->setStyleSheet(QString(
-        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-weight: 500; }"
-        "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_HOVER));
     connect(m_copyPathBtn, &QPushButton::clicked, this, &FileInspectorWidget::onCopyPathClicked);
     actionsLayout->addWidget(m_copyPathBtn);
 
     layout->addLayout(actionsLayout);
 
     m_sha256Btn = new QPushButton(QIcon::fromTheme("security-high", QIcon::fromTheme("dialog-information")), tr("Calculate SHA-256 Checksum"), content);
-    m_sha256Btn->setStyleSheet(QString(
-        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-size: 11px; }"
-        "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::BG_HOVER));
     connect(m_sha256Btn, &QPushButton::clicked, this, &FileInspectorWidget::onCalculateSha256Clicked);
     layout->addWidget(m_sha256Btn);
 
@@ -201,7 +164,38 @@ void FileInspectorWidget::setupUi() {
         }
     });
 
-    setStyleSheet(QString(
+
+    applyStyles();
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FileInspectorWidget::applyStyles);
+}
+
+void FileInspectorWidget::applyStyles() {
+    m_previewImageLabel->setStyleSheet(ThemeManager::css(QString(
+        "background-color: %1; border-radius: 10px; border: 1px solid %2; padding: 4px;"
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER)));
+    m_fileNameLabel->setStyleSheet(ThemeManager::css(QString("color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
+    m_fileTypeLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED)));
+    m_fileSizeLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
+    m_dimensionsLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
+    m_modifiedLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
+    m_permissionsLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
+    m_checksumLabel->setStyleSheet(ThemeManager::css(QString("font-family: monospace; font-size: 11px; color: %1; background: transparent;").arg(ThemeManager::ACCENT)));
+    m_textPreviewLabel->setStyleSheet(ThemeManager::css(QString(
+        "background-color: %1; border: 1px solid %2; border-radius: 8px; padding: 8px; font-family: monospace; font-size: 11px; color: %3;"
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY)));
+    m_openBtn->setStyleSheet(ThemeManager::css(QString(
+        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-weight: 500; }"
+        "QPushButton:hover { background-color: %4; }"
+    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_HOVER)));
+    m_copyPathBtn->setStyleSheet(ThemeManager::css(QString(
+        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-weight: 500; }"
+        "QPushButton:hover { background-color: %4; }"
+    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_HOVER)));
+    m_sha256Btn->setStyleSheet(ThemeManager::css(QString(
+        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-size: 11px; }"
+        "QPushButton:hover { background-color: %4; }"
+    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::BG_HOVER)));
+    setStyleSheet(ThemeManager::css(QString(
         "FileInspectorWidget {"
         "  background-color: %1;"
         "  border-left: 1px solid %2;"
@@ -224,7 +218,7 @@ void FileInspectorWidget::setupUi() {
         "  text-transform: uppercase;"
         "  letter-spacing: 0.6px;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::TEXT_MUTED));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::TEXT_MUTED)));
 }
 
 void FileInspectorWidget::inspectItem(const QString &filePath) {
@@ -270,6 +264,7 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
         QImageReader reader(filePath);
         reader.setAutoTransform(true);
         QSize originalSize = reader.size();
+        if (originalSize.isValid()) reader.setScaledSize(originalSize.scaled(300, 300, Qt::KeepAspectRatio));
         QImage img = reader.read();
 
         if (!img.isNull()) {
@@ -298,7 +293,8 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
         }
 
         // Query video metadata asynchronously
-        QThreadPool::globalInstance()->start([this, filePath]() {
+        QPointer<FileInspectorWidget> self(this);
+        QThreadPool::globalInstance()->start([self, filePath]() {
             QProcess probeProc;
             probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration:stream=width,height", "-of", "default=noprint_wrappers=1", filePath });
             if (probeProc.waitForFinished(2000)) {
@@ -313,12 +309,14 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
                 int m = static_cast<int>(dur) / 60;
                 int s = static_cast<int>(dur) % 60;
                 QString durStr = QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
-                QMetaObject::invokeMethod(this, [this, filePath, vidW, vidH, durStr]() {
-                    if (m_currentFilePath == filePath) {
+                if (!self) return;
+                QMetaObject::invokeMethod(self, [self, filePath, vidW, vidH, durStr]() {
+                    if (!self) return;
+                    if (self->m_currentFilePath == filePath) {
                         if (vidW > 0 && vidH > 0) {
-                            m_dimensionsLabel->setText(tr("<b>Resolution:</b> %1 × %2 px (%3)").arg(vidW).arg(vidH).arg(durStr));
+                            self->m_dimensionsLabel->setText(QObject::tr("<b>Resolution:</b> %1 × %2 px (%3)").arg(vidW).arg(vidH).arg(durStr));
                         } else {
-                            m_dimensionsLabel->setText(tr("<b>Duration:</b> %1").arg(durStr));
+                            self->m_dimensionsLabel->setText(QObject::tr("<b>Duration:</b> %1").arg(durStr));
                         }
                     }
                 });
@@ -341,7 +339,8 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
         m_previewImageLabel->setPixmap(QIcon::fromTheme("audio-x-generic").pixmap(64, 64));
 
         // Query audio metadata asynchronously
-        QThreadPool::globalInstance()->start([this, filePath]() {
+        QPointer<FileInspectorWidget> self(this);
+        QThreadPool::globalInstance()->start([self, filePath]() {
             QProcess probeProc;
             probeProc.start("ffprobe", { "-v", "error", "-show_entries", "format=duration,bit_rate", "-of", "default=noprint_wrappers=1", filePath });
             if (probeProc.waitForFinished(2000)) {
@@ -355,9 +354,11 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
                 int m = static_cast<int>(dur) / 60;
                 int s = static_cast<int>(dur) % 60;
                 QString durStr = QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
-                QMetaObject::invokeMethod(this, [this, filePath, durStr, bitRate]() {
-                    if (m_currentFilePath == filePath) {
-                        m_dimensionsLabel->setText(tr("<b>Duration:</b> %1 · %2 kbps").arg(durStr).arg(bitRate / 1000));
+                if (!self) return;
+                QMetaObject::invokeMethod(self, [self, filePath, durStr, bitRate]() {
+                    if (!self) return;
+                    if (self->m_currentFilePath == filePath) {
+                        self->m_dimensionsLabel->setText(QObject::tr("<b>Duration:</b> %1 · %2 kbps").arg(durStr).arg(bitRate / 1000));
                     }
                 });
             }

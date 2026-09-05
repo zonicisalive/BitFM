@@ -27,6 +27,7 @@ private slots:
 
 private:
     void setupUi();
+    void applyStyles();
 
     QString m_currentFilePath;
 

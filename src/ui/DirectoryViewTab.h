@@ -1,17 +1,16 @@
 #pragma once
 
 #include <QWidget>
-#include <QToolBar>
-#include <QAction>
 #include <QStack>
+#include <QTimer>
 #include "FileSystemModel.h"
 #include "FileFilterProxyModel.h"
 #include "FileViewWidget.h"
-#include "BreadcrumbBar.h"
-#include "SearchBarWidget.h"
 #include "ErrorBannerWidget.h"
 #include "TrashBarWidget.h"
 
+// One tab: model + view + navigation history + search state. The location/search UI
+// lives in the pane's HeaderBar and talks to the current tab through PaneWidget.
 class DirectoryViewTab : public QWidget {
     Q_OBJECT
 
@@ -26,11 +25,14 @@ public:
     FileSystemModel* fileModel() const;
     FileFilterProxyModel* proxyModel() const;
     FileViewWidget* fileView() const;
-    SearchBarWidget* searchBar() const;
     ErrorBannerWidget* errorBanner() const;
     TrashBarWidget* trashBar() const;
 
     QStringList selectedPaths() const;
+    bool canGoBack() const { return !m_backStack.isEmpty(); }
+    bool canGoForward() const { return !m_forwardStack.isEmpty(); }
+    bool canGoUp() const;
+    bool isSearchActive() const { return m_searchActive; }
 
 public slots:
     void navigateTo(const QString &path, bool recordHistory = true);
@@ -43,30 +45,30 @@ public slots:
     void refresh();
     void toggleHiddenFiles();
     void toggleViewMode();
-    void openSearch();
-    void closeSearch();
+    void openSearch();                                   // asks the header to show the search bar
+    void applySearch(const QString &pattern, bool isRegex); // from the header's search bar
+    void closeSearch();                                  // resets search state (no UI)
     void showErrorMessage(const QString &title, const QString &message);
 
 signals:
     void pathChanged(const QString &newPath);
+    void navStateChanged(bool canBack, bool canForward, bool canUp);
     void statusMessageRequested(const QString &message);
     void tabTitleChanged(const QString &title);
     void fileSelectionChanged(const QStringList &selectedPaths);
-    void splitViewRequested();
     void zoomChanged(int newSize);
     void quickPreviewRequested();
+    void searchOpenRequested();
+    void searchMatchCount(int matching, int total);
 
 private slots:
     void onDirectoryLoaded(const QString &path, int itemCount);
     void onDirectoryLoadError(const QString &path, const QString &errorMessage);
-    void onSearchChanged(const QString &pattern, bool isRegex);
     void onFilterChanged(int matching, int total);
 
 private:
     void setupUi();
-    void setupToolBar();
     void updateNavigationButtons();
-    void updateViewModeIcon();
     void updateTrashBar();
 
     QString m_currentPath;
@@ -76,27 +78,12 @@ private:
     FileSystemModel *m_fileModel = nullptr;
     FileFilterProxyModel *m_proxyModel = nullptr;
     FileViewWidget *m_fileView = nullptr;
-    BreadcrumbBar *m_breadcrumbBar = nullptr;
-    SearchBarWidget *m_searchBar = nullptr;
-    QStackedWidget *m_locationStack = nullptr;
     ErrorBannerWidget *m_errorBanner = nullptr;
     TrashBarWidget *m_trashBar = nullptr;
-    bool m_isClosingSearch = false;
-
-    QToolBar *m_toolBar = nullptr;
-    QAction *m_actBack = nullptr;
-    QAction *m_actForward = nullptr;
-    QAction *m_actHome = nullptr;
-    QAction *m_actUp = nullptr;
-    QAction *m_actRefresh = nullptr;
-    QAction *m_actToggleHidden = nullptr;
-    QAction *m_actToggleViewMode = nullptr;
-    QAction *m_actSearch = nullptr;
-    QAction *m_actSplit = nullptr;
-    QToolButton *m_viewModeBtn = nullptr;
 
     QTimer m_searchDebounceTimer;
     QString m_lastSearchPattern;
     bool m_lastSearchRegex = false;
+    bool m_searchActive = false;
     QStringList m_pendingSelectPaths;
 };

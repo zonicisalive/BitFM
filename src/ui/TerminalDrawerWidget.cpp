@@ -98,26 +98,26 @@ void TerminalDrawerWidget::setupUi() {
 
     // Modern Header Bar
     QWidget *header = new QWidget(this);
-    header->setFixedHeight(38);
-    header->setStyleSheet(QString(
+    header->setFixedHeight(ThemeManager::px(38));
+    header->setStyleSheet(ThemeManager::css(QString(
         "QWidget { background: %1; border-top: 1px solid %2; border-bottom: 1px solid %2; }"
-    ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
 
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
     headerLayout->setContentsMargins(14, 0, 10, 0);
     headerLayout->setSpacing(8);
 
     QLabel *titleIcon = new QLabel("⚡", header);
-    titleIcon->setStyleSheet("font-size: 14px; background: transparent;");
+    titleIcon->setStyleSheet(ThemeManager::css("font-size: 14px; background: transparent;"));
     headerLayout->addWidget(titleIcon);
 
     QLabel *titleLabel = new QLabel(tr("Terminal (F12)"), header);
-    titleLabel->setStyleSheet(QString("font-weight: 700; font-size: 12px; color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY));
+    titleLabel->setStyleSheet(ThemeManager::css(QString("font-weight: 700; font-size: 12px; color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
     headerLayout->addWidget(titleLabel);
 
     // Path pill badge
     m_pathBadge = new QLabel(header);
-    m_pathBadge->setStyleSheet(QString(
+    m_pathBadge->setStyleSheet(ThemeManager::css(QString(
         "QLabel {"
         "  background: %1;"
         "  color: %2;"
@@ -128,37 +128,37 @@ void TerminalDrawerWidget::setupUi() {
         "  font-size: 11px;"
         "  font-weight: 600;"
         "}"
-    ).arg(ThemeManager::BG_OVERLAY, ThemeManager::ACCENT, ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_OVERLAY, ThemeManager::ACCENT, ThemeManager::BORDER)));
     headerLayout->addWidget(m_pathBadge);
 
     headerLayout->addStretch(1);
 
     QPushButton *clearBtn = new QPushButton(tr("Clear"), header);
     clearBtn->setCursor(Qt::PointingHandCursor);
-    clearBtn->setStyleSheet(QString(
+    clearBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; }"
         "QPushButton:hover { background: %2; color: %3; }"
-    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY));
+    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY)));
     connect(clearBtn, &QPushButton::clicked, this, &TerminalDrawerWidget::clearConsole);
     headerLayout->addWidget(clearBtn);
 
     QPushButton *extTermBtn = new QPushButton(tr("External Terminal"), header);
     extTermBtn->setToolTip(tr("Open directory in system terminal (Kitty / Foot / Alacritty)"));
     extTermBtn->setCursor(Qt::PointingHandCursor);
-    extTermBtn->setStyleSheet(QString(
+    extTermBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; }"
         "QPushButton:hover { background: %2; color: %3; }"
-    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY));
+    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY)));
     connect(extTermBtn, &QPushButton::clicked, this, &TerminalDrawerWidget::openInExternalTerminal);
     headerLayout->addWidget(extTermBtn);
 
     QPushButton *closeBtn = new QPushButton("✕", header);
     closeBtn->setFixedSize(24, 24);
     closeBtn->setCursor(Qt::PointingHandCursor);
-    closeBtn->setStyleSheet(QString(
-        "QPushButton { background: transparent; color: %1; border: none; border-radius: 12px; font-size: 12px; font-weight: bold; }"
+    closeBtn->setStyleSheet(ThemeManager::css(QString(
+        "QPushButton { background: transparent; color: %1; border: none; border-radius: 12px /*fixed*/; font-size: 12px; font-weight: bold; }"
         "QPushButton:hover { background: rgba(255, 255, 255, 0.12); color: #ffffff; }"
-    ).arg(ThemeManager::TEXT_SECONDARY));
+    ).arg(ThemeManager::TEXT_SECONDARY)));
     connect(closeBtn, &QPushButton::clicked, this, &TerminalDrawerWidget::closeRequested);
     headerLayout->addWidget(closeBtn);
 
@@ -168,7 +168,7 @@ void TerminalDrawerWidget::setupUi() {
     m_console = new QTextEdit(this);
     m_console->setReadOnly(true);
     m_console->setFontFamily("monospace");
-    m_console->setStyleSheet(QString(
+    m_console->setStyleSheet(ThemeManager::css(QString(
         "QTextEdit {"
         "  background-color: %1;"
         "  color: %2;"
@@ -178,36 +178,36 @@ void TerminalDrawerWidget::setupUi() {
         "  font-size: 12px;"
         "  line-height: 1.45;"
         "}"
-    ).arg(ThemeManager::BG_BASE, ThemeManager::TEXT_PRIMARY));
+    ).arg(ThemeManager::BG_BASE, ThemeManager::TEXT_PRIMARY)));
     mainLayout->addWidget(m_console, 1);
 
     // Command input pill bar at bottom
     QWidget *inputContainer = new QWidget(this);
-    inputContainer->setFixedHeight(42);
-    inputContainer->setStyleSheet(QString("background: %1; border-top: 1px solid %2;").arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER));
+    inputContainer->setFixedHeight(ThemeManager::px(42));
+    inputContainer->setStyleSheet(ThemeManager::css(QString("background: %1; border-top: 1px solid %2;").arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
 
     QHBoxLayout *inputContainerLayout = new QHBoxLayout(inputContainer);
     inputContainerLayout->setContentsMargins(12, 5, 12, 5);
 
     QWidget *inputPill = new QWidget(inputContainer);
-    inputPill->setStyleSheet(QString(
+    inputPill->setStyleSheet(ThemeManager::css(QString(
         "background-color: %1;"
         "border: 1px solid %2;"
         "border-radius: 6px;"
-    ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER)));
 
     QHBoxLayout *inputLayout = new QHBoxLayout(inputPill);
     inputLayout->setContentsMargins(10, 0, 10, 0);
     inputLayout->setSpacing(8);
 
     m_promptLabel = new QLabel(inputPill);
-    m_promptLabel->setStyleSheet(QString(
+    m_promptLabel->setStyleSheet(ThemeManager::css(QString(
         "color: %1; font-family: monospace; font-weight: bold; font-size: 12px; background: transparent; border: none;"
-    ).arg(ThemeManager::ACCENT));
+    ).arg(ThemeManager::ACCENT)));
     inputLayout->addWidget(m_promptLabel);
 
     m_cmdInput = new QLineEdit(inputPill);
-    m_cmdInput->setStyleSheet(
+    m_cmdInput->setStyleSheet(ThemeManager::css(
         "QLineEdit {"
         "  background: transparent;"
         "  color: #ffffff;"
@@ -216,7 +216,7 @@ void TerminalDrawerWidget::setupUi() {
         "  font-size: 12px;"
         "  padding: 0;"
         "}"
-    );
+    ));
     m_cmdInput->setPlaceholderText(tr("Type a command… (e.g. ls -la, git status, cargo build) · Tab to complete"));
     m_cmdInput->installEventFilter(this);
     connect(m_cmdInput, &QLineEdit::returnPressed, this, &TerminalDrawerWidget::executeCommand);
@@ -226,13 +226,13 @@ void TerminalDrawerWidget::setupUi() {
     mainLayout->addWidget(inputContainer);
 
     auto updateStyles = [header, titleLabel, clearBtn, extTermBtn, inputContainer, inputPill, this]() {
-        header->setStyleSheet(QString(
+        header->setStyleSheet(ThemeManager::css(QString(
             "QWidget { background: %1; border-top: 1px solid %2; border-bottom: 1px solid %2; }"
-        ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER));
+        ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
 
-        titleLabel->setStyleSheet(QString("font-weight: 700; font-size: 12px; color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY));
+        titleLabel->setStyleSheet(ThemeManager::css(QString("font-weight: 700; font-size: 12px; color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
 
-        m_pathBadge->setStyleSheet(QString(
+        m_pathBadge->setStyleSheet(ThemeManager::css(QString(
             "QLabel {"
             "  background: %1;"
             "  color: %2;"
@@ -243,19 +243,19 @@ void TerminalDrawerWidget::setupUi() {
             "  font-size: 11px;"
             "  font-weight: 600;"
             "}"
-        ).arg(ThemeManager::BG_OVERLAY, ThemeManager::ACCENT, ThemeManager::BORDER));
+        ).arg(ThemeManager::BG_OVERLAY, ThemeManager::ACCENT, ThemeManager::BORDER)));
 
-        clearBtn->setStyleSheet(QString(
+        clearBtn->setStyleSheet(ThemeManager::css(QString(
             "QPushButton { background: transparent; color: %1; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; }"
             "QPushButton:hover { background: %2; color: %3; }"
-        ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY));
+        ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY)));
 
-        extTermBtn->setStyleSheet(QString(
+        extTermBtn->setStyleSheet(ThemeManager::css(QString(
             "QPushButton { background: transparent; color: %1; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; }"
             "QPushButton:hover { background: %2; color: %3; }"
-        ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY));
+        ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY)));
 
-        m_console->setStyleSheet(QString(
+        m_console->setStyleSheet(ThemeManager::css(QString(
             "QTextEdit {"
             "  background-color: %1;"
             "  color: %2;"
@@ -265,21 +265,21 @@ void TerminalDrawerWidget::setupUi() {
             "  font-size: 12px;"
             "  line-height: 1.45;"
             "}"
-        ).arg(ThemeManager::BG_BASE, ThemeManager::TEXT_PRIMARY));
+        ).arg(ThemeManager::BG_BASE, ThemeManager::TEXT_PRIMARY)));
 
-        inputContainer->setStyleSheet(QString("background: %1; border-top: 1px solid %2;").arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER));
+        inputContainer->setStyleSheet(ThemeManager::css(QString("background: %1; border-top: 1px solid %2;").arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
 
-        inputPill->setStyleSheet(QString(
+        inputPill->setStyleSheet(ThemeManager::css(QString(
             "background-color: %1;"
             "border: 1px solid %2;"
             "border-radius: 6px;"
-        ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER));
+        ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER)));
 
-        m_promptLabel->setStyleSheet(QString(
+        m_promptLabel->setStyleSheet(ThemeManager::css(QString(
             "color: %1; font-family: monospace; font-weight: bold; font-size: 12px; background: transparent; border: none;"
-        ).arg(ThemeManager::ACCENT));
+        ).arg(ThemeManager::ACCENT)));
 
-        m_cmdInput->setStyleSheet(QString(
+        m_cmdInput->setStyleSheet(ThemeManager::css(QString(
             "QLineEdit {"
             "  background: transparent;"
             "  color: %1;"
@@ -288,7 +288,7 @@ void TerminalDrawerWidget::setupUi() {
             "  font-size: 12px;"
             "  padding: 0;"
             "}"
-        ).arg(ThemeManager::TEXT_PRIMARY));
+        ).arg(ThemeManager::TEXT_PRIMARY)));
     };
 
     updateStyles();

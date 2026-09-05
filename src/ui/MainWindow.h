@@ -4,6 +4,7 @@
 #include <QSplitter>
 #include <QToolBar>
 #include <QAction>
+#include <QMenu>
 #include <QLabel>
 #include <QSlider>
 #include <QProgressBar>
@@ -42,7 +43,8 @@ public slots:
     void addCurrentPathToBookmarks();
     void copyToOtherPane();
     void moveToOtherPane();
-    void openThemeController();
+    void openPreferences();
+    void applyLayoutSettings();
     void onZoomSliderChanged(int value);
     void updateStatusBar();
 
@@ -56,8 +58,8 @@ protected:
 
 private:
     void setupUi();
-    void setupMenuBar();
-    void setupGlobalShortcuts();
+    void setupActions();
+    void buildMenus();
 
     QSplitter *m_mainSplitter;
     QSplitter *m_panesSplitter;
@@ -70,6 +72,9 @@ private:
     TerminalDrawerWidget *m_terminalDrawer;
     QuickPreviewDialog *m_quickPreviewDialog = nullptr;
     QuickSwitcherDialog *m_quickSwitcherDialog = nullptr;
+    class PreferencesDialog *m_preferencesDialog = nullptr;
+    QMenu *m_appMenu = nullptr;
+    int m_lastSidebarSide = 0;
 
     // Status bar widgets
     QLabel *m_statusItemCount;

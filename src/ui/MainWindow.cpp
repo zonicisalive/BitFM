@@ -16,12 +16,16 @@
 #include <QProcess>
 #include <QCoreApplication>
 #include <unistd.h>
+#include <functional>
 #include "FileOperations.h"
 #include "UserEnvironment.h"
 #include "AboutDialog.h"
 #include "FilePropertiesDialog.h"
 #include "ConnectServerDialog.h"
-#include "ThemeControllerDialog.h"
+#include "PreferencesDialog.h"
+#include "ActionRegistry.h"
+#include <QSettings>
+#include <QStandardPaths>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -30,9 +34,18 @@ MainWindow::MainWindow(QWidget *parent)
     resize(1260, 780);
     setAttribute(Qt::WA_TranslucentBackground, AppSettings::instance().isTranslucencyEnabled());
 
+    // Actions first: header bars are built from them inside setupUi().
+    ActionRegistry::instance().ensureCreated(this);
     setupUi();
-    setupMenuBar();
-    setupGlobalShortcuts();
+    setupActions();
+    buildMenus();
+    applyLayoutSettings();
+    connect(&AppSettings::instance(), &AppSettings::layoutChanged, this, &MainWindow::applyLayoutSettings);
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
+        for (QDialog **d : { reinterpret_cast<QDialog**>(&m_quickPreviewDialog), reinterpret_cast<QDialog**>(&m_quickSwitcherDialog) }) {
+            if (*d && !(*d)->isVisible()) { (*d)->deleteLater(); *d = nullptr; }
+        }
+    });
 
     connect(&AppSettings::instance(), &AppSettings::translucencyChanged, this, [this](bool enabled) {
         setAttribute(Qt::WA_TranslucentBackground, enabled);
@@ -45,10 +58,10 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::setupUi() {
     m_mainSplitter = new QSplitter(Qt::Horizontal, this);
     m_mainSplitter->setHandleWidth(1);
-    m_mainSplitter->setStyleSheet(QString(
+    m_mainSplitter->setStyleSheet(ThemeManager::css(QString(
         "QSplitter::handle { background: %1; }"
         "QSplitter::handle:hover { background: %2; }"
-    ).arg(ThemeManager::BORDER).arg(ThemeManager::ACCENT));
+    ).arg(ThemeManager::BORDER).arg(ThemeManager::ACCENT)));
 
     // 1. Left Column: Sidebar
     m_sidebar = new SidebarWidget(this);
@@ -61,23 +74,21 @@ void MainWindow::setupUi() {
     m_panesSplitter = new QSplitter(Qt::Horizontal, this);
     m_panesSplitter->setHandleWidth(2);
 
-    QString initialPath = UserEnvironment::realUserHome();
-    if (QCoreApplication::arguments().size() > 1) {
-        QString argPath = QCoreApplication::arguments().at(1);
-        if (QDir(argPath).exists()) {
-            initialPath = QDir::cleanPath(argPath);
-        } else if (QFile::exists(argPath)) {
-            initialPath = QFileInfo(argPath).absolutePath();
-        }
-    } else {
+    QString initialPath;
+    for (const QString &arg : QCoreApplication::arguments().mid(1)) {
+        if (arg.startsWith('-')) continue;
+        QString argPath = arg.startsWith("file://") ? QUrl(arg).toLocalFile() : arg;
+        if (QDir(argPath).exists()) initialPath = QDir::cleanPath(argPath);
+        else if (QFile::exists(argPath)) initialPath = QFileInfo(argPath).absolutePath();
+        break;
+    }
+    if (initialPath.isEmpty()) {
         QString lastDir = AppSettings::instance().lastDirectory();
-        if (!lastDir.isEmpty() && QDir(lastDir).exists()) {
-            initialPath = lastDir;
-        }
+        initialPath = (!lastDir.isEmpty() && QDir(lastDir).exists()) ? lastDir : UserEnvironment::realUserHome();
     }
 
-    m_primaryPane = new PaneWidget(initialPath, this);
-    m_secondaryPane = new PaneWidget(initialPath, this);
+    m_primaryPane = new PaneWidget(initialPath, true, this);
+    m_secondaryPane = new PaneWidget(initialPath, false, this);
     m_secondaryPane->hide(); // Hidden initially until F3
 
     m_panesSplitter->addWidget(m_primaryPane);
@@ -130,6 +141,7 @@ void MainWindow::setupUi() {
     // Restore Dual Pane & Inspector States
     if (AppSettings::instance().isDualPaneEnabled()) {
         m_secondaryPane->setVisible(true);
+        ActionRegistry::instance().action("view.split")->setChecked(true);
         QList<int> paneSizes = AppSettings::instance().panesSplitterSizes();
         if (paneSizes.size() == 2 && paneSizes[0] > 0 && paneSizes[1] > 0) {
             m_panesSplitter->setSizes(paneSizes);
@@ -143,6 +155,7 @@ void MainWindow::setupUi() {
 
     if (AppSettings::instance().isInspectorVisible()) {
         m_inspector->setVisible(true);
+        ActionRegistry::instance().action("view.inspector")->setChecked(true);
     } else {
         m_inspector->hide();
     }
@@ -157,20 +170,20 @@ void MainWindow::setupUi() {
     if (isRoot) {
         QWidget *rootBanner = new QWidget(centralContainer);
         rootBanner->setFixedHeight(32);
-        rootBanner->setStyleSheet(
+        rootBanner->setStyleSheet(ThemeManager::css(
             "background-color: #f38ba8;"
             "border-bottom: 2px solid #eba0ac;"
-        );
+        ));
         QHBoxLayout *rLayout = new QHBoxLayout(rootBanner);
         rLayout->setContentsMargins(14, 0, 14, 0);
         rLayout->setSpacing(8);
 
         QLabel *warnIcon = new QLabel("⚠️", rootBanner);
-        warnIcon->setStyleSheet("font-size: 14px; background: transparent;");
+        warnIcon->setStyleSheet(ThemeManager::css("font-size: 14px; background: transparent;"));
         rLayout->addWidget(warnIcon);
 
         QLabel *warnText = new QLabel(tr("ELEVATED PRIVILEGES: Running as Root / Administrator — Exercise caution when modifying system files."), rootBanner);
-        warnText->setStyleSheet("color: #11111b; font-weight: 800; font-size: 11px; background: transparent;");
+        warnText->setStyleSheet(ThemeManager::css("color: #11111b; font-weight: 800; font-size: 11px; background: transparent;"));
         rLayout->addWidget(warnText, 1);
 
         centralLayout->addWidget(rootBanner);
@@ -216,11 +229,11 @@ void MainWindow::setupUi() {
     bar->addPermanentWidget(m_zoomSlider);
 
     QLabel *spacer = new QLabel(" ", this);
-    spacer->setStyleSheet("background: transparent;");
+    spacer->setStyleSheet(ThemeManager::css("background: transparent;"));
     bar->addPermanentWidget(spacer);
 
     auto updateStatusBarStyles = [this, sep1, sep2, zoomLabel]() {
-        m_diskUsageBar->setStyleSheet(QString(
+        m_diskUsageBar->setStyleSheet(ThemeManager::css(QString(
             "QProgressBar {"
             "  border: none;"
             "  border-radius: 3.5px;"
@@ -230,26 +243,26 @@ void MainWindow::setupUi() {
             "  background: %2;"
             "  border-radius: 3.5px;"
             "}"
-        ).arg(ThemeManager::BG_OVERLAY, ThemeManager::ACCENT));
+        ).arg(ThemeManager::BG_OVERLAY, ThemeManager::ACCENT)));
 
-        m_statusItemCount->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent;")
-            .arg(ThemeManager::TEXT_SECONDARY));
-        m_statusDiskSpace->setStyleSheet(QString("color: %1; font-size: 12px; background: transparent; padding-left: 6px;")
-            .arg(ThemeManager::TEXT_SECONDARY));
+        m_statusItemCount->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;")
+            .arg(ThemeManager::TEXT_SECONDARY)));
+        m_statusDiskSpace->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent; padding-left: 6px;")
+            .arg(ThemeManager::TEXT_SECONDARY)));
 
-        sep1->setStyleSheet(QString("color: %1; font-size: 14px; background: transparent; padding: 0 6px;")
-            .arg(ThemeManager::TEXT_MUTED));
-        sep2->setStyleSheet(QString("color: %1; font-size: 14px; background: transparent; padding: 0 6px;")
-            .arg(ThemeManager::TEXT_MUTED));
-        zoomLabel->setStyleSheet(QString("color: %1; font-size: 13px; background: transparent;")
-            .arg(ThemeManager::TEXT_MUTED));
+        sep1->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 14px; background: transparent; padding: 0 6px;")
+            .arg(ThemeManager::TEXT_MUTED)));
+        sep2->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 14px; background: transparent; padding: 0 6px;")
+            .arg(ThemeManager::TEXT_MUTED)));
+        zoomLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 13px; background: transparent;")
+            .arg(ThemeManager::TEXT_MUTED)));
 
-        m_zoomSlider->setStyleSheet(QString(
-            "QSlider::groove:horizontal { height: 4px; background: %1; border-radius: 2px; }"
-            "QSlider::sub-page:horizontal { background: %2; border-radius: 2px; }"
-            "QSlider::handle:horizontal { background: %2; border: none; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }"
-            "QSlider::handle:horizontal:hover { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; }"
-        ).arg(ThemeManager::BORDER, ThemeManager::ACCENT));
+        m_zoomSlider->setStyleSheet(ThemeManager::css(QString(
+            "QSlider::groove:horizontal { height: 4px; background: %1; border-radius: 2px /*fixed*/; }"
+            "QSlider::sub-page:horizontal { background: %2; border-radius: 2px /*fixed*/; }"
+            "QSlider::handle:horizontal { background: %2; border: none; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px /*fixed*/; }"
+            "QSlider::handle:horizontal:hover { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px /*fixed*/; }"
+        ).arg(ThemeManager::BORDER, ThemeManager::ACCENT)));
     };
 
     updateStatusBarStyles();
@@ -289,8 +302,12 @@ void MainWindow::setupUi() {
         statusBar()->showMessage(msg, 3000);
     });
 
-    connect(m_primaryPane, &PaneWidget::splitViewRequested, this, &MainWindow::toggleDualPane);
-    connect(m_secondaryPane, &PaneWidget::splitViewRequested, this, &MainWindow::toggleDualPane);
+    // Header search bar ⇄ checkable Search action
+    for (PaneWidget *p : { m_primaryPane, m_secondaryPane }) {
+        connect(p, &PaneWidget::searchVisibilityChanged, this, [this, p](bool on) {
+            if (p == activePane()) ActionRegistry::instance().action("view.search")->setChecked(on);
+        });
+    }
 
     connect(m_primaryPane, &PaneWidget::quickPreviewRequested, this, &MainWindow::quickPreviewSelectedItem);
     connect(m_secondaryPane, &PaneWidget::quickPreviewRequested, this, &MainWindow::quickPreviewSelectedItem);
@@ -314,557 +331,297 @@ void MainWindow::setupUi() {
     });
 }
 
-void MainWindow::setupMenuBar() {
-    QMenuBar *mb = menuBar();
-
-    // ─────────────────────────────────────────────────────────────
-    // 1. FILE MENU
-    // ─────────────────────────────────────────────────────────────
-    QMenu *fileMenu = mb->addMenu(tr("&File"));
-
-    QAction *actNewTab = fileMenu->addAction(QIcon::fromTheme("tab-new", QIcon::fromTheme("document-new")), tr("New &Tab"));
-    actNewTab->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
-    connect(actNewTab, &QAction::triggered, this, &MainWindow::addNewTab);
-
-    QAction *actNewWin = fileMenu->addAction(QIcon::fromTheme("window-new"), tr("New &Window"));
-    actNewWin->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_N));
-    connect(actNewWin, &QAction::triggered, this, []() {
-        QProcess::startDetached(QCoreApplication::applicationFilePath(), {});
-    });
-
-    fileMenu->addSeparator();
-
-    QAction *actNewFolder = fileMenu->addAction(QIcon::fromTheme("folder-new"), tr("Create &Folder..."));
-    actNewFolder->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
-    connect(actNewFolder, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onNewFolderAction();
-        }
-    });
-
-    QMenu *createDocMenu = fileMenu->addMenu(QIcon::fromTheme("document-new"), tr("Create &Document"));
-    QAction *actEmptyDoc = createDocMenu->addAction(QIcon::fromTheme("text-plain", QIcon::fromTheme("document-new")), tr("Empty Document"));
-    connect(actEmptyDoc, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onNewFileAction();
-        }
-    });
-
-    fileMenu->addSeparator();
-
-    QAction *actTerminal = fileMenu->addAction(QIcon::fromTheme("utilities-terminal", QIcon::fromTheme("terminal")), tr("Open &Terminal Here"));
-    actTerminal->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_QuoteLeft));
-    connect(actTerminal, &QAction::triggered, this, &MainWindow::toggleTerminalDrawer);
-
-    fileMenu->addSeparator();
-
-    QAction *actProps = fileMenu->addAction(QIcon::fromTheme("document-properties"), tr("&Properties..."));
-    actProps->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Return));
-    connect(actProps, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab()) {
-            QStringList sel = activePane()->currentTab()->selectedPaths();
-            QString target = sel.isEmpty() ? activePane()->currentPath() : sel.first();
-            FilePropertiesDialog dlg(target, this);
-            dlg.exec();
-        }
-    });
-
-    fileMenu->addSeparator();
-
-    QAction *actCloseTab = fileMenu->addAction(QIcon::fromTheme("tab-close", QIcon::fromTheme("window-close")), tr("&Close Tab"));
-    actCloseTab->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_W));
-    connect(actCloseTab, &QAction::triggered, this, &MainWindow::closeCurrentTab);
-
-    QAction *actCloseWin = fileMenu->addAction(QIcon::fromTheme("application-exit", QIcon::fromTheme("window-close")), tr("Close &Window"));
-    actCloseWin->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q));
-    connect(actCloseWin, &QAction::triggered, this, &MainWindow::close);
-
-    // ─────────────────────────────────────────────────────────────
-    // 2. EDIT MENU
-    // ─────────────────────────────────────────────────────────────
-    QMenu *editMenu = mb->addMenu(tr("&Edit"));
-
-    QAction *actCut = editMenu->addAction(QIcon::fromTheme("edit-cut"), tr("Cu&t"));
-    actCut->setShortcut(QKeySequence::Cut);
-    actCut->setShortcutContext(Qt::WindowShortcut);
-    connect(actCut, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onCutAction();
-        }
-    });
-
-    QAction *actCopy = editMenu->addAction(QIcon::fromTheme("edit-copy"), tr("&Copy"));
-    actCopy->setShortcut(QKeySequence::Copy);
-    actCopy->setShortcutContext(Qt::WindowShortcut);
-    connect(actCopy, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onCopyAction();
-        }
-    });
-
-    QAction *actPaste = editMenu->addAction(QIcon::fromTheme("edit-paste"), tr("&Paste"));
-    actPaste->setShortcut(QKeySequence::Paste);
-    actPaste->setShortcutContext(Qt::WindowShortcut);
-    connect(actPaste, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onPasteAction();
-        }
-    });
-
-    editMenu->addSeparator();
-
-    QAction *actSelectAll = editMenu->addAction(QIcon::fromTheme("edit-select-all"), tr("Select &All"));
-    actSelectAll->setShortcut(QKeySequence::SelectAll);
-    actSelectAll->setShortcutContext(Qt::WindowShortcut);
-    connect(actSelectAll, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->selectAll();
-        }
-    });
-
-    editMenu->addSeparator();
-
-    QAction *actRename = editMenu->addAction(QIcon::fromTheme("edit-rename"), tr("&Rename..."));
-    actRename->setShortcut(QKeySequence(Qt::Key_F2));
-    actRename->setShortcutContext(Qt::WindowShortcut);
-    connect(actRename, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onRenameAction();
-        }
-    });
-
-    QAction *actBatchRename = editMenu->addAction(QIcon::fromTheme("edit-rename"), tr("&Batch Rename..."));
-    actBatchRename->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F2));
-    actBatchRename->setShortcutContext(Qt::WindowShortcut);
-    connect(actBatchRename, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onBatchRenameAction();
-        }
-    });
-
-    QAction *actTrash = editMenu->addAction(QIcon::fromTheme("user-trash"), tr("Move to &Trash"));
-    actTrash->setShortcut(QKeySequence::Delete);
-    actTrash->setShortcutContext(Qt::WindowShortcut);
-    connect(actTrash, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onTrashAction();
-        }
-    });
-
-    QAction *actDelete = editMenu->addAction(QIcon::fromTheme("edit-delete"), tr("&Delete Permanently"));
-    actDelete->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Delete));
-    actDelete->setShortcutContext(Qt::WindowShortcut);
-    connect(actDelete, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->onDeletePermanentlyAction();
-        }
-    });
-
-    // ─────────────────────────────────────────────────────────────
-    // 3. VIEW MENU
-    // ─────────────────────────────────────────────────────────────
-    QMenu *viewMenu = mb->addMenu(tr("&View"));
-
-    // Reload
-    QAction *actReload = viewMenu->addAction(QIcon::fromTheme("view-refresh"), tr("&Reload"));
-    actReload->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
-    connect(actReload, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab()) {
-            activePane()->currentTab()->refresh();
-        }
-    });
-
-    // Split View
-    QAction *actSplit = viewMenu->addAction(QIcon::fromTheme("view-split-left-right"), tr("&Split View"));
-    actSplit->setShortcut(QKeySequence(Qt::Key_F3));
-    connect(actSplit, &QAction::triggered, this, &MainWindow::toggleDualPane);
-
-    viewMenu->addSeparator();
-
-    // Location Selector Submenu
-    QMenu *locationMenu = viewMenu->addMenu(QIcon::fromTheme("edit-find"), tr("Location Selector"));
-    QAction *actBreadcrumbs = locationMenu->addAction(tr("Breadcrumbs"));
-    connect(actBreadcrumbs, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab()) {
-            auto *b = activePane()->currentTab()->findChild<BreadcrumbBar*>();
-            if (b) b->activateBreadcrumbMode();
-        }
-    });
-    QAction *actEditablePath = locationMenu->addAction(tr("Editable Location Bar (Ctrl+L)"));
-    actEditablePath->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
-    connect(actEditablePath, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab()) {
-            auto *b = activePane()->currentTab()->findChild<BreadcrumbBar*>();
-            if (b) b->activateEditMode();
-        }
-    });
-
-    // Side Pane Submenu
-    QMenu *sidePaneMenu = viewMenu->addMenu(QIcon::fromTheme("view-sidebar"), tr("Side Pane"));
-    QAction *actSidebar = sidePaneMenu->addAction(QIcon::fromTheme("view-sidebar"), tr("Places / Sidebar (Ctrl+B)"));
-    actSidebar->setCheckable(true);
-    actSidebar->setChecked(m_sidebar->isVisible());
-    actSidebar->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_B));
-    connect(actSidebar, &QAction::triggered, this, [this, actSidebar]() {
-        m_sidebar->setVisible(!m_sidebar->isVisible());
-        actSidebar->setChecked(m_sidebar->isVisible());
-    });
-
-    QAction *actInspector = sidePaneMenu->addAction(QIcon::fromTheme("dialog-information"), tr("File Inspector (F4)"));
-    actInspector->setCheckable(true);
-    actInspector->setChecked(m_inspector->isVisible());
-    actInspector->setShortcut(QKeySequence(Qt::Key_F4));
-    connect(actInspector, &QAction::triggered, this, [this, actInspector]() {
-        toggleInspector();
-        actInspector->setChecked(m_inspector->isVisible());
-    });
-
-    QAction *actTermDrawer = sidePaneMenu->addAction(QIcon::fromTheme("utilities-terminal"), tr("Terminal Drawer (F12)"));
-    actTermDrawer->setCheckable(true);
-    actTermDrawer->setChecked(m_terminalDrawer->isVisible());
-    actTermDrawer->setShortcut(QKeySequence(Qt::Key_F12));
-    connect(actTermDrawer, &QAction::triggered, this, [this, actTermDrawer]() {
-        toggleTerminalDrawer();
-        actTermDrawer->setChecked(m_terminalDrawer->isVisible());
-    });
-
-    // Statusbar
-    QAction *actStatusbar = viewMenu->addAction(tr("Statusbar"));
-    actStatusbar->setCheckable(true);
-    actStatusbar->setChecked(statusBar()->isVisible());
-    connect(actStatusbar, &QAction::triggered, this, [this, actStatusbar]() {
-        statusBar()->setVisible(!statusBar()->isVisible());
-        actStatusbar->setChecked(statusBar()->isVisible());
-    });
-
-    // Menubar
-    QAction *actMenubar = viewMenu->addAction(tr("Menubar"));
-    actMenubar->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
-    actMenubar->setCheckable(true);
-    actMenubar->setChecked(menuBar()->isVisible());
-    connect(actMenubar, &QAction::triggered, this, [this, actMenubar]() {
-        menuBar()->setVisible(!menuBar()->isVisible());
-        actMenubar->setChecked(menuBar()->isVisible());
-    });
-
-    viewMenu->addSeparator();
-
-    // Show Hidden Files
-    QAction *actHidden = viewMenu->addAction(QIcon::fromTheme("view-hidden"), tr("Show Hidden Files"));
-    actHidden->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
-    actHidden->setCheckable(true);
-    actHidden->setChecked(AppSettings::instance().showHiddenFiles());
-    connect(actHidden, &QAction::triggered, this, [this, actHidden]() {
-        if (activePane() && activePane()->currentTab()) {
-            activePane()->currentTab()->toggleHiddenFiles();
-            actHidden->setChecked(AppSettings::instance().showHiddenFiles());
-        }
-    });
-    connect(&AppSettings::instance(), &AppSettings::showHiddenFilesChanged, actHidden, &QAction::setChecked);
-
-    // Arrange Items Submenu
-    QMenu *arrangeMenu = viewMenu->addMenu(QIcon::fromTheme("view-sort-ascending"), tr("Arrange Items"));
-    
-    QActionGroup *sortGroup = new QActionGroup(arrangeMenu);
-    auto *sortName = arrangeMenu->addAction(tr("By Name"));
-    auto *sortSize = arrangeMenu->addAction(tr("By Size"));
-    auto *sortType = arrangeMenu->addAction(tr("By Type"));
-    auto *sortDate = arrangeMenu->addAction(tr("By Modification Date"));
-    
-    for (auto *a : { sortName, sortSize, sortType, sortDate }) {
-        a->setCheckable(true);
-        sortGroup->addAction(a);
-    }
-    int curCol = AppSettings::instance().sortColumn();
-    if (curCol == 1) sortSize->setChecked(true);
-    else if (curCol == 2) sortType->setChecked(true);
-    else if (curCol == 3) sortDate->setChecked(true);
-    else sortName->setChecked(true);
-
-    connect(sortName, &QAction::triggered, this, []() { AppSettings::instance().setSortColumn(0); });
-    connect(sortSize, &QAction::triggered, this, []() { AppSettings::instance().setSortColumn(1); });
-    connect(sortType, &QAction::triggered, this, []() { AppSettings::instance().setSortColumn(2); });
-    connect(sortDate, &QAction::triggered, this, []() { AppSettings::instance().setSortColumn(3); });
-
-    arrangeMenu->addSeparator();
-
-    QActionGroup *orderGroup = new QActionGroup(arrangeMenu);
-    auto *orderAsc = arrangeMenu->addAction(tr("Ascending"));
-    auto *orderDesc = arrangeMenu->addAction(tr("Descending"));
-    orderAsc->setCheckable(true);
-    orderDesc->setCheckable(true);
-    orderGroup->addAction(orderAsc);
-    orderGroup->addAction(orderDesc);
-    if (AppSettings::instance().sortOrder() == Qt::DescendingOrder) orderDesc->setChecked(true);
-    else orderAsc->setChecked(true);
-
-    connect(orderAsc, &QAction::triggered, this, []() { AppSettings::instance().setSortOrder(Qt::AscendingOrder); });
-    connect(orderDesc, &QAction::triggered, this, []() { AppSettings::instance().setSortOrder(Qt::DescendingOrder); });
-
-    arrangeMenu->addSeparator();
-
-    auto *actReverse = arrangeMenu->addAction(tr("Reversed Order"));
-    connect(actReverse, &QAction::triggered, this, [orderAsc, orderDesc]() {
-        Qt::SortOrder newOrd = (AppSettings::instance().sortOrder() == Qt::AscendingOrder) ? Qt::DescendingOrder : Qt::AscendingOrder;
-        AppSettings::instance().setSortOrder(newOrd);
-        if (newOrd == Qt::DescendingOrder) orderDesc->setChecked(true);
-        else orderAsc->setChecked(true);
-    });
-
-    viewMenu->addSeparator();
-
-    // Zoom
-    QAction *actZoomIn = viewMenu->addAction(QIcon::fromTheme("zoom-in"), tr("Zoom In"));
-    actZoomIn->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus));
-    connect(actZoomIn, &QAction::triggered, this, [this]() {
-        m_zoomSlider->setValue(qMin(m_zoomSlider->maximum(), m_zoomSlider->value() + 10));
-    });
-
-    QAction *actZoomOut = viewMenu->addAction(QIcon::fromTheme("zoom-out"), tr("Zoom Out"));
-    actZoomOut->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Minus));
-    connect(actZoomOut, &QAction::triggered, this, [this]() {
-        m_zoomSlider->setValue(qMax(m_zoomSlider->minimum(), m_zoomSlider->value() - 10));
-    });
-
-    QAction *actResetZoom = viewMenu->addAction(QIcon::fromTheme("zoom-original"), tr("Normal Size"));
-    actResetZoom->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
-    connect(actResetZoom, &QAction::triggered, this, [this]() {
-        m_zoomSlider->setValue(48);
-    });
-
-    viewMenu->addSeparator();
-
-    // View modes
-    QActionGroup *viewGroup = new QActionGroup(viewMenu);
-    QAction *actGrid = viewMenu->addAction(QIcon::fromTheme("view-grid"), tr("Icon View"));
-    actGrid->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
-    actGrid->setCheckable(true);
-    viewGroup->addAction(actGrid);
-
-    QAction *actList = viewMenu->addAction(QIcon::fromTheme("view-list-details"), tr("List View"));
-    actList->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
-    actList->setCheckable(true);
-    viewGroup->addAction(actList);
-
-    QAction *actCompact = viewMenu->addAction(QIcon::fromTheme("view-list-compact", QIcon::fromTheme("view-list-details")), tr("Compact View"));
-    actCompact->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_3));
-    actCompact->setCheckable(true);
-    viewGroup->addAction(actCompact);
-
-    if (AppSettings::instance().viewMode() == static_cast<int>(ViewMode::IconGrid)) {
-        actGrid->setChecked(true);
-    } else if (AppSettings::instance().viewMode() == static_cast<int>(ViewMode::Compact)) {
-        actCompact->setChecked(true);
-    } else {
-        actList->setChecked(true);
-    }
-
-    connect(actGrid, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->setViewMode(ViewMode::IconGrid);
-            AppSettings::instance().setViewMode(static_cast<int>(ViewMode::IconGrid));
-        }
-    });
-    connect(actList, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->setViewMode(ViewMode::DetailedList);
-            AppSettings::instance().setViewMode(static_cast<int>(ViewMode::DetailedList));
-        }
-    });
-    connect(actCompact, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView()) {
-            activePane()->currentTab()->fileView()->setViewMode(ViewMode::Compact);
-            AppSettings::instance().setViewMode(static_cast<int>(ViewMode::Compact));
-        }
-    });
-
-    viewMenu->addSeparator();
-
-    // Theme Controller & Submenu
-    QAction *actThemeCtrl = viewMenu->addAction(QIcon::fromTheme("preferences-desktop-theme", QIcon::fromTheme("applications-graphics")), tr("Theme Controller 🎨…"));
-    actThemeCtrl->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
-    connect(actThemeCtrl, &QAction::triggered, this, &MainWindow::openThemeController);
-
-    QMenu *themeMenu = viewMenu->addMenu(QIcon::fromTheme("preferences-desktop-theme", QIcon::fromTheme("applications-graphics")), tr("Theme 🎨"));
-    auto *actThemeCtrlSub = themeMenu->addAction(QIcon::fromTheme("preferences-desktop-theme"), tr("Theme Controller Studio…"));
-    actThemeCtrlSub->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
-    connect(actThemeCtrlSub, &QAction::triggered, this, &MainWindow::openThemeController);
-    themeMenu->addSeparator();
-
-    QActionGroup *themeGroup = new QActionGroup(themeMenu);
-
-    auto *actExtSync = themeMenu->addAction(tr("⚡ Sync Custom / External Theme"));
-    actExtSync->setCheckable(true);
-    if (ThemeManager::instance().isExternalSyncEnabled()) actExtSync->setChecked(true);
-    themeGroup->addAction(actExtSync);
-    connect(actExtSync, &QAction::triggered, this, []() {
-        ThemeManager::instance().setThemeMode(ThemeMode::ExternalSync);
-    });
-
-    themeMenu->addSeparator();
-
-    for (const QString &tName : ThemeManager::availableThemes()) {
-        auto *act = themeMenu->addAction(tName);
-        act->setCheckable(true);
-        if (!ThemeManager::instance().isExternalSyncEnabled() && tName == ThemeManager::instance().currentThemeName()) {
-            act->setChecked(true);
-        }
-        themeGroup->addAction(act);
-        connect(act, &QAction::triggered, this, [tName]() {
-            ThemeManager::instance().setThemeByName(tName);
-        });
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // 4. GO MENU
-    // ─────────────────────────────────────────────────────────────
-    QMenu *goMenu = mb->addMenu(tr("&Go"));
-
-    QAction *actBack = goMenu->addAction(QIcon::fromTheme("go-previous"), tr("&Back"));
-    actBack->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Left));
-    connect(actBack, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab()) activePane()->currentTab()->navigateBack();
-    });
-
-    QAction *actFwd = goMenu->addAction(QIcon::fromTheme("go-next"), tr("&Forward"));
-    actFwd->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Right));
-    connect(actFwd, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab()) activePane()->currentTab()->navigateForward();
-    });
-
-    QAction *actUp = goMenu->addAction(QIcon::fromTheme("go-up"), tr("Parent &Folder"));
-    actUp->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Up));
-    connect(actUp, &QAction::triggered, this, [this]() {
-        if (activePane() && activePane()->currentTab()) activePane()->currentTab()->navigateUp();
-    });
-
-    QAction *actHome = goMenu->addAction(QIcon::fromTheme("go-home", QIcon::fromTheme("user-home")), tr("&Home"));
-    actHome->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Home));
-    connect(actHome, &QAction::triggered, this, [this]() {
-        navigateActivePane(UserEnvironment::realUserHome());
-    });
-
-    goMenu->addSeparator();
-
-    auto addPlaceAction = [this, goMenu](const QString &name, const QString &path, const QString &icon) {
-        QAction *act = goMenu->addAction(QIcon::fromTheme(icon, QIcon::fromTheme("folder")), name);
-        connect(act, &QAction::triggered, this, [this, path]() {
-            navigateActivePane(path);
-        });
+// Every user action is created once in ActionRegistry; here we only wire behaviour and
+// arrange the shared QAction objects into menus. The same QMenu instances feed the classic
+// menubar and the header bar's ☰ button.
+void MainWindow::setupActions() {
+    ActionRegistry &reg = ActionRegistry::instance();
+    reg.ensureCreated(this);
+    auto A = [&reg](const char *id) { return reg.action(QString::fromLatin1(id)); };
+
+    auto withView = [this](auto fn) {
+        return [this, fn]() {
+            if (activePane() && activePane()->currentTab() && activePane()->currentTab()->fileView())
+                fn(activePane()->currentTab()->fileView());
+        };
+    };
+    auto withTab = [this](auto fn) {
+        return [this, fn]() {
+            if (activePane() && activePane()->currentTab()) fn(activePane()->currentTab());
+        };
     };
 
-    addPlaceAction(tr("Desktop"), UserEnvironment::userPlacePath(QStandardPaths::DesktopLocation, "Desktop"), "user-desktop");
-    addPlaceAction(tr("Documents"), UserEnvironment::userPlacePath(QStandardPaths::DocumentsLocation, "Documents"), "folder-documents");
-    addPlaceAction(tr("Downloads"), UserEnvironment::userPlacePath(QStandardPaths::DownloadLocation, "Downloads"), "folder-download");
-    addPlaceAction(tr("Music"), UserEnvironment::userPlacePath(QStandardPaths::MusicLocation, "Music"), "folder-music");
-    addPlaceAction(tr("Pictures"), UserEnvironment::userPlacePath(QStandardPaths::PicturesLocation, "Pictures"), "folder-pictures");
-    addPlaceAction(tr("Videos"), UserEnvironment::userPlacePath(QStandardPaths::MoviesLocation, "Videos"), "folder-videos");
-    addPlaceAction(tr("Trash"), UserEnvironment::userTrashPath() + "/files", "user-trash");
-    addPlaceAction(tr("Recent Files"), "recent:", "document-open-recent");
-
-    goMenu->addSeparator();
-
-    QAction *actLocation = goMenu->addAction(QIcon::fromTheme("edit-find"), tr("Enter &Location..."));
-    actLocation->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
-    connect(actLocation, &QAction::triggered, this, &MainWindow::openSearchInActivePane);
-
-    QAction *actConnectServer = goMenu->addAction(QIcon::fromTheme("network-server"), tr("&Connect to Server..."));
-    connect(actConnectServer, &QAction::triggered, this, [this]() {
+    // Navigate
+    connect(A("nav.back"),     &QAction::triggered, this, withTab([](DirectoryViewTab *t) { t->navigateBack(); }));
+    connect(A("nav.forward"),  &QAction::triggered, this, withTab([](DirectoryViewTab *t) { t->navigateForward(); }));
+    connect(A("nav.up"),       &QAction::triggered, this, withTab([](DirectoryViewTab *t) { t->navigateUp(); }));
+    connect(A("nav.home"),     &QAction::triggered, this, [this]() { navigateActivePane(UserEnvironment::realUserHome()); });
+    connect(A("nav.location"), &QAction::triggered, this, [this]() {
+        if (activePane()) { activePane()->setSearchVisible(false); activePane()->headerBar()->breadcrumb()->activateEditMode(); }
+    });
+    connect(A("nav.bookmark"), &QAction::triggered, this, &MainWindow::addCurrentPathToBookmarks);
+    connect(A("nav.switcher"), &QAction::triggered, this, &MainWindow::openQuickSwitcher);
+    connect(A("nav.connect"),  &QAction::triggered, this, [this]() {
         ConnectServerDialog dlg(this);
-        connect(&dlg, &ConnectServerDialog::serverConnected, this, [this](const QString &mountPath) {
-            navigateActivePane(mountPath);
-        });
+        connect(&dlg, &ConnectServerDialog::serverConnected, this, [this](const QString &mountPath) { navigateActivePane(mountPath); });
         dlg.exec();
     });
 
-    // ─────────────────────────────────────────────────────────────
-    // 5. BOOKMARKS MENU
-    // ─────────────────────────────────────────────────────────────
-    QMenu *bmMenu = mb->addMenu(tr("&Bookmarks"));
+    // Tabs / window
+    connect(A("tab.new"),        &QAction::triggered, this, &MainWindow::addNewTab);
+    connect(A("tab.close"),      &QAction::triggered, this, &MainWindow::closeCurrentTab);
+    connect(A("tab.next"),       &QAction::triggered, this, [this]() { activePane()->nextTab(); });
+    connect(A("tab.prev"),       &QAction::triggered, this, [this]() { activePane()->previousTab(); });
+    connect(A("app.new_window"), &QAction::triggered, this, []() { QProcess::startDetached(QCoreApplication::applicationFilePath(), {}); });
+    connect(A("app.quit"),       &QAction::triggered, this, &MainWindow::close);
 
-    QAction *actAddBm = new QAction(QIcon::fromTheme("bookmark-new", QIcon::fromTheme("list-add")), tr("&Add to Favorites"), this);
-    actAddBm->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
-    connect(actAddBm, &QAction::triggered, this, &MainWindow::addCurrentPathToBookmarks);
+    // Files
+    connect(A("file.new_folder"),   &QAction::triggered, this, withView([](FileViewWidget *v) { v->onNewFolderAction(); }));
+    connect(A("file.new_file"),     &QAction::triggered, this, withView([](FileViewWidget *v) { v->onNewFileAction(); }));
+    connect(A("file.cut"),          &QAction::triggered, this, withView([](FileViewWidget *v) { v->onCutAction(); }));
+    connect(A("file.copy"),         &QAction::triggered, this, withView([](FileViewWidget *v) { v->onCopyAction(); }));
+    connect(A("file.paste"),        &QAction::triggered, this, withView([](FileViewWidget *v) { v->onPasteAction(); }));
+    connect(A("file.select_all"),   &QAction::triggered, this, withView([](FileViewWidget *v) { v->selectAll(); }));
+    connect(A("file.rename"),       &QAction::triggered, this, withView([](FileViewWidget *v) { v->onRenameAction(); }));
+    connect(A("file.batch_rename"), &QAction::triggered, this, withView([](FileViewWidget *v) { v->onBatchRenameAction(); }));
+    connect(A("file.trash"),        &QAction::triggered, this, withView([](FileViewWidget *v) { v->onTrashAction(); }));
+    connect(A("file.delete"),       &QAction::triggered, this, withView([](FileViewWidget *v) { v->onDeletePermanentlyAction(); }));
+    connect(A("file.properties"),   &QAction::triggered, this, withTab([this](DirectoryViewTab *t) {
+        QStringList sel = t->selectedPaths();
+        FilePropertiesDialog dlg(sel.isEmpty() ? t->currentPath() : sel.first(), this);
+        dlg.exec();
+    }));
+    connect(A("file.preview"),       &QAction::triggered, this, &MainWindow::quickPreviewSelectedItem);
+    connect(A("file.terminal_here"), &QAction::triggered, this, &MainWindow::toggleTerminalDrawer);
+    connect(A("file.copy_other"),    &QAction::triggered, this, [this]() {
+        if (m_secondaryPane->isVisible()) copyToOtherPane();
+        else if (activePane()->currentTab()) activePane()->currentTab()->refresh();
+    });
+    connect(A("file.move_other"),    &QAction::triggered, this, [this]() { if (m_secondaryPane->isVisible()) moveToOtherPane(); });
 
-    connect(bmMenu, &QMenu::aboutToShow, this, [this, bmMenu, actAddBm]() {
-        bmMenu->clear();
-        bmMenu->addAction(actAddBm);
-        bmMenu->addSeparator();
+    // View
+    connect(A("view.search"), &QAction::triggered, this, [this](bool on) { activePane()->setSearchVisible(on); });
+    connect(A("view.reload"), &QAction::triggered, this, withTab([](DirectoryViewTab *t) { t->refresh(); }));
+    A("view.hidden")->setChecked(AppSettings::instance().showHiddenFiles());
+    connect(A("view.hidden"), &QAction::triggered, this, [](bool on) { AppSettings::instance().setShowHiddenFiles(on); });
+    connect(&AppSettings::instance(), &AppSettings::showHiddenFilesChanged, A("view.hidden"), &QAction::setChecked);
+    connect(A("view.cycle"),  &QAction::triggered, this, withTab([](DirectoryViewTab *t) { t->toggleViewMode(); }));
 
-        QSettings settings;
-        QStringList bookmarks = settings.value("bookmarks/custom").toStringList();
-        if (bookmarks.isEmpty()) {
-            QAction *emptyAct = bmMenu->addAction(tr("(No bookmarks added)"));
-            emptyAct->setEnabled(false);
+    auto *viewGroup = new QActionGroup(this);
+    for (const char *id : { "view.grid", "view.list", "view.compact" }) viewGroup->addAction(A(id));
+    connect(A("view.grid"),    &QAction::triggered, this, []() { AppSettings::instance().setViewMode(static_cast<int>(ViewMode::IconGrid)); });
+    connect(A("view.list"),    &QAction::triggered, this, []() { AppSettings::instance().setViewMode(static_cast<int>(ViewMode::DetailedList)); });
+    connect(A("view.compact"), &QAction::triggered, this, []() { AppSettings::instance().setViewMode(static_cast<int>(ViewMode::Compact)); });
+    auto syncViewMode = [A](int m) {
+        QAction *cycle = A("view.cycle");
+        if (m == static_cast<int>(ViewMode::IconGrid)) {
+            A("view.grid")->setChecked(true);
+            cycle->setIcon(QIcon::fromTheme("view-grid", QIcon::fromTheme("view-list-icons")));
+            cycle->setToolTip(tr("Grid View (click to switch to List)"));
+        } else if (m == static_cast<int>(ViewMode::Compact)) {
+            A("view.compact")->setChecked(true);
+            cycle->setIcon(QIcon::fromTheme("view-list-compact", QIcon::fromTheme("view-list-details")));
+            cycle->setToolTip(tr("Compact View (click to switch to Grid)"));
         } else {
-            for (const QString &bPath : bookmarks) {
-                QString name = QFileInfo(bPath).fileName();
-                if (name.isEmpty()) name = bPath;
-                QAction *bAct = bmMenu->addAction(QIcon::fromTheme("folder-bookmark", QIcon::fromTheme("folder")), name);
-                connect(bAct, &QAction::triggered, this, [this, bPath]() {
-                    navigateActivePane(bPath);
-                });
-            }
+            A("view.list")->setChecked(true);
+            cycle->setIcon(QIcon::fromTheme("view-list-details", QIcon::fromTheme("view-list")));
+            cycle->setToolTip(tr("List View (click to switch to Compact)"));
         }
+    };
+    syncViewMode(AppSettings::instance().viewMode());
+    connect(&AppSettings::instance(), &AppSettings::viewModeChanged, this, syncViewMode);
+
+    connect(A("view.zoom_in"),    &QAction::triggered, this, [this]() { m_zoomSlider->setValue(qMin(m_zoomSlider->maximum(), m_zoomSlider->value() + 10)); });
+    connect(A("view.zoom_out"),   &QAction::triggered, this, [this]() { m_zoomSlider->setValue(qMax(m_zoomSlider->minimum(), m_zoomSlider->value() - 10)); });
+    connect(A("view.zoom_reset"), &QAction::triggered, this, [this]() { m_zoomSlider->setValue(48); });
+
+    connect(A("view.split"),        &QAction::triggered, this, &MainWindow::toggleDualPane);
+    connect(A("view.split_orient"), &QAction::triggered, this, &MainWindow::toggleSplitOrientation);
+    connect(A("view.sidebar"),      &QAction::triggered, this, [this](bool on) {
+        AppSettings &st = AppSettings::instance();
+        if (on) st.setSidebarSide(m_lastSidebarSide);
+        else { m_lastSidebarSide = st.sidebarSide() == 2 ? 0 : st.sidebarSide(); st.setSidebarSide(2); }
     });
+    connect(A("view.inspector"),    &QAction::triggered, this, &MainWindow::toggleInspector);
+    connect(A("view.terminal"),     &QAction::triggered, this, &MainWindow::toggleTerminalDrawer);
+    connect(A("view.menubar"),      &QAction::triggered, this, [](bool on) { AppSettings::instance().setMenubarVisible(on); });
+    connect(A("view.statusbar"),    &QAction::triggered, this, [](bool on) { AppSettings::instance().setStatusbarVisible(on); });
 
-    // ─────────────────────────────────────────────────────────────
-    // 6. HELP MENU
-    // ─────────────────────────────────────────────────────────────
-    QMenu *helpMenu = mb->addMenu(tr("&Help"));
-
-    QAction *actSwitcher = helpMenu->addAction(QIcon::fromTheme("system-search"), tr("&Quick Switcher..."));
-    actSwitcher->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
-    connect(actSwitcher, &QAction::triggered, this, &MainWindow::openQuickSwitcher);
-
-    helpMenu->addSeparator();
-
-    QAction *actAbout = helpMenu->addAction(QIcon::fromTheme("help-about", QIcon::fromTheme("dialog-information")), tr("&About BitFM"));
-    actAbout->setShortcut(QKeySequence(Qt::Key_F1));
-    connect(actAbout, &QAction::triggered, this, [this]() {
-        AboutDialog dlg(this);
-        dlg.exec();
-    });
+    connect(A("app.preferences"), &QAction::triggered, this, &MainWindow::openPreferences);
+    connect(A("app.about"),       &QAction::triggered, this, [this]() { AboutDialog dlg(this); dlg.exec(); });
 }
 
-void MainWindow::setupGlobalShortcuts() {
-    new QShortcut(QKeySequence(Qt::Key_Space), this, SLOT(quickPreviewSelectedItem()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O), this, SLOT(toggleSplitOrientation()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this, SLOT(toggleDualPane()));
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_K), this, SLOT(openQuickSwitcher()));
+void MainWindow::buildMenus() {
+    ActionRegistry &reg = ActionRegistry::instance();
+    auto A = [&reg](const char *id) { return reg.action(QString::fromLatin1(id)); };
+    QMenuBar *mb = menuBar();
 
-    // Quick Copy & Move between split panes
-    new QShortcut(QKeySequence(Qt::Key_F5), this, [this]() {
-        if (m_secondaryPane->isVisible()) {
-            copyToOtherPane();
-        } else if (activePane() && activePane()->currentTab()) {
-            activePane()->currentTab()->refresh();
+    QMenu *fileMenu = new QMenu(tr("&File"), this);
+    fileMenu->addAction(A("tab.new"));
+    fileMenu->addAction(A("app.new_window"));
+    fileMenu->addSeparator();
+    fileMenu->addAction(A("file.new_folder"));
+    fileMenu->addAction(A("file.new_file"));
+    fileMenu->addSeparator();
+    fileMenu->addAction(A("file.terminal_here"));
+    fileMenu->addAction(A("file.properties"));
+    fileMenu->addSeparator();
+    fileMenu->addAction(A("tab.close"));
+    fileMenu->addAction(A("app.quit"));
+
+    QMenu *editMenu = new QMenu(tr("&Edit"), this);
+    for (const char *id : { "file.cut", "file.copy", "file.paste" }) editMenu->addAction(A(id));
+    editMenu->addSeparator();
+    editMenu->addAction(A("file.select_all"));
+    editMenu->addSeparator();
+    for (const char *id : { "file.rename", "file.batch_rename", "file.trash", "file.delete" }) editMenu->addAction(A(id));
+    editMenu->addSeparator();
+    editMenu->addAction(A("app.preferences"));
+
+    QMenu *viewMenu = new QMenu(tr("&View"), this);
+    viewMenu->addAction(A("view.reload"));
+    viewMenu->addAction(A("view.search"));
+    viewMenu->addSeparator();
+    for (const char *id : { "view.grid", "view.list", "view.compact" }) viewMenu->addAction(A(id));
+    viewMenu->addSeparator();
+
+    QMenu *arrangeMenu = viewMenu->addMenu(QIcon::fromTheme("view-sort-ascending"), tr("Arrange Items"));
+    auto *sortGroup = new QActionGroup(arrangeMenu);
+    struct SortCol { const char *text; int col; };
+    for (const SortCol &sc : { SortCol{ QT_TR_NOOP("By Name"), 0 }, SortCol{ QT_TR_NOOP("By Size"), 1 },
+                               SortCol{ QT_TR_NOOP("By Type"), 2 }, SortCol{ QT_TR_NOOP("By Modification Date"), 3 } }) {
+        QAction *a = arrangeMenu->addAction(tr(sc.text));
+        a->setCheckable(true);
+        a->setChecked(AppSettings::instance().sortColumn() == sc.col);
+        sortGroup->addAction(a);
+        connect(a, &QAction::triggered, this, [col = sc.col]() { AppSettings::instance().setSortColumn(col); });
+    }
+    arrangeMenu->addSeparator();
+    auto *orderGroup = new QActionGroup(arrangeMenu);
+    QAction *orderAsc = arrangeMenu->addAction(tr("Ascending"));
+    QAction *orderDesc = arrangeMenu->addAction(tr("Descending"));
+    for (QAction *a : { orderAsc, orderDesc }) { a->setCheckable(true); orderGroup->addAction(a); }
+    (AppSettings::instance().sortOrder() == Qt::DescendingOrder ? orderDesc : orderAsc)->setChecked(true);
+    connect(orderAsc,  &QAction::triggered, this, []() { AppSettings::instance().setSortOrder(Qt::AscendingOrder); });
+    connect(orderDesc, &QAction::triggered, this, []() { AppSettings::instance().setSortOrder(Qt::DescendingOrder); });
+
+    viewMenu->addAction(A("view.hidden"));
+    viewMenu->addSeparator();
+    for (const char *id : { "view.zoom_in", "view.zoom_out", "view.zoom_reset" }) viewMenu->addAction(A(id));
+    viewMenu->addSeparator();
+    for (const char *id : { "view.split", "view.split_orient", "view.sidebar", "view.inspector", "view.terminal" }) viewMenu->addAction(A(id));
+    viewMenu->addSeparator();
+    viewMenu->addAction(A("view.menubar"));
+    viewMenu->addAction(A("view.statusbar"));
+    viewMenu->addSeparator();
+
+    QMenu *themeMenu = viewMenu->addMenu(QIcon::fromTheme("preferences-desktop-theme"), tr("Theme"));
+    auto *themeGroup = new QActionGroup(themeMenu);
+    QAction *actExtSync = themeMenu->addAction(tr("Sync Custom / External Theme"));
+    actExtSync->setCheckable(true);
+    themeGroup->addAction(actExtSync);
+    connect(actExtSync, &QAction::triggered, this, []() { ThemeManager::instance().setThemeMode(ThemeMode::ExternalSync); });
+    themeMenu->addSeparator();
+    for (const QString &tName : ThemeManager::availableThemes()) {
+        QAction *act = themeMenu->addAction(tName);
+        act->setCheckable(true);
+        themeGroup->addAction(act);
+        connect(act, &QAction::triggered, this, [tName]() { ThemeManager::instance().setThemeByName(tName); });
+    }
+    connect(themeMenu, &QMenu::aboutToShow, this, [themeMenu, actExtSync]() {
+        bool ext = ThemeManager::instance().isExternalSyncEnabled();
+        actExtSync->setChecked(ext);
+        for (QAction *a : themeMenu->actions())
+            if (a != actExtSync && a->isCheckable()) a->setChecked(!ext && a->text() == ThemeManager::instance().currentThemeName());
+    });
+
+    QMenu *goMenu = new QMenu(tr("&Go"), this);
+    for (const char *id : { "nav.back", "nav.forward", "nav.up", "nav.home" }) goMenu->addAction(A(id));
+    goMenu->addSeparator();
+    auto addPlace = [this, goMenu](const QString &name, const QString &path, const QString &icon) {
+        QAction *act = goMenu->addAction(QIcon::fromTheme(icon, QIcon::fromTheme("folder")), name);
+        connect(act, &QAction::triggered, this, [this, path]() { navigateActivePane(path); });
+    };
+    addPlace(tr("Desktop"),   UserEnvironment::userPlacePath(QStandardPaths::DesktopLocation, "Desktop"),     "user-desktop");
+    addPlace(tr("Documents"), UserEnvironment::userPlacePath(QStandardPaths::DocumentsLocation, "Documents"), "folder-documents");
+    addPlace(tr("Downloads"), UserEnvironment::userPlacePath(QStandardPaths::DownloadLocation, "Downloads"),  "folder-download");
+    addPlace(tr("Music"),     UserEnvironment::userPlacePath(QStandardPaths::MusicLocation, "Music"),         "folder-music");
+    addPlace(tr("Pictures"),  UserEnvironment::userPlacePath(QStandardPaths::PicturesLocation, "Pictures"),   "folder-pictures");
+    addPlace(tr("Videos"),    UserEnvironment::userPlacePath(QStandardPaths::MoviesLocation, "Videos"),       "folder-videos");
+    addPlace(tr("Trash"),     UserEnvironment::userTrashPath() + "/files", "user-trash");
+    addPlace(tr("Recent Files"), "recent:", "document-open-recent");
+    goMenu->addSeparator();
+    goMenu->addAction(A("nav.location"));
+    goMenu->addAction(A("nav.switcher"));
+    goMenu->addAction(A("nav.connect"));
+
+    QMenu *bmMenu = new QMenu(tr("&Bookmarks"), this);
+    connect(bmMenu, &QMenu::aboutToShow, this, [this, bmMenu, A]() {
+        bmMenu->clear();
+        bmMenu->addAction(A("nav.bookmark"));
+        bmMenu->addSeparator();
+        QStringList bookmarks = QSettings().value("bookmarks/custom").toStringList();
+        if (bookmarks.isEmpty()) {
+            bmMenu->addAction(tr("(No bookmarks added)"))->setEnabled(false);
+            return;
+        }
+        for (const QString &bPath : bookmarks) {
+            QString name = QFileInfo(bPath).fileName();
+            if (name.isEmpty()) name = bPath;
+            QAction *bAct = bmMenu->addAction(QIcon::fromTheme("folder-bookmark", QIcon::fromTheme("folder")), name);
+            connect(bAct, &QAction::triggered, this, [this, bPath]() { navigateActivePane(bPath); });
         }
     });
 
-    new QShortcut(QKeySequence(Qt::Key_F6), this, [this]() {
-        if (m_secondaryPane->isVisible()) {
-            moveToOtherPane();
-        }
-    });
+    QMenu *helpMenu = new QMenu(tr("&Help"), this);
+    helpMenu->addAction(A("app.about"));
 
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_R), this, [this]() {
-        if (activePane() && activePane()->currentTab()) {
-            activePane()->currentTab()->refresh();
-        }
-    });
+    for (QMenu *m : { fileMenu, editMenu, viewMenu, goMenu, bmMenu, helpMenu }) mb->addMenu(m);
 
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_H), this, [this]() {
-        if (activePane() && activePane()->currentTab()) {
-            activePane()->currentTab()->toggleHiddenFiles();
-        }
-    });
+    // ☰ menu on the header bar reuses the very same QMenu objects.
+    m_appMenu = new QMenu(this);
+    for (QMenu *m : { fileMenu, editMenu, viewMenu, goMenu, bmMenu }) m_appMenu->addMenu(m);
+    m_appMenu->addSeparator();
+    m_appMenu->addAction(A("app.preferences"));
+    m_appMenu->addAction(A("app.about"));
+    m_primaryPane->headerBar()->setAppMenu(m_appMenu);
+}
 
-    new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this, [this]() {
-        if (activePane() && activePane()->currentTab()) {
-            activePane()->currentTab()->findChild<BreadcrumbBar*>()->activateEditMode();
-        }
-    });
+void MainWindow::applyLayoutSettings() {
+    AppSettings &st = AppSettings::instance();
+    ActionRegistry &reg = ActionRegistry::instance();
+
+    // Sidebar / inspector sides: reorder the splitter's children in place (no rebuild).
+    int side = st.sidebarSide();
+    m_sidebar->setVisible(side != 2);
+    reg.action("view.sidebar")->setChecked(side != 2);
+    bool inspectorLeft = st.inspectorSide() == 1;
+    QList<QWidget*> order;
+    if (side == 1) {                      // sidebar right
+        if (inspectorLeft) order = { m_inspector, m_contentSplitter, m_sidebar };
+        else               order = { m_contentSplitter, m_inspector, m_sidebar };
+    } else {
+        if (inspectorLeft) order = { m_inspector, m_sidebar, m_contentSplitter };
+        else               order = { m_sidebar, m_contentSplitter, m_inspector };
+    }
+    for (int i = 0; i < order.size(); ++i) {
+        if (m_mainSplitter->indexOf(order[i]) != i) m_mainSplitter->insertWidget(i, order[i]);
+    }
+    m_mainSplitter->setStretchFactor(m_mainSplitter->indexOf(m_contentSplitter), 1);
+    for (QWidget *w : { static_cast<QWidget*>(m_sidebar), static_cast<QWidget*>(m_inspector) })
+        m_mainSplitter->setStretchFactor(m_mainSplitter->indexOf(w), 0);
+
+    menuBar()->setVisible(st.isMenubarVisible());
+    reg.action("view.menubar")->setChecked(st.isMenubarVisible());
+    statusBar()->setVisible(st.isStatusbarVisible());
+    reg.action("view.statusbar")->setChecked(st.isStatusbarVisible());
+}
+
+void MainWindow::openPreferences() {
+    if (!m_preferencesDialog) m_preferencesDialog = new PreferencesDialog(this);
+    m_preferencesDialog->show();
+    m_preferencesDialog->raise();
+    m_preferencesDialog->activateWindow();
 }
 
 PaneWidget* MainWindow::activePane() const {
@@ -880,6 +637,7 @@ void MainWindow::onPaneActivated(PaneWidget *pane) {
     m_activePane = pane;
     m_primaryPane->setActive(m_activePane == m_primaryPane);
     m_secondaryPane->setActive(m_activePane == m_secondaryPane);
+    ActionRegistry::instance().action("view.search")->setChecked(pane->headerBar()->isSearchShown());
 
     onActivePanePathChanged(m_activePane->currentPath());
     if (m_activePane->currentTab()) {
@@ -978,6 +736,7 @@ void MainWindow::onZoomSliderChanged(int value) {
 void MainWindow::toggleDualPane() {
     bool willShow = !m_secondaryPane->isVisible();
     m_secondaryPane->setVisible(willShow);
+    ActionRegistry::instance().action("view.split")->setChecked(willShow);
 
     if (willShow) {
         m_secondaryPane->navigateTo(m_primaryPane->currentPath());
@@ -1014,6 +773,7 @@ void MainWindow::toggleSplitOrientation() {
 void MainWindow::toggleInspector() {
     bool willShow = !m_inspector->isVisible();
     m_inspector->setVisible(willShow);
+    ActionRegistry::instance().action("view.inspector")->setChecked(willShow);
 
     if (willShow) {
         if (m_activePane && m_activePane->currentTab()) {
@@ -1029,11 +789,13 @@ void MainWindow::toggleInspector() {
 void MainWindow::toggleTerminalDrawer() {
     bool willShow = !m_terminalDrawer->isVisible();
     m_terminalDrawer->setVisible(willShow);
+    ActionRegistry::instance().action("view.terminal")->setChecked(willShow);
 
     if (willShow) {
         m_terminalDrawer->setDirectory(activePane()->currentPath());
         int h = m_contentSplitter->height();
-        m_contentSplitter->setSizes({ h - 220, 220 });
+        int dh = AppSettings::instance().drawerHeight();
+        m_contentSplitter->setSizes({ h - dh, dh });
         statusBar()->showMessage(tr("Terminal Drawer shown (F12)"), 2000);
     } else {
         statusBar()->showMessage(tr("Terminal Drawer hidden (F12)"), 2000);
@@ -1083,9 +845,7 @@ void MainWindow::closeCurrentTab() {
 }
 
 void MainWindow::openSearchInActivePane() {
-    if (activePane() && activePane()->currentTab()) {
-        activePane()->currentTab()->openSearch();
-    }
+    if (activePane()) activePane()->setSearchVisible(true);
 }
 
 void MainWindow::navigateActivePane(const QString &path) {
@@ -1187,11 +947,6 @@ void MainWindow::moveToOtherPane() {
         if (otherPane()->currentTab()) otherPane()->currentTab()->refresh();
         statusBar()->showMessage(tr("Moved %1 items to other pane").arg(selected.size()), 3000);
     }
-}
-
-void MainWindow::openThemeController() {
-    ThemeControllerDialog dlg(this);
-    dlg.exec();
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {

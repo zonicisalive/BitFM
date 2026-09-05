@@ -1,4 +1,6 @@
 #include "QuickPreviewDialog.h"
+#include <QPointer>
+#include <QTemporaryDir>
 #include "ThemeManager.h"
 #include "VfsTypes.h"
 #include <QFileInfo>
@@ -61,13 +63,13 @@ void QuickPreviewDialog::setupUi() {
 
     QWidget *card = new QWidget(this);
     card->setObjectName("PreviewCard");
-    card->setStyleSheet(QString(
+    card->setStyleSheet(ThemeManager::css(QString(
         "#PreviewCard {"
         "  background-color: %1;"
         "  border: 1px solid %2;"
         "  border-radius: 12px;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER)));
 
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(18, 14, 18, 14);
@@ -85,17 +87,17 @@ void QuickPreviewDialog::setupUi() {
     tf.setBold(true);
     tf.setPointSize(13);
     m_titleLabel->setFont(tf);
-    m_titleLabel->setStyleSheet(QString("color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY));
+    m_titleLabel->setStyleSheet(ThemeManager::css(QString("color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
     titleLayout->addWidget(m_titleLabel);
 
     m_subtitleLabel = new QLabel(card);
-    m_subtitleLabel->setStyleSheet(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED));
+    m_subtitleLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED)));
     titleLayout->addWidget(m_subtitleLabel);
 
     headerLayout->addLayout(titleLayout, 1);
 
     m_openBtn = new QPushButton(QIcon::fromTheme("document-open"), tr("Open"), card);
-    m_openBtn->setStyleSheet(QString(
+    m_openBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton {"
         "  background: %1;"
         "  color: %2;"
@@ -110,7 +112,7 @@ void QuickPreviewDialog::setupUi() {
     ).arg(ThemeManager::BG_OVERLAY)
      .arg(ThemeManager::TEXT_PRIMARY)
      .arg(ThemeManager::BORDER)
-     .arg(ThemeManager::BG_HOVER));
+     .arg(ThemeManager::BG_HOVER)));
     connect(m_openBtn, &QPushButton::clicked, this, [this]() {
         if (!m_currentFilePath.isEmpty()) {
             AppLauncher::instance().openPath(m_currentFilePath);
@@ -122,7 +124,7 @@ void QuickPreviewDialog::setupUi() {
     m_closeBtn = new QPushButton("✕", card);
     m_closeBtn->setFixedSize(28, 28);
     m_closeBtn->setCursor(Qt::PointingHandCursor);
-    m_closeBtn->setStyleSheet(QString(
+    m_closeBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton {"
         "  background: transparent;"
         "  color: %1;"
@@ -134,7 +136,7 @@ void QuickPreviewDialog::setupUi() {
         "  background: rgba(255, 255, 255, 0.15);"
         "  color: #ffffff;"
         "}"
-    ).arg(ThemeManager::TEXT_SECONDARY));
+    ).arg(ThemeManager::TEXT_SECONDARY)));
     connect(m_closeBtn, &QPushButton::clicked, this, &QuickPreviewDialog::reject);
     headerLayout->addWidget(m_closeBtn);
 
@@ -144,20 +146,20 @@ void QuickPreviewDialog::setupUi() {
     m_imagePreview = new QLabel(card);
     m_imagePreview->setAlignment(Qt::AlignCenter);
     m_imagePreview->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    m_imagePreview->setStyleSheet(QString(
+    m_imagePreview->setStyleSheet(ThemeManager::css(QString(
         "QLabel {"
         "  background-color: %1;"
         "  border: 1px solid %2;"
         "  border-radius: 8px;"
         "  padding: 4px;"
         "}"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER));
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER)));
     cardLayout->addWidget(m_imagePreview, 1);
 
     m_textPreview = new QTextEdit(card);
     m_textPreview->setReadOnly(true);
     m_textPreview->setFontFamily("monospace");
-    m_textPreview->setStyleSheet(QString(
+    m_textPreview->setStyleSheet(ThemeManager::css(QString(
         "QTextEdit {"
         "  background-color: %1;"
         "  color: %2;"
@@ -169,12 +171,12 @@ void QuickPreviewDialog::setupUi() {
         "}"
     ).arg(ThemeManager::BG_BASE)
      .arg(ThemeManager::TEXT_PRIMARY)
-     .arg(ThemeManager::BORDER));
+     .arg(ThemeManager::BORDER)));
     cardLayout->addWidget(m_textPreview, 1);
 
     // Footer info
     m_infoLabel = new QLabel(card);
-    m_infoLabel->setStyleSheet(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY));
+    m_infoLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
     cardLayout->addWidget(m_infoLabel);
 
     rootLayout->addWidget(card);
@@ -260,8 +262,10 @@ void QuickPreviewDialog::updatePreview() {
         QString filePath = m_currentFilePath;
         qint64 fileSize = info.size();
 
-        QThreadPool::globalInstance()->start([this, filePath, fileSize]() {
-            QString tmpOut = QString("/tmp/preview_video_%1.jpg").arg(fileSize);
+        QPointer<QuickPreviewDialog> self(this);
+        QThreadPool::globalInstance()->start([self, filePath, fileSize]() {
+            QTemporaryDir tmpDir;
+            QString tmpOut = tmpDir.filePath("frame.jpg");
             QProcess proc;
             proc.start("ffmpegthumbnailer", { "-i", filePath, "-o", tmpOut, "-s", "720", "-q", "8" });
             if (!proc.waitForFinished(3000) || !QFile::exists(tmpOut)) {
@@ -296,13 +300,15 @@ void QuickPreviewDialog::updatePreview() {
             int secs = static_cast<int>(durationSec) % 60;
             QString durStr = QString("%1:%2").arg(mins, 2, 10, QChar('0')).arg(secs, 2, 10, QChar('0'));
 
-            QMetaObject::invokeMethod(this, [this, filePath, frame, vidWidth, vidHeight, durStr, codec, fileSize]() {
-                if (m_currentFilePath == filePath) {
+            if (!self) return;
+            QMetaObject::invokeMethod(self, [self, filePath, frame, vidWidth, vidHeight, durStr, codec, fileSize]() {
+                    if (!self) return;
+                if (self->m_currentFilePath == filePath) {
                     if (!frame.isNull()) {
                         QPixmap pix = QPixmap::fromImage(frame).scaled(700, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                        m_imagePreview->setPixmap(drawPlayBadge(pix));
+                        self->m_imagePreview->setPixmap(drawPlayBadge(pix));
                     }
-                    m_infoLabel->setText(QString("Resolution: %1 × %2 px · Duration: %3 · Codec: %4 · Size: %5")
+                    self->m_infoLabel->setText(QString("Resolution: %1 × %2 px · Duration: %3 · Codec: %4 · Size: %5")
                         .arg(vidWidth > 0 ? QString::number(vidWidth) : "HD")
                         .arg(vidHeight > 0 ? QString::number(vidHeight) : "Auto")
                         .arg(durStr)
@@ -321,19 +327,23 @@ void QuickPreviewDialog::updatePreview() {
         QString filePath = m_currentFilePath;
         qint64 fileSize = info.size();
 
-        QThreadPool::globalInstance()->start([this, filePath, fileSize]() {
-            QString tmpPrefix = QString("/tmp/preview_pdf_%1").arg(fileSize);
+        QPointer<QuickPreviewDialog> self(this);
+        QThreadPool::globalInstance()->start([self, filePath, fileSize]() {
+            QTemporaryDir tmpDir;
+            QString tmpPrefix = tmpDir.filePath("page");
             QProcess proc;
             proc.start("pdftoppm", { "-png", "-r", "150", "-f", "1", "-l", "1", "-singlefile", filePath, tmpPrefix });
             if (proc.waitForFinished(4000) && QFile::exists(tmpPrefix + ".png")) {
                 QImage pdfImg(tmpPrefix + ".png");
                 QFile::remove(tmpPrefix + ".png");
                 if (!pdfImg.isNull()) {
-                    QMetaObject::invokeMethod(this, [this, filePath, pdfImg, fileSize]() {
-                        if (m_currentFilePath == filePath) {
+                    if (!self) return;
+                    QMetaObject::invokeMethod(self, [self, filePath, pdfImg, fileSize]() {
+                    if (!self) return;
+                        if (self->m_currentFilePath == filePath) {
                             QPixmap pix = QPixmap::fromImage(pdfImg).scaled(700, 420, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                            m_imagePreview->setPixmap(pix);
-                            m_infoLabel->setText(QString("PDF Document · Page 1 Preview · Size: %1").arg(FileItem::formatFileSize(fileSize)));
+                            self->m_imagePreview->setPixmap(pix);
+                            self->m_infoLabel->setText(QString("PDF Document · Page 1 Preview · Size: %1").arg(FileItem::formatFileSize(fileSize)));
                         }
                     });
                     return;
@@ -354,6 +364,9 @@ void QuickPreviewDialog::updatePreview() {
         QImageReader reader(m_currentFilePath);
         reader.setAutoTransform(true);
         QSize originalSize = reader.size();
+        if (originalSize.isValid() && (originalSize.width() > 1400 || originalSize.height() > 800)) {
+            reader.setScaledSize(originalSize.scaled(1400, 800, Qt::KeepAspectRatio));
+        }
         QImage img = reader.read();
 
         if (!img.isNull()) {

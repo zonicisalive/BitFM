@@ -39,7 +39,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
     mainLayout->addWidget(m_stackedWidget);
 
     auto updateStyles = [this]() {
-        m_breadcrumbContainer->setStyleSheet(QString(
+        m_breadcrumbContainer->setStyleSheet(ThemeManager::css(QString(
             "QWidget#BreadcrumbContainer {"
             "  background-color: %1;"
             "  border: 1px solid %2;"
@@ -70,7 +70,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
         .arg(ThemeManager::TEXT_PRIMARY)
         .arg(ThemeManager::BG_HOVER)
         .arg(ThemeManager::ACCENT)
-        .arg(ThemeManager::TEXT_MUTED));
+        .arg(ThemeManager::TEXT_MUTED)));
 
         applyNormalEditStyle();
         rebuildBreadcrumbs();
@@ -91,7 +91,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
 }
 
 void BreadcrumbBar::applyNormalEditStyle() {
-    m_pathEdit->setStyleSheet(QString(
+    m_pathEdit->setStyleSheet(ThemeManager::css(QString(
         "QLineEdit {"
         "  background-color: %1;"
         "  color: %2;"
@@ -100,11 +100,11 @@ void BreadcrumbBar::applyNormalEditStyle() {
         "  padding: 5px 12px;"
         "  font-size: 13px;"
         "}"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::ACCENT));
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::ACCENT)));
 }
 
 void BreadcrumbBar::applyErrorEditStyle() {
-    m_pathEdit->setStyleSheet(QString(
+    m_pathEdit->setStyleSheet(ThemeManager::css(QString(
         "QLineEdit {"
         "  background-color: %1;"
         "  color: %2;"
@@ -113,7 +113,7 @@ void BreadcrumbBar::applyErrorEditStyle() {
         "  padding: 5px 12px;"
         "  font-size: 13px;"
         "}"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::DANGER));
+    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::DANGER)));
 }
 
 void BreadcrumbBar::setErrorStyle(bool isError) {
@@ -204,9 +204,9 @@ void BreadcrumbBar::onSegmentClicked() {
     QPushButton *btn = qobject_cast<QPushButton*>(sender());
     if (btn) {
         QString fullPath = btn->property("fullPath").toString();
-        if (!fullPath.isEmpty() && QDir(fullPath).exists()) {
+        if (!fullPath.isEmpty() && (!fullPath.startsWith('/') || QDir(fullPath).exists())) {
             m_currentPath = fullPath;
-            GitStatusProvider::instance().requestGitStatus(m_currentPath);
+            if (fullPath.startsWith('/')) GitStatusProvider::instance().requestGitStatus(m_currentPath);
             rebuildBreadcrumbs();
             emit pathChanged(m_currentPath);
         }
@@ -325,7 +325,7 @@ void BreadcrumbBar::rebuildBreadcrumbs() {
         QString branch = GitStatusProvider::instance().getBranch(m_currentPath);
         if (!branch.isEmpty()) {
             QLabel *gitBadge = new QLabel(QString("  %1 ").arg(branch), m_breadcrumbContainer);
-            gitBadge->setStyleSheet(QString(
+            gitBadge->setStyleSheet(ThemeManager::css(QString(
                 "QLabel {"
                 "  background-color: %1;"
                 "  color: %2;"
@@ -335,7 +335,7 @@ void BreadcrumbBar::rebuildBreadcrumbs() {
                 "  font-size: 11px;"
                 "  font-weight: 600;"
                 "}"
-            ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::ACCENT).arg(ThemeManager::BORDER));
+            ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::ACCENT).arg(ThemeManager::BORDER)));
             gitBadge->setToolTip(tr("Git Branch: %1 (Root: %2)").arg(branch, GitStatusProvider::instance().getRepoRoot(m_currentPath)));
             m_breadcrumbLayout->addWidget(gitBadge);
         }
@@ -348,11 +348,11 @@ void BreadcrumbBar::rebuildBreadcrumbs() {
     pathMenuBtn->setFixedSize(22, 22);
     pathMenuBtn->setCursor(Qt::PointingHandCursor);
     pathMenuBtn->setPopupMode(QToolButton::InstantPopup);
-    pathMenuBtn->setStyleSheet(
+    pathMenuBtn->setStyleSheet(ThemeManager::css(
         "QToolButton { border: none; font-size: 14px; font-weight: bold; border-radius: 4px; color: " + QString(ThemeManager::TEXT_MUTED) + "; background: transparent; padding: 0px; }"
         "QToolButton:hover { background: rgba(255,255,255,0.08); color: #ffffff; }"
         "QToolButton::menu-indicator { image: none; width: 0; }"
-    );
+    ));
 
     QMenu *pMenu = new QMenu(pathMenuBtn);
     auto *editAct = pMenu->addAction(QIcon::fromTheme("document-edit"), tr("Edit Location (Ctrl+L)"));
@@ -393,3 +393,6 @@ bool BreadcrumbBar::eventFilter(QObject *watched, QEvent *event) {
     }
     return QWidget::eventFilter(watched, event);
 }
+
+QSize BreadcrumbBar::sizeHint() const { return QSize(300, ThemeManager::px(34)); }
+QSize BreadcrumbBar::minimumSizeHint() const { return QSize(80, ThemeManager::px(28)); }

@@ -59,6 +59,18 @@ public:
     static ThemeColors getThemeColors(AppTheme theme);
     static QString getModernStyleSheet(const ThemeColors &c, double opacity = 1.0, bool translucent = false);
     static QString hexToRgba(const QString &hexOrRgb, double alpha);
+    // QColor(QString) cannot parse "rgba(...)" (translucent mode); use this for painting.
+    static QColor toColor(const QString &cssColor);
+
+    // ── Design tokens (Preferences → Appearance) ──
+    static int radius();                       // corner radius in px (0..16)
+    static int density();                      // 0 compact, 1 normal, 2 spacious
+    static double densityScale();              // 0.75 / 1.0 / 1.3
+    static int px(int base);                   // density-scaled size for code paths
+    static int baseFontSize();                 // px, default 13
+    // Rescale border-radius / padding / font-size values in a stylesheet by the tokens.
+    // Append "/*fixed*/" after a value to keep it (circles, hairlines).
+    static QString css(const QString &sheet);
 
     // Theme Mode: Built-in Presets vs External File Sync
     ThemeMode themeMode() const;
@@ -103,4 +115,5 @@ private:
     ThemeManager();
     AppTheme m_currentTheme = AppTheme::OLEDBlack;
     void updateStaticColors(const ThemeColors &c);
+    void applyAppFont();
 };
