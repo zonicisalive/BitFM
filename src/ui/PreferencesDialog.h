@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "CardDialog.h"
 #include <QFrame>
 #include <QLabel>
 #include <QListWidget>
@@ -26,7 +26,7 @@ private:
 
 // Single settings window: Appearance / Layout / Toolbar / Shortcuts.
 // Pages are built on first visit and the dialog is reused, so nothing is paid for until opened.
-class PreferencesDialog : public QDialog {
+class PreferencesDialog : public CardDialog {
     Q_OBJECT
 
 public:

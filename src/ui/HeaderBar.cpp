@@ -103,7 +103,7 @@ void HeaderBar::rebuildToolbar() {
         auto *b = new QToolButton(m_toolCluster);
         b->setDefaultAction(a);
         b->setAutoRaise(true);
-        b->setIconSize(QSize(ThemeManager::px(18), ThemeManager::px(18)));
+        b->setIconSize(QSize(ThemeManager::px(20), ThemeManager::px(20)));
         b->installEventFilter(this);
         b->setToolButtonStyle(Qt::ToolButtonIconOnly);
         if (a->menu()) b->setPopupMode(QToolButton::MenuButtonPopup);
@@ -112,13 +112,13 @@ void HeaderBar::rebuildToolbar() {
 }
 
 void HeaderBar::applyStyle() {
-    const int h = qMax(ThemeManager::px(38), fontMetrics().height() + 22);
+    const int h = qMax(ThemeManager::px(44), fontMetrics().height() + 28);
     setFixedHeight(h);
-    const int iconPx = ThemeManager::px(18);
+    const int iconPx = ThemeManager::px(20);
     for (QToolButton *b : findChildren<QToolButton*>()) b->setIconSize(QSize(iconPx, iconPx));
     setStyleSheet(ThemeManager::css(QString(
         "#HeaderBar { background: %1; border-bottom: 1px solid %2; }"
-        "#HeaderBar QToolButton { background: transparent; color: %3; border: none; border-radius: 7px; padding: 5px 7px; min-width: 24px; }"
+        "#HeaderBar QToolButton { background: transparent; color: %3; border: none; border-radius: 7px; padding: 6px 8px; min-width: 26px; }"
         "#HeaderBar QToolButton:hover { background: %4; color: %5; }"
         "#HeaderBar QToolButton:pressed, #HeaderBar QToolButton:checked { background: %6; color: %7; }"
         "#HeaderBar QToolButton:disabled { color: %8; }"

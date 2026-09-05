@@ -118,7 +118,6 @@ void SidebarWidget::setupUi() {
     m_treeWidget->setHeaderHidden(true);
     m_treeWidget->setRootIsDecorated(false);
     m_treeWidget->setIndentation(0);
-    m_treeWidget->setIconSize(QSize(16, 16));
     m_treeWidget->setAnimated(true);
     m_treeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     m_treeWidget->setFrameShape(QFrame::NoFrame);
@@ -127,6 +126,7 @@ void SidebarWidget::setupUi() {
     auto updateStyles = [header, appName, this]() {
         update();
         header->setFixedHeight(ThemeManager::px(44));
+        m_treeWidget->setIconSize(QSize(ThemeManager::px(18), ThemeManager::px(18)));
         header->setStyleSheet(ThemeManager::css(QString(
             "QWidget { background-color: transparent; border-bottom: 1px solid %1; }"
         ).arg(ThemeManager::BORDER)));
@@ -173,8 +173,8 @@ void SidebarWidget::setupUi() {
         .arg(ThemeManager::TEXT_PRIMARY)
         .arg(ThemeManager::BG_SELECTION)
         .arg(ThemeManager::TEXT_MUTED)
-        .arg(ThemeManager::px(32))
-        .arg(ThemeManager::px(24))));
+        .arg(ThemeManager::px(36))
+        .arg(ThemeManager::px(26))));
     };
 
     updateStyles();

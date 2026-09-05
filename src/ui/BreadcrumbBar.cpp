@@ -97,8 +97,8 @@ void BreadcrumbBar::applyNormalEditStyle() {
         "  color: %2;"
         "  border: 1.5px solid %3;"
         "  border-radius: 9px;"
-        "  padding: 5px 12px;"
-        "  font-size: 13px;"
+        "  padding: 7px 14px;"
+        "  font-size: 13.5px;"
         "}"
     ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::ACCENT)));
 }
@@ -110,8 +110,8 @@ void BreadcrumbBar::applyErrorEditStyle() {
         "  color: %2;"
         "  border: 2px solid %3;"
         "  border-radius: 9px;"
-        "  padding: 5px 12px;"
-        "  font-size: 13px;"
+        "  padding: 7px 14px;"
+        "  font-size: 13.5px;"
         "}"
     ).arg(ThemeManager::BG_BASE).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::DANGER)));
 }
@@ -394,5 +394,5 @@ bool BreadcrumbBar::eventFilter(QObject *watched, QEvent *event) {
     return QWidget::eventFilter(watched, event);
 }
 
-QSize BreadcrumbBar::sizeHint() const { return QSize(300, qMax(ThemeManager::px(34), fontMetrics().height() + 16)); }
+QSize BreadcrumbBar::sizeHint() const { return QSize(300, qMax(ThemeManager::px(38), fontMetrics().height() + 20)); }
 QSize BreadcrumbBar::minimumSizeHint() const { return QSize(80, qMax(ThemeManager::px(28), fontMetrics().height() + 12)); }

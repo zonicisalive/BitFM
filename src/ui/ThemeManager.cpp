@@ -16,6 +16,8 @@
 #include <QJsonObject>
 #include <QTimer>
 #include <QEvent>
+#include <QPainterPath>
+#include <QRegion>
 #include <QWidget>
 
 // Initialize static color variables
@@ -332,7 +334,7 @@ void ThemeManager::paintCard(QPainter &p, const QRect &rect, const QString &bord
 }
 int ThemeManager::density() { return AppSettings::instance().density(); }
 double ThemeManager::densityScale() {
-    switch (density()) { case 0: return 0.75; case 2: return 1.3; default: return 1.0; }
+    switch (density()) { case 0: return 0.85; case 2: return 1.25; default: return 1.0; }
 }
 int ThemeManager::px(int base) { return qRound(base * densityScale() * qMax(1.0, baseFontSize() / 13.0)); }
 static QString s_autoIconTheme;   // theme detected at startup; fallback for sparse user themes
@@ -828,6 +830,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "QCheckBox::indicator:checked {"
         "  background: %4;"
         "  border-color: %4;"
+        "  image: url(:/icons/check-GLYPH.svg);"
         "}"
         "QRadioButton::indicator {"
         "  width: 16px; height: 16px;"
@@ -841,6 +844,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "QRadioButton::indicator:checked {"
         "  background: %4;"
         "  border-color: %4;"
+        "  image: url(:/icons/dot-GLYPH.svg);"
         "}"
 
         /* ─── Floating panels: containers never paint over the card ─── */
@@ -896,7 +900,8 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
     .arg(bgSelection)        // %9
     .arg(bgOverlay)          // %10
     .arg(bgOverlay)          // %11
-    .arg(c.textSecondary);   // %12
+    .arg(c.textSecondary)    // %12
+    .replace("GLYPH", QColor(c.accent).lightness() > 140 ? "dark" : "light");
 }
 
 void ThemeManager::setCustomAccent(const QString &accentHex) {
@@ -1030,15 +1035,18 @@ namespace {
 class PopupPolisher : public QObject {
 public:
     using QObject::QObject;
+    static bool isPopup(QObject *obj) {
+        return obj->inherits("QMenu") || obj->inherits("QComboBoxPrivateContainer") || obj->inherits("QTipLabel");
+    }
     bool eventFilter(QObject *obj, QEvent *event) override {
-        if (event->type() == QEvent::Polish) {
-            if (auto *w = qobject_cast<QWidget*>(obj)) {
-                if (w->inherits("QMenu") || w->inherits("QComboBoxPrivateContainer") || w->inherits("QTipLabel")) {
-                    w->setAttribute(Qt::WA_TranslucentBackground, true);
-                    w->setWindowFlag(Qt::FramelessWindowHint, true);
-                    w->setWindowFlag(Qt::NoDropShadowWindowHint, true);
-                }
-            }
+        if ((event->type() == QEvent::Resize || event->type() == QEvent::Show) && isPopup(obj)) {
+            auto *w = static_cast<QWidget*>(obj);
+            // Opaque popup surface (a translucent one inherits the window's alpha on the
+            // compositor); rounded corners come from a mask instead.
+            QPainterPath path;
+            const qreal r = ThemeManager::radius() + 2;
+            path.addRoundedRect(QRectF(w->rect()), r, r);
+            w->setMask(QRegion(path.toFillPolygon().toPolygon()));
         }
         return QObject::eventFilter(obj, event);
     }

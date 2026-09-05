@@ -2,6 +2,8 @@
 #include "AppSettings.h"
 #include "ActionRegistry.h"
 #include <QVBoxLayout>
+#include <QSizeGrip>
+#include <QToolButton>
 #include <QGridLayout>
 #include <QFormLayout>
 #include <QScrollArea>
@@ -80,18 +82,49 @@ void ThemeCardWidget::mousePressEvent(QMouseEvent *) { emit themeSelected(m_them
 // ─────────────────────────────────────────────────────────────────────────────
 
 PreferencesDialog::PreferencesDialog(QWidget *parent)
-    : QDialog(parent)
+    : CardDialog(parent)
 {
     setObjectName("PreferencesDialog");
     setWindowTitle(tr("Preferences — BitFM"));
+    setModal(false);
     resize(860, 660);
     setMinimumSize(700, 500);
 
-    auto *root = new QHBoxLayout(this);
+    auto *outer = new QVBoxLayout(this);
+    outer->setContentsMargins(1, 1, 1, 1);
+    outer->setSpacing(0);
+
+    // Title row: name + close (frameless card has no WM buttons)
+    auto *titleRow = new QWidget(this);
+    titleRow->setObjectName("PrefTitle");
+    auto *titleLayout = new QHBoxLayout(titleRow);
+    titleLayout->setContentsMargins(16, 10, 10, 10);
+    auto *title = new QLabel(tr("Preferences"), titleRow);
+    title->setObjectName("PrefTitleLabel");
+    titleLayout->addWidget(title, 1);
+    auto *closeBtn = new QToolButton(titleRow);
+    closeBtn->setObjectName("PrefClose");
+    closeBtn->setIcon(QIcon::fromTheme("window-close", QIcon(":/icons/tab-close.svg")));
+    closeBtn->setToolTip(tr("Close (Esc)"));
+    closeBtn->setAutoRaise(true);
+    connect(closeBtn, &QToolButton::clicked, this, &QDialog::close);
+    titleLayout->addWidget(closeBtn);
+    outer->addWidget(titleRow);
+
+    auto *body = new QWidget(this);
+    auto *root = new QHBoxLayout(body);
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
+    outer->addWidget(body, 1);
 
-    m_nav = new QListWidget(this);
+    auto *grip = new QSizeGrip(this);
+    auto *gripRow = new QHBoxLayout();
+    gripRow->setContentsMargins(0, 0, 4, 4);
+    gripRow->addStretch();
+    gripRow->addWidget(grip, 0, Qt::AlignBottom | Qt::AlignRight);
+    outer->addLayout(gripRow);
+
+    m_nav = new QListWidget(body);
     m_nav->setObjectName("PrefNav");
     m_nav->setFixedWidth(170);
     m_nav->setFrameShape(QFrame::NoFrame);
@@ -105,7 +138,7 @@ PreferencesDialog::PreferencesDialog(QWidget *parent)
     }
     root->addWidget(m_nav);
 
-    m_stack = new QStackedWidget(this);
+    m_stack = new QStackedWidget(body);
     for (int i = 0; i < 4; ++i) m_stack->addWidget(new QWidget(this)); // placeholders, replaced lazily
     root->addWidget(m_stack, 1);
 
@@ -121,14 +154,17 @@ PreferencesDialog::PreferencesDialog(QWidget *parent)
 
 void PreferencesDialog::applyStyle() {
     setStyleSheet(ThemeManager::css(QString(
-        "QDialog { background: %1; }"
-        "#PrefNav { background: %2; border-right: 1px solid %3; padding: 8px 6px; outline: none; }"
+        "#PrefTitle { background: %1; border-bottom: 1px solid %3; }"
+        "#PrefTitleLabel { font-size: 14px; font-weight: 600; color: %6; background: transparent; }"
+        "#PrefClose { border: none; border-radius: 7px; padding: 4px; }"
+        "#PrefClose:hover { background: %5; }"
+        "#PrefNav { background: transparent; border-right: 1px solid %3; padding: 8px 6px; outline: none; }"
         "#PrefNav::item { color: %4; padding: 8px 10px; border-radius: 7px; margin: 1px 0; }"
         "#PrefNav::item:hover { background: %5; color: %6; }"
         "#PrefNav::item:selected { background: %7; color: %8; }"
         "QGroupBox { border: 1px solid %3; border-radius: 9px; margin-top: 14px; padding: 12px 10px 8px 10px; font-weight: 600; color: %6; }"
         "QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; color: %4; }"
-    ).arg(ThemeManager::BG_BASE, ThemeManager::BG_SURFACE, ThemeManager::BORDER, ThemeManager::TEXT_SECONDARY,
+    ).arg("transparent", ThemeManager::BG_SURFACE, ThemeManager::BORDER, ThemeManager::TEXT_SECONDARY,
           ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY, ThemeManager::BG_SELECTION, ThemeManager::ACCENT)));
 }
 
