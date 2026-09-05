@@ -91,6 +91,8 @@ set(UI_SOURCES
     src/ui/UnlockDeviceDialog.cpp
     src/ui/AboutDialog.h
     src/ui/AboutDialog.cpp
+    src/ui/CardDialog.h
+    src/ui/CardDialog.cpp
     src/ui/ActionRegistry.h
     src/ui/ActionRegistry.cpp
     src/ui/HeaderBar.h

@@ -7,17 +7,14 @@
 #include <QLocale>
 
 FileOperationProgressDialog::FileOperationProgressDialog(const QString &title, QWidget *parent)
-    : QDialog(parent)
+    : CardDialog(parent)
 {
     setWindowTitle(title);
     setModal(true);
-    resize(460, 170);
+    resize(480, 190);
+    setContentsMargins(4, 4, 4, 4);
 
     setStyleSheet(ThemeManager::css(QString(
-        "QDialog {"
-        "  background-color: %1;"
-        "  color: %2;"
-        "}"
         "QProgressBar {"
         "  border: 1px solid %3;"
         "  border-radius: 6px;"

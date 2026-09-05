@@ -24,6 +24,8 @@ public:
     void showSearch(bool on);
     bool isSearchShown() const;
     void setAppMenu(QMenu *menu);
+    // Replace the registry-built right cluster with explicit actions (dialogs that have their own).
+    void setToolActions(const QList<QAction*> &actions);
 
 signals:
     void backRequested();
@@ -53,4 +55,5 @@ private:
     QWidget *m_toolCluster = nullptr;
     QHBoxLayout *m_toolLayout = nullptr;
     QToolButton *m_menuBtn = nullptr;
+    QList<QAction*> m_customActions;
 };

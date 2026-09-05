@@ -8,6 +8,8 @@
 #include <QColor>
 #include <QIcon>
 #include <QDir>
+#include <QStandardPaths>
+#include <QFile>
 #include <QSettings>
 #include <QFileSystemWatcher>
 #include <QJsonDocument>
@@ -333,6 +335,39 @@ double ThemeManager::densityScale() {
     switch (density()) { case 0: return 0.75; case 2: return 1.3; default: return 1.0; }
 }
 int ThemeManager::px(int base) { return qRound(base * densityScale() * qMax(1.0, baseFontSize() / 13.0)); }
+static QString s_autoIconTheme;   // theme detected at startup; fallback for sparse user themes
+
+static QStringList iconSearchDirs() {
+    QStringList dirs = QIcon::themeSearchPaths();
+    for (const QString &d : QStandardPaths::locateAll(QStandardPaths::GenericDataLocation, "icons", QStandardPaths::LocateDirectory))
+        if (!dirs.contains(d)) dirs << d;
+    const QString dotIcons = QDir::homePath() + "/.icons";
+    if (!dirs.contains(dotIcons)) dirs << dotIcons;
+    return dirs;
+}
+
+bool ThemeManager::isIconTheme(const QString &name) {
+    if (name.isEmpty()) return false;
+    for (const QString &dir : iconSearchDirs()) {
+        QFile f(dir + "/" + name + "/index.theme");
+        if (!f.exists() || !f.open(QIODevice::ReadOnly | QIODevice::Text)) continue;
+        const QByteArray data = f.readAll();
+        return data.contains("\nDirectories=") || data.startsWith("Directories=");
+    }
+    return false;
+}
+
+QStringList ThemeManager::availableIconThemes() {
+    QStringList out;
+    for (const QString &dir : iconSearchDirs()) {
+        for (const QString &name : QDir(dir).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            if (!out.contains(name) && isIconTheme(name)) out << name;
+        }
+    }
+    out.sort(Qt::CaseInsensitive);
+    return out;
+}
+
 int ThemeManager::baseFontSize() {
     int s = AppSettings::instance().fontSize();
     return s > 0 ? s : 13;
@@ -816,6 +851,12 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "  background: transparent;"
         "}"
 
+        "CardDialog { background: transparent; }"
+        "CardDialog QLabel, CardDialog QCheckBox, CardDialog QRadioButton, CardDialog QGroupBox,"
+        "CardDialog QFrame, CardDialog QProgressBar, FilePickerDialog QLabel, FilePickerDialog #bottomBar {"
+        "  background: transparent;"
+        "}"
+
         /* ─── Dialog buttons ─── */
         "QDialogButtonBox QPushButton, QMessageBox QPushButton {"
         "  min-width: 84px;"
@@ -958,8 +999,11 @@ void ThemeManager::applyAppFont() {
     if (size > 0) f.setPixelSize(size);
     qApp->setFont(f);
 
+    // Only switch to a real icon theme (a cursor theme also ships an index.theme); "Automatic"
+    // or an invalid name restores the theme detected at startup, which also serves as fallback.
     QString iconTheme = AppSettings::instance().iconTheme();
-    if (!iconTheme.isEmpty() && QIcon::themeName() != iconTheme) QIcon::setThemeName(iconTheme);
+    QString want = isIconTheme(iconTheme) ? iconTheme : s_autoIconTheme;
+    if (!want.isEmpty() && QIcon::themeName() != want) QIcon::setThemeName(want);
 }
 
 void ThemeManager::setThemeByName(const QString &name) {
@@ -1035,6 +1079,9 @@ void ThemeManager::applyTheme(QApplication &app) {
             if (picked) break;
         }
     }
+    s_autoIconTheme = QIcon::themeName();
+    if (!s_autoIconTheme.isEmpty()) QIcon::setFallbackThemeName(s_autoIconTheme);
+    instance().applyAppFont();
 
     instance().setupExternalThemeWatcher();
 }

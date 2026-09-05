@@ -112,6 +112,16 @@ int main(int argc, char *argv[]) {
     QString filter = parser.value(filterOption);
     QString initialPath = positional.isEmpty() ? QString() : positional.first();
 
+    // BITFM_SCREENSHOT with a picker option grabs the picker dialog and exits (UI checks).
+    auto grabDialog = [](QDialog &dlg) -> bool {
+        const QByteArray shot = qgetenv("BITFM_SCREENSHOT");
+        if (shot.isEmpty()) return false;
+        dlg.show();
+        QTimer::singleShot(1500, &dlg, [&dlg, shot]() { dlg.grab().save(QString::fromLocal8Bit(shot)); QCoreApplication::quit(); });
+        QCoreApplication::exec();
+        return true;
+    };
+
     if (parser.isSet(saveOption)) {
         QString defaultName = "Untitled";
         QString folderPath;
@@ -126,6 +136,7 @@ int main(int argc, char *argv[]) {
         }
         FilePickerDialog dlg(PickerMode::SaveFile, folderPath, defaultName);
         if (!filter.isEmpty()) dlg.setFilter(filter);
+        if (grabDialog(dlg)) return 0;
         if (dlg.exec() == QDialog::Accepted) {
             std::cout << qUtf8Printable(dlg.selectedPath()) << std::endl;
             return 0;
@@ -135,6 +146,7 @@ int main(int argc, char *argv[]) {
         FilePickerDialog dlg(PickerMode::OpenFile, initialPath);
         if (parser.isSet(multipleOption)) dlg.setMultipleSelection(true);
         if (!filter.isEmpty()) dlg.setFilter(filter);
+        if (grabDialog(dlg)) return 0;
         if (dlg.exec() == QDialog::Accepted) {
             QStringList chosen = dlg.selectedPaths();
             for (const QString &p : chosen) {
@@ -145,6 +157,7 @@ int main(int argc, char *argv[]) {
         return 1;
     } else if (parser.isSet(folderOption)) {
         FilePickerDialog dlg(PickerMode::ChooseFolder, initialPath);
+        if (grabDialog(dlg)) return 0;
         if (dlg.exec() == QDialog::Accepted) {
             std::cout << qUtf8Printable(dlg.selectedPath()) << std::endl;
             return 0;

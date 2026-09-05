@@ -73,6 +73,8 @@ public:
     static double densityScale();              // 0.75 / 1.0 / 1.3
     static int px(int base);                   // density-scaled size for code paths
     static int baseFontSize();                 // px, default 13
+    static bool isIconTheme(const QString &name);      // index.theme with a Directories= key (cursor themes have none)
+    static QStringList availableIconThemes();
     // Rescale border-radius / padding / font-size values in a stylesheet by the tokens.
     // Append "/*fixed*/" after a value to keep it (circles, hairlines).
     static QString css(const QString &sheet);

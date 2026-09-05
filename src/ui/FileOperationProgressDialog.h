@@ -1,12 +1,12 @@
 #pragma once
 
-#include <QDialog>
+#include "CardDialog.h"
 #include <QProgressBar>
 #include <QLabel>
 #include <QPushButton>
 #include <QElapsedTimer>
 
-class FileOperationProgressDialog : public QDialog {
+class FileOperationProgressDialog : public CardDialog {
     Q_OBJECT
 
 public:

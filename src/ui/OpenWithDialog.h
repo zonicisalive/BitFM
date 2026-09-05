@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "CardDialog.h"
 #include <QLineEdit>
 #include <QListWidget>
 #include <QCheckBox>
@@ -8,7 +8,7 @@
 #include <QLabel>
 #include "AppLauncher.h"
 
-class OpenWithDialog : public QDialog {
+class OpenWithDialog : public CardDialog {
     Q_OBJECT
 
 public:

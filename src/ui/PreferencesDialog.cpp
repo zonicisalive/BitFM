@@ -294,14 +294,7 @@ QWidget* PreferencesDialog::buildAppearancePage() {
 
     auto *iconCombo = new QComboBox(fontBox);
     iconCombo->addItem(tr("Automatic"), QString());
-    QStringList seen;
-    for (const QString &dir : QIcon::themeSearchPaths()) {
-        for (const QString &name : QDir(dir).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-            if (seen.contains(name) || !QFileInfo::exists(dir + "/" + name + "/index.theme")) continue;
-            seen << name;
-            iconCombo->addItem(name, name);
-        }
-    }
+    for (const QString &name : ThemeManager::availableIconThemes()) iconCombo->addItem(name, name);
     int cur = iconCombo->findData(AppSettings::instance().iconTheme());
     iconCombo->setCurrentIndex(cur < 0 ? 0 : cur);
     connect(iconCombo, &QComboBox::currentIndexChanged, this, [iconCombo](int i) { AppSettings::instance().setIconTheme(iconCombo->itemData(i).toString()); });

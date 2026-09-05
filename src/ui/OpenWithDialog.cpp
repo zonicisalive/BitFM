@@ -7,7 +7,7 @@
 #include <QMessageBox>
 
 OpenWithDialog::OpenWithDialog(const QStringList &filePaths, QWidget *parent)
-    : QDialog(parent), m_filePaths(filePaths)
+    : CardDialog(parent), m_filePaths(filePaths)
 {
     setWindowTitle(tr("Open With"));
     setMinimumSize(480, 520);
@@ -161,7 +161,7 @@ void OpenWithDialog::setupUi() {
     btnLayout->addWidget(m_openBtn);
     mainLayout->addLayout(btnLayout);
 
-    setStyleSheet(ThemeManager::css("QDialog { background-color: " + QString(ThemeManager::BG_BASE) + "; }"));
+    setContentsMargins(6, 6, 6, 6);
 }
 
 void OpenWithDialog::populateApps() {

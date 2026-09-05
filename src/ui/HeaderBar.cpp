@@ -84,7 +84,12 @@ void HeaderBar::rebuildToolbar() {
         delete item;
     }
     ActionRegistry &reg = ActionRegistry::instance();
-    for (const QString &id : AppSettings::instance().toolbarItems()) {
+    QStringList ids = AppSettings::instance().toolbarItems();
+    if (!m_customActions.isEmpty()) {
+        ids.clear();
+        for (int i = 0; i < m_customActions.size(); ++i) ids << QString::number(i);
+    }
+    for (const QString &id : ids) {
         if (id == "-") {
             auto *sep = new QFrame(m_toolCluster);
             sep->setFrameShape(QFrame::VLine);
@@ -93,7 +98,7 @@ void HeaderBar::rebuildToolbar() {
             m_toolLayout->addWidget(sep);
             continue;
         }
-        QAction *a = reg.action(id);
+        QAction *a = m_customActions.isEmpty() ? reg.action(id) : m_customActions.value(id.toInt());
         if (!a) continue;
         auto *b = new QToolButton(m_toolCluster);
         b->setDefaultAction(a);
@@ -145,6 +150,12 @@ void HeaderBar::showSearch(bool on) {
 bool HeaderBar::isSearchShown() const { return m_locationStack->currentWidget() == m_searchBar; }
 
 void HeaderBar::setAppMenu(QMenu *menu) { if (m_menuBtn) m_menuBtn->setMenu(menu); }
+
+void HeaderBar::setToolActions(const QList<QAction*> &actions) {
+    m_customActions = actions;
+    rebuildToolbar();
+    applyStyle();
+}
 
 void HeaderBar::mousePressEvent(QMouseEvent *event) {
     emit activated();

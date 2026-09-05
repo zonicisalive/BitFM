@@ -11,7 +11,7 @@
 #include <QSet>
 
 BatchRenameDialog::BatchRenameDialog(const QStringList &filePaths, QWidget *parent)
-    : QDialog(parent), m_originalPaths(filePaths)
+    : CardDialog(parent), m_originalPaths(filePaths)
 {
     setWindowTitle(tr("Batch Rename — %1 items").arg(filePaths.size()));
     resize(700, 520);

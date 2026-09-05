@@ -1,4 +1,7 @@
 #include "FilePickerDialog.h"
+#include <QPainter>
+#include "CardDialog.h"
+#include "HeaderBar.h"
 #include "ThemeManager.h"
 #include "UserEnvironment.h"
 #include <QVBoxLayout>
@@ -62,44 +65,29 @@ void FilePickerDialog::setupUi() {
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    // 1. Top Navigation & Breadcrumb Toolbar
-    m_topBar = new QToolBar(this);
-    m_topBar->setIconSize(QSize(18, 18));
-    m_topBar->setFixedHeight(44);
-    m_topBar->setStyleSheet(ThemeManager::css(
-        "QToolBar {"
-        "  background-color: " + QString(ThemeManager::BG_SURFACE) + ";"
-        "  border-bottom: 1px solid " + QString(ThemeManager::BORDER) + ";"
-        "  padding: 4px 8px;"
-        "  spacing: 4px;"
-        "}"
-    ));
-    m_topBar->setMovable(false);
-    m_topBar->setFloatable(false);
-    m_topBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    mainLayout->setContentsMargins(8, 8, 8, 8);
+    mainLayout->setSpacing(8);
 
-    m_actBack = m_topBar->addAction(QIcon::fromTheme("go-previous", QIcon::fromTheme("left")), tr("Back (Alt+Left)"), this, &FilePickerDialog::navigateBack);
-    m_actForward = m_topBar->addAction(QIcon::fromTheme("go-next", QIcon::fromTheme("right")), tr("Forward (Alt+Right)"), this, &FilePickerDialog::navigateForward);
-    m_actUp = m_topBar->addAction(QIcon::fromTheme("go-up", QIcon::fromTheme("up")), tr("Parent Folder (Alt+Up)"), this, &FilePickerDialog::navigateUp);
-    m_actHome = m_topBar->addAction(QIcon::fromTheme("go-home", QIcon::fromTheme("user-home")), tr("Home (Alt+Home)"), this, &FilePickerDialog::navigateHome);
+    // 1. Header bar (nav + breadcrumb/search + picker tools), same widget as the main window
+    m_header = new HeaderBar(false, this);
+    m_breadcrumbBar = m_header->breadcrumb();
+    m_searchBar = m_header->searchBar();
+    connect(m_header, &HeaderBar::backRequested,    this, &FilePickerDialog::navigateBack);
+    connect(m_header, &HeaderBar::forwardRequested, this, &FilePickerDialog::navigateForward);
+    connect(m_header, &HeaderBar::upRequested,      this, &FilePickerDialog::navigateUp);
+    connect(m_header, &HeaderBar::homeRequested,    this, &FilePickerDialog::navigateHome);
 
-    m_locationStack = new QStackedWidget(this);
-    m_locationStack->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-
-    m_breadcrumbBar = new BreadcrumbBar(this);
-    m_searchBar = new SearchBarWidget(this);
-
-    m_locationStack->addWidget(m_breadcrumbBar);
-    m_locationStack->addWidget(m_searchBar);
-    m_locationStack->setCurrentWidget(m_breadcrumbBar);
-
-    m_topBar->addWidget(m_locationStack);
-
-    m_actSearch = m_topBar->addAction(QIcon::fromTheme("edit-find", QIcon::fromTheme("search")), tr("Search (Ctrl+F)"), this, &FilePickerDialog::toggleSearch);
+    m_actSearch = new QAction(QIcon::fromTheme("edit-find", QIcon::fromTheme("search")), tr("Search (Ctrl+F)"), this);
     m_actSearch->setCheckable(true);
-    m_actNewFolder = m_topBar->addAction(QIcon::fromTheme("folder-new"), tr("New Folder (Ctrl+Shift+N)"), this, &FilePickerDialog::createNewFolder);
-    m_actToggleHidden = m_topBar->addAction(QIcon::fromTheme("view-hidden"), tr("Show Hidden Files (Ctrl+H)"), this, &FilePickerDialog::toggleHiddenFiles);
-    m_actToggleViewMode = m_topBar->addAction(QIcon::fromTheme("view-list-icons"), tr("Toggle View Mode"), this, &FilePickerDialog::toggleViewMode);
+    connect(m_actSearch, &QAction::triggered, this, &FilePickerDialog::toggleSearch);
+    m_actNewFolder = new QAction(QIcon::fromTheme("folder-new"), tr("New Folder (Ctrl+Shift+N)"), this);
+    connect(m_actNewFolder, &QAction::triggered, this, &FilePickerDialog::createNewFolder);
+    m_actToggleHidden = new QAction(QIcon::fromTheme("view-hidden"), tr("Show Hidden Files (Ctrl+H)"), this);
+    m_actToggleHidden->setCheckable(true);
+    connect(m_actToggleHidden, &QAction::triggered, this, &FilePickerDialog::toggleHiddenFiles);
+    m_actToggleViewMode = new QAction(QIcon::fromTheme("view-list-icons"), tr("Toggle View Mode"), this);
+    connect(m_actToggleViewMode, &QAction::triggered, this, &FilePickerDialog::toggleViewMode);
+    m_header->setToolActions({ m_actSearch, m_actNewFolder, m_actToggleHidden, m_actToggleViewMode });
 
     connect(m_breadcrumbBar, &BreadcrumbBar::pathChanged, this, [this](const QString &path) {
         if (QFileInfo(path).isFile()) {
@@ -111,17 +99,12 @@ void FilePickerDialog::setupUi() {
         }
     });
 
-    mainLayout->addWidget(m_topBar);
-
     connect(m_searchBar, &SearchBarWidget::searchChanged, this, &FilePickerDialog::onSearchChanged);
     connect(m_proxyModel, &FileFilterProxyModel::filterChanged, this, &FilePickerDialog::onFilterChanged);
     connect(m_searchBar, &SearchBarWidget::searchClosed, this, [this]() {
         m_fileModel->cancelSearch();
         m_proxyModel->setSearchPattern(QString());
-        if (m_locationStack && m_breadcrumbBar) {
-            m_locationStack->setCurrentWidget(m_breadcrumbBar);
-            m_breadcrumbBar->activateBreadcrumbMode();
-        }
+        m_header->showSearch(false);
         if (m_actSearch) m_actSearch->setChecked(false);
     });
     m_searchDebounceTimer.setSingleShot(true);
@@ -133,6 +116,8 @@ void FilePickerDialog::setupUi() {
 
     // 3. Center Splitter with Places Sidebar + FileView
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->setHandleWidth(8);
+    splitter->setChildrenCollapsible(false);
 
     m_sidebar = new SidebarWidget(this);
     m_sidebar->setMinimumWidth(160);
@@ -142,7 +127,13 @@ void FilePickerDialog::setupUi() {
     });
     splitter->addWidget(m_sidebar);
 
-    m_fileView = new FileViewWidget(m_fileModel, m_proxyModel, this);
+    auto *contentCard = new CardWidget(this);
+    auto *contentLayout = new QVBoxLayout(contentCard);
+    contentLayout->setContentsMargins(1, 1, 1, 1);
+    contentLayout->setSpacing(0);
+    contentLayout->addWidget(m_header);
+
+    m_fileView = new FileViewWidget(m_fileModel, m_proxyModel, contentCard);
     m_fileView->setViewMode(ViewMode::IconGrid);
     connect(m_fileView, &FileViewWidget::openPathRequested, this, [this](const QString &path) {
         QTimer::singleShot(0, this, [this, path]() {
@@ -160,7 +151,8 @@ void FilePickerDialog::setupUi() {
     });
     connect(m_fileView, &FileViewWidget::fileSelectionChanged, this, &FilePickerDialog::onFileSelectionChanged);
     connect(m_fileView, &FileViewWidget::searchRequested, this, &FilePickerDialog::toggleSearch);
-    splitter->addWidget(m_fileView);
+    contentLayout->addWidget(m_fileView, 1);
+    splitter->addWidget(contentCard);
 
     connect(m_fileModel, &FileSystemModel::directoryLoaded, this, &FilePickerDialog::onDirectoryLoaded);
 
@@ -172,16 +164,10 @@ void FilePickerDialog::setupUi() {
     // 4. Bottom Control Bar
     QWidget *bottomBar = new QWidget(this);
     bottomBar->setObjectName("bottomBar");
-    bottomBar->setStyleSheet(ThemeManager::css(
-        "QWidget#bottomBar {"
-        "  background-color: " + QString(ThemeManager::BG_SURFACE) + ";"
-        "  border-top: 1px solid " + QString(ThemeManager::BORDER) + ";"
-        "  padding: 8px 12px;"
-        "}"
-    ));
+    bottomBar->setStyleSheet(ThemeManager::css("QWidget#bottomBar { background: transparent; }"));
 
     QVBoxLayout *botVLayout = new QVBoxLayout(bottomBar);
-    botVLayout->setContentsMargins(12, 10, 12, 10);
+    botVLayout->setContentsMargins(4, 0, 4, 0);
     botVLayout->setSpacing(8);
 
     // Row 1: File/Folder name input
@@ -279,7 +265,6 @@ void FilePickerDialog::setupUi() {
     botVLayout->addLayout(row2);
 
     mainLayout->addWidget(bottomBar);
-    setStyleSheet(ThemeManager::css("QDialog { background-color: " + QString(ThemeManager::BG_BASE) + "; }"));
 
     // Global Shortcuts within Dialog
     new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_F), this, SLOT(toggleSearch()));
@@ -296,9 +281,13 @@ void FilePickerDialog::setupUi() {
 }
 
 void FilePickerDialog::updateNavButtons() {
-    if (m_actBack) m_actBack->setEnabled(!m_backStack.isEmpty());
-    if (m_actForward) m_actForward->setEnabled(!m_forwardStack.isEmpty());
-    if (m_actUp) m_actUp->setEnabled(QDir(m_fileModel->currentDirectory()).absolutePath() != "/");
+    if (m_header) m_header->setNavState(!m_backStack.isEmpty(), !m_forwardStack.isEmpty(),
+                                        QDir(m_fileModel->currentDirectory()).absolutePath() != "/");
+}
+
+void FilePickerDialog::paintEvent(QPaintEvent *) {
+    QPainter p(this);
+    p.fillRect(rect(), ThemeManager::toColor(ThemeManager::BG_BACKDROP));
 }
 
 void FilePickerDialog::navigateTo(const QString &path, bool recordHistory) {
@@ -343,17 +332,15 @@ void FilePickerDialog::navigateHome() {
 }
 
 void FilePickerDialog::toggleSearch() {
-    if (!m_searchBar || !m_locationStack) return;
-    if (m_locationStack->currentWidget() == m_searchBar) {
+    if (!m_searchBar || !m_header) return;
+    if (m_header->isSearchShown()) {
         m_searchBar->deactivate();
         m_fileModel->cancelSearch();
         m_proxyModel->setSearchPattern(QString());
-        m_locationStack->setCurrentWidget(m_breadcrumbBar);
-        m_breadcrumbBar->activateBreadcrumbMode();
+        m_header->showSearch(false);
         if (m_actSearch) m_actSearch->setChecked(false);
     } else {
-        m_locationStack->setCurrentWidget(m_searchBar);
-        m_searchBar->activate();
+        m_header->showSearch(true);
         if (m_actSearch) m_actSearch->setChecked(true);
     }
 }

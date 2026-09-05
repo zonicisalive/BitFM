@@ -11,11 +11,12 @@
 #include <QMimeDatabase>
 
 ConflictResolutionDialog::ConflictResolutionDialog(const QString &sourcePath, const QString &destinationPath, QWidget *parent)
-    : QDialog(parent)
+    : CardDialog(parent)
 {
     setWindowTitle(tr("File Conflict"));
     setModal(true);
-    resize(520, 320);
+    resize(540, 340);
+    setContentsMargins(6, 6, 6, 6);
 
     setupUi(sourcePath, destinationPath);
 }

@@ -47,6 +47,9 @@ public slots:
     void toggleViewMode();
     void createNewFolder();
 
+protected:
+    void paintEvent(QPaintEvent *event) override;
+
 private slots:
     void onNavigateRequested(const QString &path);
     void onFileSelectionChanged(const QStringList &selectedPaths);
@@ -75,9 +78,8 @@ private:
     BreadcrumbBar *m_breadcrumbBar = nullptr;
     SidebarWidget *m_sidebar = nullptr;
     SearchBarWidget *m_searchBar = nullptr;
-    QStackedWidget *m_locationStack = nullptr;
 
-    QToolBar *m_topBar = nullptr;
+    class HeaderBar *m_header = nullptr;
     QAction *m_actBack = nullptr;
     QAction *m_actForward = nullptr;
     QAction *m_actUp = nullptr;

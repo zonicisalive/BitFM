@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "CardDialog.h"
 #include <QCheckBox>
 #include <QPushButton>
 
@@ -11,7 +11,7 @@ enum class ConflictAction {
     Cancel
 };
 
-class ConflictResolutionDialog : public QDialog {
+class ConflictResolutionDialog : public CardDialog {
     Q_OBJECT
 
 public:

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include "CardDialog.h"
 #include <QTableWidget>
 #include <QLineEdit>
 #include <QCheckBox>
@@ -11,7 +11,7 @@
 #include <QLabel>
 #include "FileOperations.h"
 
-class BatchRenameDialog : public QDialog {
+class BatchRenameDialog : public CardDialog {
     Q_OBJECT
 
 public:
