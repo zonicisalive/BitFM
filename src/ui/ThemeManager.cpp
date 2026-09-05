@@ -688,7 +688,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
 
         /* ─── Context Menu ─── */
         "QMenu {"
-        "  background-color: %5;"
+        "  background-color: %13;"
         "  color: %2;"
         "  border: 1px solid %3;"
         "  border-radius: 10px;"
@@ -805,7 +805,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "  padding-right: 8px;"
         "}"
         "QComboBox QAbstractItemView {"
-        "  background-color: %10;"
+        "  background-color: %14;"
         "  color: %2;"
         "  border: 1px solid %3;"
         "  border-radius: 8px;"
@@ -881,7 +881,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
 
         /* ─── Tooltip ─── */
         "QToolTip {"
-        "  background-color: %10;"
+        "  background-color: %14;"
         "  color: %2;"
         "  border: 1px solid %3;"
         "  border-radius: 6px;"
@@ -901,6 +901,8 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
     .arg(bgOverlay)          // %10
     .arg(bgOverlay)          // %11
     .arg(c.textSecondary)    // %12
+    .arg(c.bgSurface)        // %13 opaque popup surface
+    .arg(c.bgOverlay)        // %14 opaque popup overlay
     .replace("GLYPH", QColor(c.accent).lightness() > 140 ? "dark" : "light");
 }
 
