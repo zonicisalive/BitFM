@@ -1,4 +1,5 @@
 #include "DeviceManager.h"
+#include <QTemporaryFile>
 #include "UnlockDeviceDialog.h"
 #include "UserEnvironment.h"
 #include <QProcess>
@@ -144,7 +145,12 @@ void DeviceManager::refresh() {
 
                 if (isSystemPart) {
                     // Skip system / boot / recovery / swap partitions
-                } else if (type == "part" || (type == "disk" && !hasChildren && !fstype.isEmpty())) {
+                } else if (type == "part" || type == "lvm" || type == "crypt" || type.startsWith("raid") ||
+                           (type == "disk" && !hasChildren && !fstype.isEmpty())) {
+                    // Containers (LUKS/LVM/RAID members) show up through their unlocked/child volume instead
+                    if (hasChildren && (fstype == "crypto_luks" || fstype == "lvm2_member" || fstype == "linux_raid_member")) {
+                        // fallthrough to children below
+                    } else
                     if (!fstype.isEmpty() || !mountpoint.isEmpty() || !label.isEmpty()) {
                         StorageDevice dev;
                         dev.deviceNode = "/dev/" + name;
@@ -230,6 +236,16 @@ bool DeviceManager::mountDevice(const QString &deviceNode, QString *outMountPath
                     || err.contains("crypto", Qt::CaseInsensitive)
                     || err.contains("locked", Qt::CaseInsensitive);
 
+    bool needsAuth = isEncrypted
+                  || err.contains("NotAuthorized", Qt::CaseInsensitive)
+                  || err.contains("not authorized", Qt::CaseInsensitive)
+                  || err.contains("permission", Qt::CaseInsensitive)
+                  || err.contains("polkit", Qt::CaseInsensitive);
+    if (!needsAuth) {
+        if (error) *error = err.isEmpty() ? tr("Failed to mount %1.").arg(deviceNode) : err;
+        return false;
+    }
+
     // Find device display name
     QString devName;
     for (const StorageDevice &d : m_devices) {
@@ -259,13 +275,25 @@ bool DeviceManager::mountDevice(const QString &deviceNode, QString *outMountPath
 
         if (isEncrypted) {
             // Unlock with udisksctl unlock
-            QProcess unlockProc;
-            unlockProc.start("udisksctl", { "unlock", "-b", deviceNode });
-            unlockProc.write(pass.toUtf8() + "\n");
-            unlockProc.closeWriteChannel();
+            QTemporaryFile keyFile(QDir(qEnvironmentVariable("XDG_RUNTIME_DIR", QDir::tempPath())).filePath("bitfm-key-XXXXXX"));
+            if (!keyFile.open()) {
+                dlg.setError(tr("Cannot create temporary key file."));
+                continue;
+            }
+            keyFile.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
+            keyFile.write(pass.toUtf8());
+            keyFile.flush();
 
-            if (!unlockProc.waitForFinished(8000) || unlockProc.exitCode() != 0) {
-                dlg.setError(tr("Incorrect passphrase. Please try again."));
+            QProcess unlockProc;
+            unlockProc.start("udisksctl", { "unlock", "-b", deviceNode, "--key-file", keyFile.fileName(), "--no-user-interaction" });
+            bool unlocked = unlockProc.waitForFinished(15000) && unlockProc.exitCode() == 0;
+            keyFile.remove();
+
+            if (!unlocked) {
+                QString uerr = QString::fromUtf8(unlockProc.readAllStandardError()).trimmed();
+                dlg.setError(uerr.contains("Incorrect", Qt::CaseInsensitive) || uerr.contains("passphrase", Qt::CaseInsensitive)
+                             ? tr("Incorrect passphrase. Please try again.")
+                             : (uerr.isEmpty() ? tr("Unlock failed.") : uerr));
                 continue;
             }
 
@@ -338,7 +366,12 @@ bool DeviceManager::unmountDevice(const QString &mountPath, QString *error) {
     if (mountPath.contains("/gvfs/")) {
         proc.start("gio", { "mount", "-u", mountPath });
     } else {
-        proc.start("udisksctl", { "unmount", "-p", mountPath });
+        QString node;
+        for (const StorageDevice &d : m_devices) {
+            if (d.mountPath == mountPath || d.deviceNode == mountPath) { node = d.deviceNode; break; }
+        }
+        if (node.isEmpty()) node = mountPath.startsWith("/dev/") ? mountPath : QStorageInfo(mountPath).device();
+        proc.start("udisksctl", { "unmount", "-b", node, "--no-user-interaction" });
     }
 
     if (!proc.waitForFinished(4000) || proc.exitCode() != 0) {
@@ -378,15 +411,19 @@ bool DeviceManager::connectRemoteServer(const QString &protocol, const QString &
     }
 
     QProcess proc;
+    proc.start("gio", { "mount", uri });
     if (!password.isEmpty()) {
-        // Pass password via standard input or environment
-        proc.start("gio", { "mount", uri });
-        proc.write(password.toUtf8() + "\n");
-    } else {
-        proc.start("gio", { "mount", uri });
+        // gio prompts in sequence (anonymous? / user / domain / password); answer every one it may ask
+        QByteArray answers;
+        if (scheme == "smb") answers += "n\n";
+        if (user.isEmpty()) answers += "\n";
+        if (scheme == "smb") answers += "WORKGROUP\n";
+        answers += password.toUtf8() + "\n";
+        proc.write(answers);
     }
+    proc.closeWriteChannel();
 
-    if (!proc.waitForFinished(6000) || proc.exitCode() != 0) {
+    if (!proc.waitForFinished(20000) || proc.exitCode() != 0) {
         QString err = QString::fromUtf8(proc.readAllStandardError()).trimmed();
         if (error) *error = err.isEmpty() ? tr("Connection failed. Check host, credentials, and port.") : err;
         return false;
@@ -394,11 +431,14 @@ bool DeviceManager::connectRemoteServer(const QString &protocol, const QString &
 
     refresh();
 
-    // Look for new mount
-    for (const StorageDevice &net : m_networkMounts) {
-        if (net.mountPath.contains(host)) {
-            if (outMountPath) *outMountPath = net.mountPath;
-            return true;
+    // refresh() runs asynchronously; resolve the gvfs mount dir directly
+    if (outMountPath) {
+        QString gvfsRoot = QString("/run/user/%1/gvfs").arg(getuid());
+        for (const QString &entry : QDir(gvfsRoot).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            if (entry.contains("host=" + host, Qt::CaseInsensitive)) {
+                *outMountPath = gvfsRoot + "/" + entry;
+                break;
+            }
         }
     }
 

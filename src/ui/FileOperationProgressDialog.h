@@ -17,6 +17,9 @@ public:
     void setProgress(int percentage);
     bool wasCanceled() const;
 
+protected:
+    void reject() override { onCancelClicked(); }
+
 signals:
     void cancelRequested();
 

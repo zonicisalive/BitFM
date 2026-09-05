@@ -32,8 +32,8 @@ private:
 
     QString getThumbnailCachePath(const QString &filePath, int size = 128) const;
 
-    QThreadPool m_threadPool;
     mutable QMutex m_mutex;
     mutable QCache<QString, QIcon> m_memoryCache;
     QSet<QString> m_pendingRequests;
+    QThreadPool m_threadPool; // last: destroyed (and drained) first, while the members above still exist
 };

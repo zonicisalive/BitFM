@@ -5,6 +5,7 @@
 #include <QString>
 #include <QByteArray>
 #include <QList>
+#include <QStringList>
 #include <Qt>
 
 class AppSettings : public QObject {
@@ -66,7 +67,39 @@ public:
     double windowOpacity() const;
     void setWindowOpacity(double opacity);
 
+    // Design tokens (Preferences → Appearance)
+    int cornerRadius() const;            // 0..16 px
+    void setCornerRadius(int px);
+    int density() const;                 // 0 compact, 1 normal, 2 spacious
+    void setDensity(int d);
+    QString fontFamily() const;          // empty = system default
+    void setFontFamily(const QString &family);
+    int fontSize() const;                // 0 = default (13)
+    void setFontSize(int pt);
+    QString iconTheme() const;           // empty = auto
+    void setIconTheme(const QString &name);
+
+    // Layout (Preferences → Layout)
+    int sidebarSide() const;             // 0 left, 1 right, 2 hidden
+    void setSidebarSide(int side);
+    int inspectorSide() const;           // 0 right, 1 left
+    void setInspectorSide(int side);
+    bool isMenubarVisible() const;
+    void setMenubarVisible(bool visible);
+    bool isStatusbarVisible() const;
+    void setStatusbarVisible(bool visible);
+    int drawerHeight() const;
+    void setDrawerHeight(int px);
+
+    // Header bar toolbar composition (ordered action ids, "-" = separator)
+    QStringList toolbarItems() const;
+    void setToolbarItems(const QStringList &ids);
+    static QStringList defaultToolbarItems();
+
 signals:
+    void appearanceTokensChanged();
+    void layoutChanged();
+    void toolbarItemsChanged();
     void viewModeChanged(int mode);
     void showHiddenFilesChanged(bool show);
     void zoomLevelChanged(int level);

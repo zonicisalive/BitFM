@@ -20,4 +20,4 @@ Exec=bitfm %U
 
 [Desktop Action Root]
 Name=Open as Administrator (Root)
-Exec=pkexec bitfm %U
+Exec=sh -c 'exec pkexec env DISPLAY="$DISPLAY" XAUTHORITY="$XAUTHORITY" WAYLAND_DISPLAY="$WAYLAND_DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" SUDO_USER="$USER" bitfm "$@"' sh %U

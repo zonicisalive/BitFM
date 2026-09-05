@@ -208,3 +208,131 @@ void AppSettings::setWindowOpacity(double opacity) {
         emit windowOpacityChanged(opacity);
     }
 }
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+int AppSettings::cornerRadius() const {
+    return qBound(0, QSettings().value("appearance/radius", 6).toInt(), 16);
+}
+
+void AppSettings::setCornerRadius(int px) {
+    px = qBound(0, px, 16);
+    if (cornerRadius() == px) return;
+    QSettings().setValue("appearance/radius", px);
+    emit appearanceTokensChanged();
+}
+
+int AppSettings::density() const {
+    return qBound(0, QSettings().value("appearance/density", 1).toInt(), 2);
+}
+
+void AppSettings::setDensity(int d) {
+    d = qBound(0, d, 2);
+    if (density() == d) return;
+    QSettings().setValue("appearance/density", d);
+    emit appearanceTokensChanged();
+}
+
+QString AppSettings::fontFamily() const {
+    return QSettings().value("appearance/fontFamily").toString();
+}
+
+void AppSettings::setFontFamily(const QString &family) {
+    if (fontFamily() == family) return;
+    QSettings().setValue("appearance/fontFamily", family);
+    emit appearanceTokensChanged();
+}
+
+int AppSettings::fontSize() const {
+    return qBound(0, QSettings().value("appearance/fontSize", 0).toInt(), 24);
+}
+
+void AppSettings::setFontSize(int pt) {
+    pt = qBound(0, pt, 24);
+    if (fontSize() == pt) return;
+    QSettings().setValue("appearance/fontSize", pt);
+    emit appearanceTokensChanged();
+}
+
+QString AppSettings::iconTheme() const {
+    return QSettings().value("appearance/iconTheme").toString();
+}
+
+void AppSettings::setIconTheme(const QString &name) {
+    if (iconTheme() == name) return;
+    QSettings().setValue("appearance/iconTheme", name);
+    emit appearanceTokensChanged();
+}
+
+// ── Layout ────────────────────────────────────────────────────────────────────
+
+int AppSettings::sidebarSide() const {
+    return qBound(0, QSettings().value("layout/sidebarSide", 0).toInt(), 2);
+}
+
+void AppSettings::setSidebarSide(int side) {
+    side = qBound(0, side, 2);
+    if (sidebarSide() == side) return;
+    QSettings().setValue("layout/sidebarSide", side);
+    emit layoutChanged();
+}
+
+int AppSettings::inspectorSide() const {
+    return qBound(0, QSettings().value("layout/inspectorSide", 0).toInt(), 1);
+}
+
+void AppSettings::setInspectorSide(int side) {
+    side = qBound(0, side, 1);
+    if (inspectorSide() == side) return;
+    QSettings().setValue("layout/inspectorSide", side);
+    emit layoutChanged();
+}
+
+bool AppSettings::isMenubarVisible() const {
+    return QSettings().value("layout/menubar", false).toBool();
+}
+
+void AppSettings::setMenubarVisible(bool visible) {
+    if (isMenubarVisible() == visible) return;
+    QSettings().setValue("layout/menubar", visible);
+    emit layoutChanged();
+}
+
+bool AppSettings::isStatusbarVisible() const {
+    return QSettings().value("layout/statusbar", true).toBool();
+}
+
+void AppSettings::setStatusbarVisible(bool visible) {
+    if (isStatusbarVisible() == visible) return;
+    QSettings().setValue("layout/statusbar", visible);
+    emit layoutChanged();
+}
+
+int AppSettings::drawerHeight() const {
+    return qBound(100, QSettings().value("layout/drawerHeight", 220).toInt(), 800);
+}
+
+void AppSettings::setDrawerHeight(int px) {
+    px = qBound(100, px, 800);
+    if (drawerHeight() == px) return;
+    QSettings().setValue("layout/drawerHeight", px);
+    emit layoutChanged();
+}
+
+// ── Toolbar ───────────────────────────────────────────────────────────────────
+
+QStringList AppSettings::defaultToolbarItems() {
+    return { "view.search", "view.cycle", "view.split", "view.inspector", "view.terminal" };
+}
+
+QStringList AppSettings::toolbarItems() const {
+    QSettings settings;
+    if (!settings.contains("toolbar/items")) return defaultToolbarItems();
+    return settings.value("toolbar/items").toStringList();
+}
+
+void AppSettings::setToolbarItems(const QStringList &ids) {
+    if (toolbarItems() == ids) return;
+    QSettings().setValue("toolbar/items", ids);
+    emit toolbarItemsChanged();
+}

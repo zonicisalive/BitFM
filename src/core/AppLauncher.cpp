@@ -171,14 +171,14 @@ static QStringList getSystemMimeAppsListFiles() {
     QStringList files;
     QString home = QDir::homePath();
 
-    // 1. User config mimeapps
-    files << home + "/.config/mimeapps.list";
-
-    // 2. Desktop specific user config (e.g. hyprland-mimeapps.list, gnome-mimeapps.list)
+    // 1. Desktop specific user config (e.g. hyprland-mimeapps.list, gnome-mimeapps.list) wins over generic
     QString desktopEnv = QString::fromUtf8(qgetenv("XDG_CURRENT_DESKTOP")).toLower();
     for (const QString &d : desktopEnv.split(':', Qt::SkipEmptyParts)) {
         files << home + QString("/.config/%1-mimeapps.list").arg(d.trimmed());
     }
+
+    // 2. User config mimeapps
+    files << home + "/.config/mimeapps.list";
 
     // 3. XDG data dirs
     files << home + "/.local/share/applications/mimeapps.list";
@@ -474,50 +474,37 @@ bool AppLauncher::launchApp(const DesktopApp &app, const QStringList &filePaths)
         }
     }
 
-    QString cmd = app.exec;
-    // Strip field codes
-    if (filePaths.isEmpty()) {
-        cmd.remove(QRegularExpression("%[fFuUickdDnmv]"));
-    } else {
-        QString quotedPaths;
-        QString quotedUris;
-        for (const QString &p : filePaths) {
-            QString escaped = p;
-            escaped.replace("\"", "\\\"");
-            quotedPaths += "\"" + escaped + "\" ";
-            quotedUris += "\"" + QUrl::fromLocalFile(p).toString() + "\" ";
-        }
-        quotedPaths = quotedPaths.trimmed();
-        quotedUris = quotedUris.trimmed();
-
-        if (cmd.contains("%u") || cmd.contains("%U")) {
-            cmd.replace("%u", quotedUris);
-            cmd.replace("%U", quotedUris);
-            cmd.remove(QRegularExpression("%[fFickdDnmv]"));
-        } else if (cmd.contains("%f") || cmd.contains("%F")) {
-            cmd.replace("%f", quotedPaths);
-            cmd.replace("%F", quotedPaths);
-            cmd.remove(QRegularExpression("%[uUickdDnmv]"));
+    // Tokenize the Exec line and substitute field codes as separate argv entries.
+    // Never route user paths through a shell: "$(...)" in a file name must stay literal.
+    QStringList argv = QProcess::splitCommand(app.exec);
+    if (argv.isEmpty()) return false;
+    QStringList out;
+    bool consumedFiles = false;
+    for (const QString &a : argv) {
+        if (a == "%f" || a == "%F") {
+            out += filePaths;
+            consumedFiles = true;
+        } else if (a == "%u" || a == "%U") {
+            for (const QString &p : filePaths) out << QUrl::fromLocalFile(p).toString();
+            consumedFiles = true;
+        } else if (a == "%i" || a == "%c" || a == "%k" || a == "%d" || a == "%D" || a == "%n" || a == "%N" || a == "%m" || a == "%v") {
+            continue;
         } else {
-            cmd.remove(QRegularExpression("%[ickdDnmv]"));
-            cmd += " " + quotedPaths;
+            QString t = a;
+            t.replace("%%", "%");
+            out << t;
         }
     }
-
-    return QProcess::startDetached("/bin/sh", {"-c", cmd.trimmed()});
+    if (!consumedFiles) out += filePaths;
+    QString program = out.takeFirst();
+    return QProcess::startDetached(program, out);
 }
 
 bool AppLauncher::launchCommand(const QString &command, const QStringList &filePaths) {
-    if (command.isEmpty()) return false;
-    QString cmd = command;
-    if (!filePaths.isEmpty()) {
-        for (const QString &p : filePaths) {
-            QString escaped = p;
-            escaped.replace("\"", "\\\"");
-            cmd += " \"" + escaped + "\"";
-        }
-    }
-    return QProcess::startDetached("/bin/sh", {"-c", cmd.trimmed()});
+    QStringList args = QProcess::splitCommand(command);
+    if (args.isEmpty()) return false;
+    QString program = args.takeFirst();
+    return QProcess::startDetached(program, args + filePaths);
 }
 
 bool AppLauncher::setDefaultApp(const QString &desktopFile, const QString &mimeType) {

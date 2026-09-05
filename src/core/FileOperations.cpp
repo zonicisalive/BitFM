@@ -21,6 +21,28 @@ FileOperations::FileOperations(QObject *parent)
 {
 }
 
+// QFileInfo::exists() is false for dangling symlinks; they are still real entries.
+static bool entryExists(const QFileInfo &fi) {
+    return fi.exists() || fi.isSymLink();
+}
+
+// True when dest is src itself or lives inside src (after resolving symlinks).
+static bool isSameOrInside(const QString &src, const QString &dest) {
+    QString cs = QFileInfo(src).canonicalFilePath();
+    QString cd = QFileInfo(dest).canonicalFilePath();
+    if (cs.isEmpty() || cd.isEmpty()) {
+        cs = QDir::cleanPath(src);
+        cd = QDir::cleanPath(dest);
+    }
+    return cd == cs || cd.startsWith(cs.endsWith('/') ? cs : cs + "/");
+}
+
+static bool removeEntry(const QString &path) {
+    QFileInfo fi(path);
+    if (fi.isDir() && !fi.isSymLink()) return QDir(path).removeRecursively();
+    return QFile::remove(path);
+}
+
 #include "UserEnvironment.h"
 
 QString FileOperations::trashPath() {
@@ -143,7 +165,7 @@ bool FileOperations::emptyTrash(QWidget *parentWidget) {
 
 QString FileOperations::getDetailedErrorMessage(const QString &filePath, const QString &action) {
     QFileInfo info(filePath);
-    if (!info.exists() && action != "create") {
+    if (!entryExists(info) && !action.startsWith("create")) {
         return tr("File or directory '%1' does not exist.").arg(info.fileName());
     }
 
@@ -208,7 +230,7 @@ bool FileOperations::moveToTrash(const QStringList &filePaths, QWidget *parentWi
 
 bool FileOperations::moveSingleFileToTrash(const QString &filePath, QString *err) {
     QFileInfo info(filePath);
-    if (!info.exists()) {
+    if (!entryExists(info)) {
         if (err) *err = tr("Item does not exist.");
         return false;
     }
@@ -246,7 +268,13 @@ bool FileOperations::moveSingleFileToTrash(const QString &filePath, QString *err
     trashInfoFile.close();
 
     if (!QFile::rename(filePath, targetFilePath)) {
-        // Cleanup metadata
+        // Cross-device: copy into trash then remove the original.
+        // ponytail: spec wants $topdir/.Trash-$uid on other volumes; copy+delete is the simple fallback.
+        if (errno == EXDEV && copyRecursively(filePath, targetFilePath, false) && removeEntry(filePath)) {
+            return true;
+        }
+        QDir(targetFilePath).removeRecursively();
+        QFile::remove(targetFilePath);
         trashInfoFile.remove();
         if (err) *err = getDetailedErrorMessage(filePath, "move to trash");
         return false;
@@ -280,19 +308,13 @@ bool FileOperations::deletePermanently(const QStringList &filePaths, QWidget *pa
         if (isCanceled) break;
 
         QFileInfo info(path);
-        if (!info.exists()) continue;
+        if (!entryExists(info)) continue;
 
         if (progressDialog) {
             progressDialog->setStatus(info.fileName(), current + 1, totalItems);
         }
 
-        bool res = false;
-        if (info.isDir() && !info.isSymLink()) {
-            QDir dir(path);
-            res = dir.removeRecursively();
-        } else {
-            res = QFile::remove(path);
-        }
+        bool res = removeEntry(path);
 
         if (res) {
             successCount++;
@@ -332,7 +354,7 @@ FileStats FileOperations::calculateStats(const QStringList &paths, bool *cancele
     for (const QString &path : paths) {
         if (canceled && *canceled) break;
         QFileInfo fi(path);
-        if (!fi.exists()) continue;
+        if (!entryExists(fi)) continue;
 
         if (fi.isDir() && !fi.isSymLink()) {
             stats.dirCount++;
@@ -388,23 +410,28 @@ bool FileOperations::copySingleFile(const QString &srcFilePath, const QString &t
     if (canceled && *canceled) return false;
 
     QFileInfo srcInfo(srcFilePath);
-    if (!srcInfo.exists()) return false;
+    if (!entryExists(srcInfo)) return false;
 
-    // Safety check: Cannot copy a file onto itself
-    if (QDir::cleanPath(srcFilePath) == QDir::cleanPath(tgtFilePath)) {
+    // Safety check: Cannot copy a file onto itself (also via a different path/symlink)
+    if (QDir::cleanPath(srcFilePath) == QDir::cleanPath(tgtFilePath) ||
+        (!srcInfo.isSymLink() && QFileInfo(tgtFilePath).exists() &&
+         srcInfo.canonicalFilePath() == QFileInfo(tgtFilePath).canonicalFilePath())) {
         return false;
     }
 
-    // Handle symbolic links
+    // Handle symbolic links (preserve the raw link text so relative links stay relative)
     if (srcInfo.isSymLink()) {
-        if (QFile::exists(tgtFilePath)) {
+        QFileInfo tgtInfo(tgtFilePath);
+        if (entryExists(tgtInfo)) {
             if (overwrite) {
-                QFile::remove(tgtFilePath);
+                removeEntry(tgtFilePath);
             } else {
                 return false;
             }
         }
-        bool ok = QFile::link(srcInfo.symLinkTarget(), tgtFilePath);
+        QString linkText = srcInfo.readSymLink();
+        if (linkText.isEmpty()) linkText = srcInfo.symLinkTarget();
+        bool ok = QFile::link(linkText, tgtFilePath);
         if (ok && itemsCopied) (*itemsCopied)++;
         if (progressDialog) {
             progressDialog->setDetailedProgress(srcFilePath, bytesCopied ? *bytesCopied : 0, totalBytes,
@@ -473,9 +500,15 @@ bool FileOperations::copySingleFile(const QString &srcFilePath, const QString &t
         }
     }
 
+    if (!tgtFile.flush() || tgtFile.error() != QFile::NoError) {
+        tgtFile.close();
+        tgtFile.remove();
+        return false;
+    }
     tgtFile.close();
     srcFile.close();
     tgtFile.setPermissions(srcInfo.permissions());
+    tgtFile.setFileTime(srcInfo.lastModified(), QFileDevice::FileModificationTime);
 
     if (itemsCopied) (*itemsCopied)++;
     if (progressDialog) {
@@ -491,10 +524,10 @@ bool FileOperations::copyRecursively(const QString &srcFilePath, const QString &
     if (canceled && *canceled) return false;
 
     QFileInfo srcInfo(srcFilePath);
-    if (!srcInfo.exists()) return false;
+    if (!entryExists(srcInfo)) return false;
 
-    // Safety check: Cannot copy a file/folder onto itself
-    if (QDir::cleanPath(srcFilePath) == QDir::cleanPath(tgtFilePath)) {
+    // Safety check: Cannot copy a folder onto or into itself
+    if (isSameOrInside(srcFilePath, tgtFilePath)) {
         return false;
     }
 
@@ -520,6 +553,7 @@ bool FileOperations::copyRecursively(const QString &srcFilePath, const QString &
                 return false;
             }
         }
+        QFile::setPermissions(tgtFilePath, srcInfo.permissions());
         return true;
     } else {
         return copySingleFile(srcFilePath, tgtFilePath, overwrite, bytesCopied, totalBytes, itemsCopied, totalItems, progressDialog, canceled);
@@ -594,7 +628,12 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
         if (isCanceled) break;
 
         QFileInfo srcInfo(src);
-        if (!srcInfo.exists()) continue;
+        if (!entryExists(srcInfo)) continue;
+
+        if (srcInfo.isDir() && !srcInfo.isSymLink() && isSameOrInside(src, destDir.absolutePath())) {
+            if (parentWidget) QMessageBox::warning(parentWidget, tr("Copy Error"), tr("Cannot copy '%1' into itself.").arg(srcInfo.fileName()));
+            continue;
+        }
 
         QString targetPath = destDir.absoluteFilePath(srcInfo.fileName());
         bool overwrite = false;
@@ -740,11 +779,18 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         if (isCanceled) break;
 
         QFileInfo srcInfo(src);
+        if (!entryExists(srcInfo)) continue;
         QString targetPath = destDir.absoluteFilePath(srcInfo.fileName());
         bool overwrite = false;
 
-        if (src == targetPath) {
+        // Same item reached via the same or a different (symlinked) path: nothing to do
+        if (isSameOrInside(src, targetPath) && (src == targetPath || !srcInfo.isDir() || srcInfo.isSymLink() ||
+                                                QFileInfo(src).canonicalFilePath() == QFileInfo(targetPath).canonicalFilePath())) {
             successTopLevel++;
+            continue;
+        }
+        if (srcInfo.isDir() && !srcInfo.isSymLink() && isSameOrInside(src, destDir.absolutePath())) {
+            if (parentWidget) QMessageBox::warning(parentWidget, tr("Move Error"), tr("Cannot move '%1' into itself.").arg(srcInfo.fileName()));
             continue;
         }
 
@@ -784,28 +830,23 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         }
 
         bool moved = false;
-        if (overwrite && QFile::exists(targetPath)) {
-            if (QFileInfo(targetPath).isDir()) {
+        // rename(2) replaces a file atomically; only a real directory target must be cleared first.
+        if (overwrite) {
+            QFileInfo tfi(targetPath);
+            if (tfi.isDir() && !tfi.isSymLink()) {
                 QDir(targetPath).removeRecursively();
-            } else {
-                QFile::remove(targetPath);
             }
         }
 
         // Fast atomic rename (same filesystem)
-        if (QFile::rename(src, targetPath)) {
+        if (::rename(QFile::encodeName(src).constData(), QFile::encodeName(targetPath).constData()) == 0) {
             moved = true;
             itemsCopied++;
             bytesCopied += srcInfo.size();
         } else {
             // Fallback for cross-filesystem moves
             if (copyRecursively(src, targetPath, overwrite, &bytesCopied, totalBytes, &itemsCopied, totalItems, progressDialog, &isCanceled)) {
-                if (srcInfo.isDir()) {
-                    QDir(src).removeRecursively();
-                } else {
-                    QFile::remove(src);
-                }
-                moved = true;
+                moved = removeEntry(src);
             }
         }
 
@@ -956,6 +997,7 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
     QProcess proc;
     proc.setWorkingDirectory(workDir);
     proc.setProcessChannelMode(QProcess::MergedChannels);
+    QStringList lastLines;
 
     QStringList args;
     QString cmd;
@@ -1018,6 +1060,8 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
             while (proc.canReadLine()) {
                 QString line = QString::fromUtf8(proc.readLine()).trimmed();
                 if (!line.isEmpty()) {
+                    lastLines.append(line);
+                    if (lastLines.size() > 8) lastLines.removeFirst();
                     processedCount++;
                     QString item = line;
                     if (item.startsWith("adding: ")) item = item.mid(8);
@@ -1053,7 +1097,7 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
 
     bool success = (proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0 && QFile::exists(destinationArchive));
     if (!success && !progress.wasCanceled()) {
-        QString errOut = QString::fromUtf8(proc.readAllStandardError());
+        QString errOut = (lastLines + QString::fromUtf8(proc.readAll()).split('\n', Qt::SkipEmptyParts)).join('\n');
         if (parentWidget) {
             QMessageBox::warning(parentWidget, tr("Compression Failed"), 
                 tr("Failed to create archive '%1'.\n%2").arg(archiveName, errOut.trimmed()));
@@ -1082,6 +1126,7 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
     QProcess proc;
     proc.setWorkingDirectory(destinationDir);
     proc.setProcessChannelMode(QProcess::MergedChannels);
+    QStringList lastLines;
 
     QString ext = QFileInfo(archivePath).suffix().toLower();
     QString fileName = QFileInfo(archivePath).fileName().toLower();
@@ -1145,6 +1190,8 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
             while (proc.canReadLine()) {
                 QString line = QString::fromUtf8(proc.readLine()).trimmed();
                 if (!line.isEmpty()) {
+                    lastLines.append(line);
+                    if (lastLines.size() > 8) lastLines.removeFirst();
                     processedCount++;
                     QString item = line;
                     if (item.startsWith("inflating: ")) item = item.mid(11);
@@ -1177,7 +1224,7 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
 
     bool success = (proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0);
     if (!success && !progress.wasCanceled()) {
-        QString errOut = QString::fromUtf8(proc.readAllStandardError());
+        QString errOut = (lastLines + QString::fromUtf8(proc.readAll()).split('\n', Qt::SkipEmptyParts)).join('\n');
         if (parentWidget) {
             QMessageBox::warning(parentWidget, tr("Extraction Failed"), 
                 tr("Failed to extract '%1'.\n%2").arg(archiveName, errOut.trimmed()));
@@ -1199,16 +1246,16 @@ void FileOperations::relaunchAsRoot(const QString &targetPath) {
     QString xdgDataDirs = env.value("XDG_DATA_DIRS", "/usr/local/share:/usr/share");
     QString currentUser = UserEnvironment::realUserName();
 
-    QString cmd;
+    // Pass everything as argv: no shell, so paths with quotes/$ cannot break or inject.
+    QStringList args = { "env" };
     if (!wayland.isEmpty()) {
-        cmd = QString("pkexec env WAYLAND_DISPLAY=%1 XDG_RUNTIME_DIR=%2 XDG_DATA_DIRS=\"%3\" SUDO_USER=%4 \"%5\" \"%6\"")
-                .arg(wayland, xdgRuntime, xdgDataDirs, currentUser, appPath, target);
+        args << "WAYLAND_DISPLAY=" + wayland << "XDG_RUNTIME_DIR=" + xdgRuntime;
     } else {
-        cmd = QString("pkexec env DISPLAY=%1 XAUTHORITY=%2 XDG_DATA_DIRS=\"%3\" SUDO_USER=%4 \"%5\" \"%6\"")
-                .arg(display, xauth, xdgDataDirs, currentUser, appPath, target);
+        args << "DISPLAY=" + display << "XAUTHORITY=" + xauth;
     }
+    args << "XDG_DATA_DIRS=" + xdgDataDirs << "SUDO_USER=" + currentUser << appPath << target;
 
-    if (!QProcess::startDetached("sh", { "-c", cmd })) {
+    if (!QProcess::startDetached("pkexec", args)) {
         QStringList terms = { "foot", "kitty", "ptyxis", "alacritty", "gnome-terminal", "konsole", "xterm" };
         for (const QString &t : terms) {
             if (QProcess::startDetached(t, { "-e", "sudo", "-E", appPath, target })) return;

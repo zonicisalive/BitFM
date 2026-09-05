@@ -208,6 +208,22 @@ install_files() {
         cp -f "$SCRIPT_DIR/data/org.freedesktop.FileManager1.service" "$dbus_dir/"
         cp -f "$SCRIPT_DIR/data/xdg-desktop-portal-bitfm.service" "$systemd_dir/"
     fi
+
+    # D-Bus/systemd activation does not inherit the shell PATH: pin the absolute binary path
+    sed -i "s|/usr/bin/env bitfm|$bin_dir/bitfm|" \
+        "$dbus_dir/org.freedesktop.impl.portal.desktop.bitfm.service" \
+        "$dbus_dir/org.freedesktop.FileManager1.service" \
+        "$systemd_dir/xdg-desktop-portal-bitfm.service"
+
+    # xdg-desktop-portal only scans /usr/share/xdg-desktop-portal/portals (not XDG_DATA_HOME)
+    if [ "$SYSTEM_INSTALL" != true ]; then
+        local sys_portal_dir="/usr/share/xdg-desktop-portal/portals"
+        if [ ! -f "$sys_portal_dir/bitfm.portal" ] || ! cmp -s "$SCRIPT_DIR/data/bitfm.portal" "$sys_portal_dir/bitfm.portal"; then
+            echo -e "${BLUE}==>${NC} Registering portal backend in $sys_portal_dir (needs sudo)..."
+            sudo install -Dm644 "$SCRIPT_DIR/data/bitfm.portal" "$sys_portal_dir/bitfm.portal" \
+                || echo -e "${RED}!!${NC} Could not write $sys_portal_dir/bitfm.portal — the file chooser portal will not be found."
+        fi
+    fi
 }
 
 configure_wayland_portals() {
@@ -216,37 +232,19 @@ configure_wayland_portals() {
     local config_dir="$HOME/.config/xdg-desktop-portal"
     mkdir -p "$config_dir"
 
-    local portal_configs=(
-        "portals.conf"
-        "hyprland-portals.conf"
-        "sway-portals.conf"
-        "niri-portals.conf"
-        "river-portals.conf"
-        "labwc-portals.conf"
-        "wayfire-portals.conf"
-    )
-
-    for cfg in "${portal_configs[@]}"; do
-        local target="$config_dir/$cfg"
-        if [ ! -f "$target" ]; then
-            cat << 'PORTAL_EOF' > "$target"
-[preferred]
-default=gtk;kde
-org.freedesktop.impl.portal.FileChooser=bitfm
-PORTAL_EOF
-        else
-            # Ensure org.freedesktop.impl.portal.FileChooser is set to bitfm
-            if grep -q "org.freedesktop.impl.portal.FileChooser" "$target"; then
-                sed -i 's/^org.freedesktop.impl.portal.FileChooser=.*/org.freedesktop.impl.portal.FileChooser=bitfm/' "$target"
-            else
-                if grep -q "\[preferred\]" "$target"; then
-                    sed -i '/\[preferred\]/a org.freedesktop.impl.portal.FileChooser=bitfm' "$target"
-                else
-                    echo -e "\n[preferred]\norg.freedesktop.impl.portal.FileChooser=bitfm" >> "$target"
-                fi
-            fi
-        fi
-    done
+    # Only touch portals.conf, and only the FileChooser key. Writing a `default=` line or
+    # per-compositor files here would shadow the compositor's own portal config
+    # (e.g. hyprland-portals.conf) and break ScreenCast/Screenshot portals.
+    local target="$config_dir/portals.conf"
+    if [ ! -f "$target" ]; then
+        printf '[preferred]\norg.freedesktop.impl.portal.FileChooser=bitfm\n' > "$target"
+    elif grep -q "^org.freedesktop.impl.portal.FileChooser=" "$target"; then
+        sed -i 's/^org.freedesktop.impl.portal.FileChooser=.*/org.freedesktop.impl.portal.FileChooser=bitfm/' "$target"
+    elif grep -q "\[preferred\]" "$target"; then
+        sed -i '/\[preferred\]/a org.freedesktop.impl.portal.FileChooser=bitfm' "$target"
+    else
+        printf '\n[preferred]\norg.freedesktop.impl.portal.FileChooser=bitfm\n' >> "$target"
+    fi
 }
 
 configure_desktop_defaults() {

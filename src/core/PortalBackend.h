@@ -35,6 +35,18 @@ public slots:
                    QVariantMap &results);
 };
 
+// org.freedesktop.impl.portal.Request: lets xdg-desktop-portal close our dialog when the caller goes away
+class PortalRequestAdaptor : public QDBusAbstractAdaptor {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.Request")
+public:
+    explicit PortalRequestAdaptor(QObject *parent) : QDBusAbstractAdaptor(parent) {}
+public slots:
+    void Close() { emit closeRequested(); }
+signals:
+    void closeRequested();
+};
+
 class PortalBackend : public QObject {
     Q_OBJECT
 

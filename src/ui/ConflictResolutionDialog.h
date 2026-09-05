@@ -20,6 +20,9 @@ public:
     ConflictAction selectedAction() const;
     bool applyToAll() const;
 
+protected:
+    void reject() override { m_selectedAction = ConflictAction::Cancel; QDialog::reject(); }
+
 private slots:
     void onOverwriteClicked();
     void onSkipClicked();

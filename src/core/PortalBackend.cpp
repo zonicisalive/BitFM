@@ -1,4 +1,6 @@
 #include "PortalBackend.h"
+#include <QDialog>
+#include <QDBusArgument>
 #include "FilePickerDialog.h"
 #include "ThemeManager.h"
 #include <QDBusConnection>
@@ -50,7 +52,23 @@ static QString extractFolder(const QVariantMap &options) {
     return QString();
 }
 
-uint PortalFileChooserAdaptor::OpenFile(const QDBusObjectPath &,
+
+// Exports a Request object at `handle` for the lifetime of the dialog so Close() cancels it.
+class ScopedPortalRequest {
+public:
+    ScopedPortalRequest(const QDBusObjectPath &handle, QDialog *dlg) : m_path(handle.path()) {
+        auto *adaptor = new PortalRequestAdaptor(&m_obj);
+        QObject::connect(adaptor, &PortalRequestAdaptor::closeRequested, dlg, &QDialog::reject);
+        m_registered = QDBusConnection::sessionBus().registerObject(m_path, &m_obj);
+    }
+    ~ScopedPortalRequest() { if (m_registered) QDBusConnection::sessionBus().unregisterObject(m_path); }
+private:
+    QString m_path;
+    QObject m_obj;
+    bool m_registered = false;
+};
+
+uint PortalFileChooserAdaptor::OpenFile(const QDBusObjectPath &handle,
                                         const QString &,
                                         const QString &,
                                         const QString &title,
@@ -64,6 +82,7 @@ uint PortalFileChooserAdaptor::OpenFile(const QDBusObjectPath &,
 
     PickerMode mode = isDirectory ? PickerMode::ChooseFolder : PickerMode::OpenFile;
     FilePickerDialog dlg(mode, folder);
+    ScopedPortalRequest request(handle, &dlg);
     dlg.setMultipleSelection(multiple);
     if (!title.isEmpty()) {
         dlg.setWindowTitle(title + " — BitFM");
@@ -83,7 +102,7 @@ uint PortalFileChooserAdaptor::OpenFile(const QDBusObjectPath &,
     return 1; // Cancelled
 }
 
-uint PortalFileChooserAdaptor::SaveFile(const QDBusObjectPath &,
+uint PortalFileChooserAdaptor::SaveFile(const QDBusObjectPath &handle,
                                         const QString &,
                                         const QString &,
                                         const QString &title,
@@ -95,6 +114,7 @@ uint PortalFileChooserAdaptor::SaveFile(const QDBusObjectPath &,
     QString folder = extractFolder(options);
 
     FilePickerDialog dlg(PickerMode::SaveFile, folder, currentName);
+    ScopedPortalRequest request(handle, &dlg);
     if (!title.isEmpty()) {
         dlg.setWindowTitle(title + " — BitFM");
     }
@@ -110,13 +130,42 @@ uint PortalFileChooserAdaptor::SaveFile(const QDBusObjectPath &,
 }
 
 uint PortalFileChooserAdaptor::SaveFiles(const QDBusObjectPath &handle,
-                                         const QString &app_id,
-                                         const QString &parent_window,
+                                         const QString &,
+                                         const QString &,
                                          const QString &title,
                                          const QVariantMap &options,
                                          QVariantMap &results)
 {
-    return SaveFile(handle, app_id, parent_window, title, options, results);
+    // SaveFiles = pick a folder, return one URI per requested file name inside it
+    ensureThemeLoaded();
+    QString folder = extractFolder(options);
+
+    FilePickerDialog dlg(PickerMode::ChooseFolder, folder);
+    ScopedPortalRequest request(handle, &dlg);
+    if (!title.isEmpty()) {
+        dlg.setWindowTitle(title + " — BitFM");
+    }
+
+    if (dlg.exec() != QDialog::Accepted) return 1;
+    QString dir = dlg.selectedPath();
+    if (dir.isEmpty()) return 1;
+
+    QStringList uris;
+    const QVariant filesVar = options.value("files");
+    QList<QByteArray> names;
+    if (filesVar.canConvert<QDBusArgument>()) {
+        filesVar.value<QDBusArgument>() >> names;
+    } else {
+        for (const QVariant &v : filesVar.toList()) names << v.toByteArray();
+    }
+    for (QByteArray name : names) {
+        if (name.endsWith('\0')) name.chop(1);
+        QString fn = QFileInfo(QString::fromUtf8(name)).fileName();
+        if (fn.isEmpty()) continue;
+        uris << QUrl::fromLocalFile(QDir(dir).filePath(fn)).toString();
+    }
+    results["uris"] = uris;
+    return 0;
 }
 
 PortalBackend::PortalBackend(QObject *parent)

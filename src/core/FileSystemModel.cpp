@@ -160,7 +160,8 @@ QVariant FileSystemModel::headerData(int section, Qt::Orientation orientation, i
 Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
     Qt::ItemFlags defaultFlags = QAbstractTableModel::flags(index);
     if (index.isValid()) {
-        return defaultFlags | Qt::ItemIsDragEnabled;
+        bool isDir = index.row() >= 0 && index.row() < m_items.size() && m_items[index.row()].isDirectory;
+        return defaultFlags | Qt::ItemIsDragEnabled | (isDir ? Qt::ItemIsDropEnabled : Qt::NoItemFlags);
     }
     return defaultFlags | Qt::ItemIsDropEnabled;
 }
@@ -177,10 +178,6 @@ void FileSystemModel::sort(int column, Qt::SortOrder order) {
 
 void FileSystemModel::sortInternal() {
     auto comparator = [this](const FileItem &a, const FileItem &b) -> bool {
-        if (m_foldersFirst && (a.isDirectory != b.isDirectory)) {
-            return a.isDirectory;
-        }
-
         bool result = false;
         switch (m_sortColumn) {
             case ColName:
@@ -203,10 +200,17 @@ void FileSystemModel::sortInternal() {
                 break;
         }
 
-        return (m_sortOrder == Qt::AscendingOrder) ? result : !result;
+        return result;
     };
 
-    std::sort(m_items.begin(), m_items.end(), comparator);
+    auto ordered = [&](const FileItem &x, const FileItem &y) {
+        if (m_foldersFirst && (x.isDirectory != y.isDirectory)) {
+            return x.isDirectory;
+        }
+        return (m_sortOrder == Qt::AscendingOrder) ? comparator(x, y) : comparator(y, x);
+    };
+
+    std::sort(m_items.begin(), m_items.end(), ordered);
 
     // Rebuild quick path-to-row lookup hash
     m_pathToRow.clear();
@@ -246,6 +250,30 @@ QMimeData *FileSystemModel::mimeData(const QModelIndexList &indexes) const {
 
 Qt::DropActions FileSystemModel::supportedDropActions() const {
     return Qt::CopyAction | Qt::MoveAction;
+}
+
+FileSystemModel::~FileSystemModel() {
+    m_isSearching = false;
+    *m_alive = false;
+}
+
+bool FileSystemModel::canDropMimeData(const QMimeData *data, Qt::DropAction, int, int, const QModelIndex &) const {
+    return data && data->hasUrls() && m_currentPath.startsWith('/');
+}
+
+bool FileSystemModel::dropMimeData(const QMimeData *data, Qt::DropAction action, int, int, const QModelIndex &parent) {
+    if (!canDropMimeData(data, action, 0, 0, parent)) return false;
+    QString target = m_currentPath;
+    if (parent.isValid() && parent.row() >= 0 && parent.row() < m_items.size() && m_items[parent.row()].isDirectory) {
+        target = m_items[parent.row()].absolutePath;
+    }
+    QStringList paths;
+    for (const QUrl &u : data->urls()) {
+        if (u.isLocalFile()) paths.append(u.toLocalFile());
+    }
+    if (paths.isEmpty()) return false;
+    emit filesDropped(paths, target, action);
+    return true;
 }
 
 void FileSystemModel::setDirectory(const QString &path) {
@@ -491,7 +519,8 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
     const QString rootPath = m_currentPath;
     const bool showHidden = m_showHidden;
 
-    QThreadPool::globalInstance()->start([this, searchId, rootPath, pattern, isRegex, showHidden]() {
+    auto alive = m_alive;
+    QThreadPool::globalInstance()->start([this, alive, searchId, rootPath, pattern, isRegex, showHidden]() {
         QVector<FileItem> found;
         QDir::Filters filters = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System;
         if (showHidden) filters |= QDir::Hidden;
@@ -505,7 +534,7 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
 
         int count = 0;
         while (it.hasNext() && count < 3000) {
-            if (!m_isSearching || m_currentSearchId != searchId) {
+            if (!*alive || !m_isSearching || m_currentSearchId != searchId) {
                 return;
             }
 
@@ -555,6 +584,7 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
             }
         }
 
+        if (!*alive) return;
         QMetaObject::invokeMethod(this, [this, searchId, rootPath, found = std::move(found)]() mutable {
             if (!m_isSearching || m_currentSearchId != searchId) return;
 
@@ -626,18 +656,13 @@ void FileSystemModel::loadDirectoryInternal() {
             newItems.append(item);
         }
 
+        beginResetModel();
         m_items = newItems;
         m_fileCount = 0;
         m_folderCount = newItems.size();
         m_totalSize = 0;
-
-        m_pathToRow.clear();
-        for (int i = 0; i < m_items.size(); ++i) {
-            m_pathToRow.insert(m_items[i].absolutePath, i);
-        }
-
         sortInternal();
-        emit layoutChanged();
+        endResetModel();
         emit directoryLoaded(m_currentPath, m_items.size());
         return;
     }

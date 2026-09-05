@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <QFile>
 #include <memory>
+#include <atomic>
 #include "VfsTypes.h"
 #include "ThumbnailProvider.h"
 #include "RecentFilesProvider.h"
@@ -36,7 +37,7 @@ public:
     };
 
     explicit FileSystemModel(QObject *parent = nullptr);
-    ~FileSystemModel() override = default;
+    ~FileSystemModel() override;
 
     // QAbstractItemModel interface
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
@@ -50,6 +51,8 @@ public:
     QStringList mimeTypes() const override;
     QMimeData *mimeData(const QModelIndexList &indexes) const override;
     Qt::DropActions supportedDropActions() const override;
+    bool canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) const override;
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) override;
 
     // Navigation and Filtering
     void setDirectory(const QString &path);
@@ -81,6 +84,7 @@ public slots:
     void refresh();
 
 signals:
+    void filesDropped(const QStringList &sourcePaths, const QString &targetDir, Qt::DropAction action);
     void directoryLoaded(const QString &path, int itemCount);
     void directoryChanged(const QString &path);
     void directoryLoadError(const QString &path, const QString &errorMessage);
@@ -101,8 +105,9 @@ private:
     int m_sortColumn = ColName;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
 
-    bool m_isSearching = false;
-    uint m_currentSearchId = 0;
+    std::atomic<bool> m_isSearching { false };
+    std::atomic<uint> m_currentSearchId { 0 };
+    std::shared_ptr<std::atomic<bool>> m_alive = std::make_shared<std::atomic<bool>>(true);
 
     QVector<FileItem> m_items;
     QHash<QString, int> m_pathToRow;

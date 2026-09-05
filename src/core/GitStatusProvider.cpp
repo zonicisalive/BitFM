@@ -14,6 +14,12 @@ public:
     }
 
     void run() override {
+        // Always drop the pending marker, on every exit path, or the dir is never re-scanned.
+        struct PendingGuard {
+            GitStatusProvider *p; QString d;
+            ~PendingGuard() { QMutexLocker l(&p->m_mutex); p->m_pendingDirs.remove(d); }
+        } pendingGuard{ m_provider, m_dirPath };
+
         // 1. Check if git repo
         QProcess rootProc;
         rootProc.start("git", { "-C", m_dirPath, "rev-parse", "--show-toplevel" });
@@ -35,7 +41,7 @@ public:
 
         // 3. Get status --porcelain
         QProcess statusProc;
-        statusProc.start("git", { "-C", repoRoot, "status", "--porcelain", "-uall" });
+        statusProc.start("git", { "-C", repoRoot, "-c", "core.quotePath=false", "status", "--porcelain", "-uall" });
         QHash<QString, GitFileState> statuses;
         bool isClean = true;
 
@@ -47,13 +53,14 @@ public:
             for (const QString &line : lines) {
                 if (line.length() < 4) continue;
                 QString code = line.left(2);
-                QString relPath = line.mid(3).trimmed();
-                // Handle quoted paths or renames
-                if (relPath.startsWith('"') && relPath.endsWith('"')) {
-                    relPath = relPath.mid(1, relPath.length() - 2);
-                }
+                QString relPath = line.mid(3);
+                // Renames list "old -> new"; take the new name, then strip surrounding quotes
                 if (relPath.contains(" -> ")) {
-                    relPath = relPath.section(" -> ", 1, 1);
+                    relPath = relPath.section(" -> ", 1);
+                }
+                relPath = relPath.trimmed();
+                if (relPath.startsWith('"') && relPath.endsWith('"') && relPath.length() >= 2) {
+                    relPath = relPath.mid(1, relPath.length() - 2);
                 }
 
                 QString absPath = QDir(repoRoot).filePath(relPath);
@@ -84,10 +91,15 @@ public:
                 provider->m_dirToRepoRoot.insert(dir, repoRoot);
                 provider->m_repoToBranch.insert(repoRoot, branch);
                 provider->m_repoClean.insert(repoRoot, isClean);
+                // Replace, don't merge: committed/reverted files must lose their badge
+                const QString prefix = repoRoot + "/";
+                for (auto it = provider->m_fileStatuses.begin(); it != provider->m_fileStatuses.end();) {
+                    if (it.key().startsWith(prefix)) it = provider->m_fileStatuses.erase(it);
+                    else ++it;
+                }
                 for (auto it = statuses.begin(); it != statuses.end(); ++it) {
                     provider->m_fileStatuses.insert(it.key(), it.value());
                 }
-                provider->m_pendingDirs.remove(dir);
             }
             emit provider->branchUpdated(dir, branch, isClean);
             emit provider->statusUpdated(repoRoot);

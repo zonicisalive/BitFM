@@ -45,6 +45,9 @@ bool FileManager1Service::registerService() {
         return false;
     }
 
+    // Private name so `bitfm` can tell its own instance apart from Nautilus/Dolphin owning FileManager1
+    session.registerService("io.bitfm.BitFM");
+
     if (!session.registerService("org.freedesktop.FileManager1")) {
         qWarning() << "Failed to register D-Bus service org.freedesktop.FileManager1:" << session.lastError().message();
         // Return true if object registered, as service name might already be queued or owned

@@ -9,6 +9,7 @@
 #include <QRunnable>
 #include <QDateTime>
 #include <QProcess>
+#include <QTemporaryDir>
 
 class ThumbnailWorker : public QRunnable {
 public:
@@ -67,8 +68,9 @@ public:
         bool isVideo = (ext == "webm" || ext == "mp4" || ext == "mkv" || ext == "avi" || ext == "mov" || ext == "flv" || ext == "wmv" || ext == "m4v");
         bool isPdf = (ext == "pdf");
 
+        QTemporaryDir tmpDir;
         if (isVideo) {
-            QString tmpOut = QString("/tmp/thumb_%1.png").arg(QString::fromLatin1(hash));
+            QString tmpOut = tmpDir.filePath("thumb.png");
             QProcess proc;
             proc.start("ffmpegthumbnailer", { "-i", m_filePath, "-o", tmpOut, "-s", "256", "-q", "8" });
             if (proc.waitForFinished(3000) && QFile::exists(tmpOut)) {
@@ -82,7 +84,7 @@ public:
                 }
             }
         } else if (isPdf) {
-            QString tmpPrefix = QString("/tmp/pdf_thumb_%1").arg(QString::fromLatin1(hash));
+            QString tmpPrefix = tmpDir.filePath("pdf_thumb");
             QProcess proc;
             proc.start("pdftoppm", { "-png", "-r", "100", "-f", "1", "-l", "1", "-singlefile", m_filePath, tmpPrefix });
             if (proc.waitForFinished(4000)) {
