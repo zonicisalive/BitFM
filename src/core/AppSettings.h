@@ -76,6 +76,8 @@ public:
     void setFontFamily(const QString &family);
     int fontSize() const;                // 0 = default (13)
     void setFontSize(int pt);
+    double paneOpacity() const;          // 0.3..1.0, fill alpha of the file pane card when translucent
+    void setPaneOpacity(double alpha);
     QString iconTheme() const;           // empty = auto
     void setIconTheme(const QString &name);
 

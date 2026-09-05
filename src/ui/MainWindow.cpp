@@ -169,6 +169,11 @@ void MainWindow::setupUi() {
     centralLayout->setContentsMargins(0, 0, 0, 0);
     centralLayout->setSpacing(0);
     auto applyBackdrop = [this, centralContainer]() {
+        // The main window itself must not paint an opaque ground, or the translucent backdrop/pane
+        // alpha is blended against it instead of the desktop.
+        bool translucent = AppSettings::instance().isTranslucencyEnabled();
+        setAttribute(Qt::WA_TranslucentBackground, translucent);
+        setStyleSheet(translucent ? QStringLiteral("QMainWindow { background: transparent; }") : QString());
         centralContainer->setStyleSheet(QString("#Backdrop { background: %1; }").arg(ThemeManager::BG_BACKDROP));
         statusBar()->setStyleSheet(ThemeManager::css(QString(
             "QStatusBar { background: %1; border: none; padding: 2px 12px; }"
@@ -233,7 +238,7 @@ void MainWindow::setupUi() {
     bar->addPermanentWidget(zoomLabel);
 
     m_zoomSlider = new QSlider(Qt::Horizontal, this);
-    m_zoomSlider->setRange(32, 96);
+    m_zoomSlider->setRange(24, 192);
     m_zoomSlider->setValue(AppSettings::instance().zoomLevel());
     m_zoomSlider->setFixedWidth(84);
     m_zoomSlider->setToolTip(tr("Icon Grid Size"));

@@ -68,7 +68,7 @@ public:
     static int radius();                       // corner radius in px (0..16)
     static int cardRadius();                   // radius of the floating panels (radius + 4)
     // Paint a floating-panel card (surface fill + 1px border) covering `rect`.
-    static void paintCard(QPainter &p, const QRect &rect, const QString &borderColor = QString());
+    static void paintCard(QPainter &p, const QRect &rect, const QString &borderColor = QString(), double alpha = -1.0);
     static int density();                      // 0 compact, 1 normal, 2 spacious
     static double densityScale();              // 0.75 / 1.0 / 1.3
     static int px(int base);                   // density-scaled size for code paths

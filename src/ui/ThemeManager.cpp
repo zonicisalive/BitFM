@@ -13,6 +13,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimer>
+#include <QEvent>
+#include <QWidget>
 
 // Initialize static color variables
 QString ThemeManager::BG_BACKDROP   = "#000000";
@@ -315,12 +317,14 @@ QColor ThemeManager::toColor(const QString &cssColor) {
 int ThemeManager::radius() { return AppSettings::instance().cornerRadius(); }
 int ThemeManager::cardRadius() { return radius() + 4; }
 
-void ThemeManager::paintCard(QPainter &p, const QRect &rect, const QString &borderColor) {
+void ThemeManager::paintCard(QPainter &p, const QRect &rect, const QString &borderColor, double alpha) {
     p.setRenderHint(QPainter::Antialiasing, true);
     QPen pen(toColor(borderColor.isEmpty() ? BORDER : borderColor));
     pen.setWidthF(1.0);
     p.setPen(pen);
-    p.setBrush(toColor(BG_SURFACE));
+    QColor fill = toColor(BG_SURFACE);
+    if (alpha >= 0.0) fill.setAlphaF(qMin(fill.alphaF(), alpha));
+    p.setBrush(fill);
     const qreal r = cardRadius();
     p.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), r, r);
 }
@@ -328,7 +332,7 @@ int ThemeManager::density() { return AppSettings::instance().density(); }
 double ThemeManager::densityScale() {
     switch (density()) { case 0: return 0.75; case 2: return 1.3; default: return 1.0; }
 }
-int ThemeManager::px(int base) { return qRound(base * densityScale()); }
+int ThemeManager::px(int base) { return qRound(base * densityScale() * qMax(1.0, baseFontSize() / 13.0)); }
 int ThemeManager::baseFontSize() {
     int s = AppSettings::instance().fontSize();
     return s > 0 ? s : 13;
@@ -380,7 +384,7 @@ void ThemeManager::updateStaticColors(const ThemeColors &c) {
 
     const QString backdrop = QColor(c.bgBase).darker(c.isDark ? 135 : 106).name();
     if (translucent) {
-        BG_BACKDROP   = hexToRgba(backdrop, opacity);
+        BG_BACKDROP   = hexToRgba(backdrop, qMin(opacity, AppSettings::instance().paneOpacity()));
         BG_BASE       = hexToRgba(c.bgBase, opacity);
         BG_SURFACE     = hexToRgba(c.bgSurface, qBound(0.2, opacity * 1.06, 1.0));
         BG_OVERLAY     = hexToRgba(c.bgOverlay, qBound(0.2, opacity * 1.12, 1.0));
@@ -804,6 +808,32 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "  border-color: %4;"
         "}"
 
+        /* ─── Floating panels: containers never paint over the card ─── */
+        "PaneWidget, DirectoryViewTab, FileViewWidget, HeaderBar, SidebarWidget, FileInspectorWidget,"
+        "TerminalDrawerWidget, TrashBarWidget, ErrorBannerWidget, QStackedWidget, QTabWidget,"
+        "QScrollArea, QScrollArea > QWidget > QWidget, QAbstractScrollArea::corner,"
+        "QSplitter, #qt_scrollarea_viewport, #qt_scrollarea_hcontainer, #qt_scrollarea_vcontainer {"
+        "  background: transparent;"
+        "}"
+
+        /* ─── Dialog buttons ─── */
+        "QDialogButtonBox QPushButton, QMessageBox QPushButton {"
+        "  min-width: 84px;"
+        "  padding: 7px 16px;"
+        "  border: 1px solid %3;"
+        "  border-radius: 8px;"
+        "  background-color: %10;"
+        "}"
+        "QDialogButtonBox QPushButton:hover, QMessageBox QPushButton:hover {"
+        "  background-color: %6;"
+        "}"
+        "QDialogButtonBox QPushButton:default, QMessageBox QPushButton:default {"
+        "  background-color: %4;"
+        "  color: %1;"
+        "  border-color: %4;"
+        "  font-weight: 600;"
+        "}"
+
         /* ─── Tooltip ─── */
         "QToolTip {"
         "  background-color: %10;"
@@ -951,8 +981,28 @@ QString ThemeManager::currentThemeName() const {
     return getThemeColors(m_currentTheme).name;
 }
 
+namespace {
+// Popups get a translucent surface before first show so their border-radius really clips.
+class PopupPolisher : public QObject {
+public:
+    using QObject::QObject;
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        if (event->type() == QEvent::Polish) {
+            if (auto *w = qobject_cast<QWidget*>(obj)) {
+                if (w->inherits("QMenu") || w->inherits("QComboBoxPrivateContainer") || w->inherits("QTipLabel")) {
+                    w->setAttribute(Qt::WA_TranslucentBackground, true);
+                    w->setWindowFlag(Qt::FramelessWindowHint, true);
+                    w->setWindowFlag(Qt::NoDropShadowWindowHint, true);
+                }
+            }
+        }
+        return QObject::eventFilter(obj, event);
+    }
+};
+}
+
 void ThemeManager::applyTheme(QApplication &app) {
-    Q_UNUSED(app);
+    app.installEventFilter(new PopupPolisher(&app));
 
     if (instance().isExternalSyncEnabled()) {
         instance().checkAndReloadExternalTheme();

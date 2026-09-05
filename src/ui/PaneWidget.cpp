@@ -1,5 +1,6 @@
 #include "PaneWidget.h"
 #include "ThemeManager.h"
+#include "AppSettings.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -262,7 +263,8 @@ void PaneWidget::setHighlightEnabled(bool on) {
 
 void PaneWidget::paintEvent(QPaintEvent *) {
     QPainter p(this);
-    ThemeManager::paintCard(p, rect(), (m_highlight && m_isActive) ? ThemeManager::ACCENT : QString());
+    double alpha = AppSettings::instance().isTranslucencyEnabled() ? AppSettings::instance().paneOpacity() : -1.0;
+    ThemeManager::paintCard(p, rect(), (m_highlight && m_isActive) ? ThemeManager::ACCENT : QString(), alpha);
 }
 
 QString PaneWidget::currentPath() const {

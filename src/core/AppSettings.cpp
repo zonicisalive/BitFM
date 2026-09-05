@@ -10,7 +10,7 @@ AppSettings::AppSettings() {
     QSettings settings;
     m_viewMode = settings.value("view/mode", 0).toInt();
     m_showHidden = settings.value("view/showHidden", false).toBool();
-    m_zoomLevel = qBound(32, settings.value("view/zoomLevel", 56).toInt(), 128);
+    m_zoomLevel = qBound(24, settings.value("view/zoomLevel", 56).toInt(), 192);
     m_sortColumn = settings.value("view/sortColumn", 0).toInt();
     m_sortOrder = static_cast<Qt::SortOrder>(settings.value("view/sortOrder", static_cast<int>(Qt::AscendingOrder)).toInt());
     m_lastDir = settings.value("navigation/lastDirectory", QString()).toString();
@@ -47,7 +47,7 @@ int AppSettings::zoomLevel() const {
 }
 
 void AppSettings::setZoomLevel(int level) {
-    level = qBound(32, level, 128);
+    level = qBound(24, level, 192);
     if (m_zoomLevel != level) {
         m_zoomLevel = level;
         QSettings settings;
@@ -251,6 +251,17 @@ void AppSettings::setFontSize(int pt) {
     pt = qBound(0, pt, 24);
     if (fontSize() == pt) return;
     QSettings().setValue("appearance/fontSize", pt);
+    emit appearanceTokensChanged();
+}
+
+double AppSettings::paneOpacity() const {
+    return qBound(0.3, QSettings().value("appearance/paneOpacity", 0.85).toDouble(), 1.0);
+}
+
+void AppSettings::setPaneOpacity(double alpha) {
+    alpha = qBound(0.3, alpha, 1.0);
+    if (qAbs(paneOpacity() - alpha) < 0.005) return;
+    QSettings().setValue("appearance/paneOpacity", alpha);
     emit appearanceTokensChanged();
 }
 

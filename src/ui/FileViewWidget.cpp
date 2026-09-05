@@ -812,12 +812,12 @@ void FileViewWidget::setViewMode(ViewMode mode) {
 ViewMode FileViewWidget::viewMode() const { return m_viewMode; }
 
 void FileViewWidget::setGridIconSize(int size) {
-    int clamped = qBound(32, size, 128);
+    int clamped = qBound(24, size, 192);
     if (clamped == m_currentGridSize) return;
     m_currentGridSize = clamped;
     m_listView->setIconSize(QSize(m_currentGridSize, m_currentGridSize));
     if (m_compactView) {
-        int compactIcon = qBound(16, m_currentGridSize / 2, 48);
+        int compactIcon = qBound(16, m_currentGridSize / 2, 72);
         m_compactView->setIconSize(QSize(compactIcon, compactIcon));
     }
     if (AppSettings::instance().zoomLevel() != m_currentGridSize) {
@@ -908,7 +908,7 @@ void FileViewWidget::updateGridGeometry() {
         }
 
         if (cvw > 30) {
-            int compactIcon = qBound(16, m_currentGridSize / 2, 48);
+            int compactIcon = qBound(16, m_currentGridSize / 2, 72);
             int compactRowH = compactIcon + ThemeManager::px(10);
             int minColW = compactIcon + 175;
             int usableW = qMax(50, cvw - 24);
@@ -1721,8 +1721,9 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
             QWheelEvent *we = static_cast<QWheelEvent*>(event);
             if (we->modifiers() & Qt::ControlModifier) {
                 int delta = we->angleDelta().y();
-                int step = (delta > 0) ? 6 : -6;
-                int newSize = qBound(32, m_currentGridSize + step, 160);
+                int mag = qMax(6, m_currentGridSize / 8);   // proportional steps: 24→192 in ~12 notches
+                int step = (delta > 0) ? mag : -mag;
+                int newSize = qBound(24, m_currentGridSize + step, 192);
                 if (newSize != m_currentGridSize) {
                     setGridIconSize(newSize);
                 }

@@ -330,6 +330,23 @@ QWidget* PreferencesDialog::buildAppearancePage() {
         if (!opacity->isSliderDown()) AppSettings::instance().setWindowOpacity(v / 100.0);
     });
     connect(opacity, &QSlider::sliderReleased, this, [opacity]() { AppSettings::instance().setWindowOpacity(opacity->value() / 100.0); });
+
+    auto *paneRow = new QHBoxLayout();
+    auto *paneOp = new QSlider(Qt::Horizontal, transBox);
+    paneOp->setRange(30, 100);
+    paneOp->setValue(qRound(AppSettings::instance().paneOpacity() * 100));
+    paneOp->setEnabled(transCheck->isChecked());
+    auto *paneLabel = new QLabel(QString("%1%").arg(paneOp->value()), transBox);
+    paneLabel->setFixedWidth(44);
+    paneRow->addWidget(paneOp, 1);
+    paneRow->addWidget(paneLabel);
+    transForm->addRow(tr("File pane opacity"), paneRow);
+    connect(transCheck, &QCheckBox::toggled, paneOp, &QSlider::setEnabled);
+    connect(paneOp, &QSlider::valueChanged, this, [paneOp, paneLabel](int v) {
+        paneLabel->setText(QString("%1%").arg(v));
+        if (!paneOp->isSliderDown()) AppSettings::instance().setPaneOpacity(v / 100.0);
+    });
+    connect(paneOp, &QSlider::sliderReleased, this, [paneOp]() { AppSettings::instance().setPaneOpacity(paneOp->value() / 100.0); });
     layout->addWidget(transBox);
 
     auto *resetRow = new QHBoxLayout();
@@ -338,7 +355,7 @@ QWidget* PreferencesDialog::buildAppearancePage() {
     connect(resetAll, &QPushButton::clicked, this, [this, radius, density, fontSize, iconCombo, transCheck, opacity]() {
         AppSettings &st = AppSettings::instance();
         st.setCornerRadius(6); st.setDensity(1); st.setFontFamily(QString()); st.setFontSize(0); st.setIconTheme(QString());
-        st.setTranslucencyEnabled(true); st.setWindowOpacity(0.90);
+        st.setTranslucencyEnabled(true); st.setWindowOpacity(0.90); st.setPaneOpacity(0.85);
         ThemeManager::instance().resetCustomAccent();
         radius->setValue(6); density->setCurrentIndex(1); fontSize->setValue(0); iconCombo->setCurrentIndex(0);
         transCheck->setChecked(true); opacity->setValue(90);
