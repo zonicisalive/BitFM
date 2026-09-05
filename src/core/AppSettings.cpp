@@ -254,6 +254,17 @@ void AppSettings::setFontSize(int pt) {
     emit appearanceTokensChanged();
 }
 
+double AppSettings::dialogOpacity() const {
+    return qBound(0.5, QSettings().value("appearance/dialogOpacity", 1.0).toDouble(), 1.0);
+}
+
+void AppSettings::setDialogOpacity(double alpha) {
+    alpha = qBound(0.5, alpha, 1.0);
+    if (qAbs(dialogOpacity() - alpha) < 0.005) return;
+    QSettings().setValue("appearance/dialogOpacity", alpha);
+    emit appearanceTokensChanged();
+}
+
 double AppSettings::paneOpacity() const {
     return qBound(0.3, QSettings().value("appearance/paneOpacity", 0.85).toDouble(), 1.0);
 }

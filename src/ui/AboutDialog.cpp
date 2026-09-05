@@ -32,7 +32,7 @@ void AboutDialog::setupUi() {
         "  border: 1px solid %2;"
         "  border-radius: 14px;"
         "}"
-    ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER)));
+    ).arg(ThemeManager::DIALOG_BG, ThemeManager::BORDER)));
 
     auto *shadow = new QGraphicsDropShadowEffect(this);
     shadow->setBlurRadius(24);

@@ -24,6 +24,7 @@
 QString ThemeManager::BG_BACKDROP   = "#000000";
 QString ThemeManager::BG_BASE       = "#000000";
 QString ThemeManager::BG_SURFACE     = "#0d0d10";
+QString ThemeManager::DIALOG_BG      = "#0d0d10";
 QString ThemeManager::BG_OVERLAY     = "#16161c";
 QString ThemeManager::BG_HOVER       = "#202028";
 QString ThemeManager::BG_SELECTION   = "#10352b";
@@ -327,7 +328,7 @@ void ThemeManager::paintCard(QPainter &p, const QRect &rect, const QString &bord
     pen.setWidthF(1.0);
     p.setPen(pen);
     QColor fill = toColor(BG_SURFACE);
-    if (alpha >= 0.0) fill.setAlphaF(qMin(fill.alphaF(), alpha));
+    if (alpha >= 0.0) fill.setAlphaF(alpha);
     p.setBrush(fill);
     const qreal r = cardRadius();
     p.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), r, r);
@@ -434,6 +435,10 @@ void ThemeManager::updateStaticColors(const ThemeColors &c) {
         BG_OVERLAY     = c.bgOverlay;
         BG_HOVER       = c.bgHover;
         BG_SELECTION   = c.bgSelection;
+    }
+    {
+        double d = AppSettings::instance().dialogOpacity();
+        DIALOG_BG = (translucent && d < 0.999) ? hexToRgba(c.bgSurface, d) : c.bgSurface;
     }
     ACCENT         = c.accent;
     ACCENT_PRESS   = c.accentPress;

@@ -26,7 +26,7 @@ void ConnectServerDialog::setupUi() {
         "  border: 1px solid %2;"
         "  border-radius: 12px;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER)));
+    ).arg(ThemeManager::DIALOG_BG).arg(ThemeManager::BORDER)));
 
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(20, 18, 20, 18);

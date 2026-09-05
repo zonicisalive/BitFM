@@ -35,7 +35,7 @@ void QuickSwitcherDialog::setupUi() {
         "  border: 1.5px solid %2;"
         "  border-radius: 12px;"
         "}"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::ACCENT)));
+    ).arg(ThemeManager::DIALOG_BG).arg(ThemeManager::ACCENT)));
 
     QVBoxLayout *cardLayout = new QVBoxLayout(card);
     cardLayout->setContentsMargins(14, 14, 14, 14);

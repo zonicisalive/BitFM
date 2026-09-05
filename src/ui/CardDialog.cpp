@@ -1,5 +1,6 @@
 #include "CardDialog.h"
 #include "ThemeManager.h"
+#include "AppSettings.h"
 #include <QPainter>
 #include <QMouseEvent>
 
@@ -12,7 +13,7 @@ CardDialog::CardDialog(QWidget *parent)
 
 void CardDialog::paintEvent(QPaintEvent *) {
     QPainter p(this);
-    ThemeManager::paintCard(p, rect());
+    ThemeManager::paintCard(p, rect(), QString(), AppSettings::instance().dialogOpacity());
 }
 
 void CardDialog::mousePressEvent(QMouseEvent *event) {

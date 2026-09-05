@@ -376,6 +376,23 @@ QWidget* PreferencesDialog::buildAppearancePage() {
         if (!paneOp->isSliderDown()) AppSettings::instance().setPaneOpacity(v / 100.0);
     });
     connect(paneOp, &QSlider::sliderReleased, this, [paneOp]() { AppSettings::instance().setPaneOpacity(paneOp->value() / 100.0); });
+
+    auto *dlgRow = new QHBoxLayout();
+    auto *dlgOp = new QSlider(Qt::Horizontal, transBox);
+    dlgOp->setRange(50, 100);
+    dlgOp->setValue(qRound(AppSettings::instance().dialogOpacity() * 100));
+    dlgOp->setEnabled(transCheck->isChecked());
+    auto *dlgLabel = new QLabel(QString("%1%").arg(dlgOp->value()), transBox);
+    dlgLabel->setFixedWidth(44);
+    dlgRow->addWidget(dlgOp, 1);
+    dlgRow->addWidget(dlgLabel);
+    transForm->addRow(tr("Dialog opacity"), dlgRow);
+    connect(transCheck, &QCheckBox::toggled, dlgOp, &QSlider::setEnabled);
+    connect(dlgOp, &QSlider::valueChanged, this, [dlgOp, dlgLabel](int v) {
+        dlgLabel->setText(QString("%1%").arg(v));
+        if (!dlgOp->isSliderDown()) AppSettings::instance().setDialogOpacity(v / 100.0);
+    });
+    connect(dlgOp, &QSlider::sliderReleased, this, [dlgOp]() { AppSettings::instance().setDialogOpacity(dlgOp->value() / 100.0); });
     layout->addWidget(transBox);
 
     auto *resetRow = new QHBoxLayout();
@@ -384,7 +401,7 @@ QWidget* PreferencesDialog::buildAppearancePage() {
     connect(resetAll, &QPushButton::clicked, this, [this, radius, density, fontSize, iconCombo, transCheck, opacity]() {
         AppSettings &st = AppSettings::instance();
         st.setCornerRadius(6); st.setDensity(1); st.setFontFamily(QString()); st.setFontSize(0); st.setIconTheme(QString());
-        st.setTranslucencyEnabled(true); st.setWindowOpacity(0.90); st.setPaneOpacity(0.85);
+        st.setTranslucencyEnabled(true); st.setWindowOpacity(0.90); st.setPaneOpacity(0.85); st.setDialogOpacity(1.0);
         ThemeManager::instance().resetCustomAccent();
         radius->setValue(6); density->setCurrentIndex(1); fontSize->setValue(0); iconCombo->setCurrentIndex(0);
         transCheck->setChecked(true); opacity->setValue(90);

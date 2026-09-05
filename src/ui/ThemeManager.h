@@ -102,6 +102,7 @@ public:
     static QString BG_BACKDROP;   // window ground the floating panels sit on
     static QString BG_BASE;
     static QString BG_SURFACE;
+    static QString DIALOG_BG;     // surface colour with the dialog opacity applied
     static QString BG_OVERLAY;
     static QString BG_HOVER;
     static QString BG_SELECTION;
