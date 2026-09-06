@@ -40,6 +40,16 @@ MainWindow::MainWindow(QWidget *parent)
     setupActions();
     buildMenus();
     applyLayoutSettings();
+    // Splitter sizes are saved in visual order, so restore them only after the children are reordered.
+    QList<int> mainSizes = AppSettings::instance().mainSplitterSizes();
+    if (mainSizes.size() == 3 && (mainSizes[0] > 0 || mainSizes[1] > 0)) {
+        m_mainSplitter->setSizes(mainSizes);
+    } else {
+        QList<int> def { 0, 0, 0 };
+        def[m_mainSplitter->indexOf(m_sidebar)] = 220;
+        def[m_mainSplitter->indexOf(m_contentSplitter)] = 1040;
+        m_mainSplitter->setSizes(def);
+    }
     connect(&AppSettings::instance(), &AppSettings::layoutChanged, this, &MainWindow::applyLayoutSettings);
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
         for (QDialog **d : { reinterpret_cast<QDialog**>(&m_quickPreviewDialog), reinterpret_cast<QDialog**>(&m_quickSwitcherDialog) }) {
@@ -125,17 +135,6 @@ void MainWindow::setupUi() {
     if (!wState.isEmpty()) {
         restoreState(wState);
     }
-
-    // Restore Splitter Sizes
-    QList<int> mainSizes = AppSettings::instance().mainSplitterSizes();
-    if (mainSizes.size() == 3 && (mainSizes[0] > 0 || mainSizes[1] > 0)) {
-        m_mainSplitter->setSizes(mainSizes);
-    } else {
-        m_mainSplitter->setSizes({ 220, 1040, 0 });
-    }
-    m_mainSplitter->setStretchFactor(0, 0);
-    m_mainSplitter->setStretchFactor(1, 1);
-    m_mainSplitter->setStretchFactor(2, 0);
 
     // Restore Dual Pane & Inspector States
     if (AppSettings::instance().isDualPaneEnabled()) {
@@ -576,7 +575,7 @@ void MainWindow::buildMenus() {
         bmMenu->clear();
         bmMenu->addAction(A("nav.bookmark"));
         bmMenu->addSeparator();
-        QStringList bookmarks = QSettings().value("bookmarks/custom").toStringList();
+        QStringList bookmarks = QSettings().value("sidebar/bookmarks").toStringList(); // same key SidebarWidget writes
         if (bookmarks.isEmpty()) {
             bmMenu->addAction(tr("(No bookmarks added)"))->setEnabled(false);
             return;
@@ -797,7 +796,13 @@ void MainWindow::toggleInspector() {
         if (m_activePane && m_activePane->currentTab()) {
             onActivePaneSelectionChanged(m_activePane->currentTab()->selectedPaths());
         }
-        m_mainSplitter->setSizes({ 220, m_mainSplitter->width() - 480, 260 });
+        QList<int> sizes = m_mainSplitter->sizes();
+        int si = m_mainSplitter->indexOf(m_sidebar), ci = m_mainSplitter->indexOf(m_contentSplitter), ii = m_mainSplitter->indexOf(m_inspector);
+        int sideW = m_sidebar->isVisible() ? qMax(sizes[si], 220) : 0;
+        sizes[si] = sideW;
+        sizes[ii] = 260;
+        sizes[ci] = qMax(200, m_mainSplitter->width() - sideW - 260);
+        m_mainSplitter->setSizes(sizes);
         statusBar()->showMessage(tr("Inspector panel shown (F4)"), 2000);
     } else {
         statusBar()->showMessage(tr("Inspector panel hidden (F4)"), 2000);

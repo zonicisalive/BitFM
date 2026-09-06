@@ -398,13 +398,14 @@ QWidget* PreferencesDialog::buildAppearancePage() {
     auto *resetRow = new QHBoxLayout();
     resetRow->addStretch();
     auto *resetAll = new QPushButton(tr("Reset Appearance"), content);
-    connect(resetAll, &QPushButton::clicked, this, [this, radius, density, fontSize, iconCombo, transCheck, opacity]() {
+    connect(resetAll, &QPushButton::clicked, this, [this, radius, density, fontSize, fontCombo, iconCombo, transCheck, opacity, paneOp, dlgOp]() {
         AppSettings &st = AppSettings::instance();
         st.setCornerRadius(6); st.setDensity(1); st.setFontFamily(QString()); st.setFontSize(0); st.setIconTheme(QString());
         st.setTranslucencyEnabled(true); st.setWindowOpacity(0.90); st.setPaneOpacity(0.85); st.setDialogOpacity(1.0);
         ThemeManager::instance().resetCustomAccent();
         radius->setValue(6); density->setCurrentIndex(1); fontSize->setValue(0); iconCombo->setCurrentIndex(0);
-        transCheck->setChecked(true); opacity->setValue(90);
+        transCheck->setChecked(true); opacity->setValue(90); paneOp->setValue(85); dlgOp->setValue(100);
+        fontCombo->blockSignals(true); fontCombo->setCurrentFont(QApplication::font()); fontCombo->blockSignals(false);
         refreshAppearanceState();
     });
     resetRow->addWidget(resetAll);

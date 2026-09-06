@@ -4,6 +4,7 @@
 #include "TagManager.h"
 #include "DeviceManager.h"
 #include "ConnectServerDialog.h"
+#include "ActionRegistry.h"
 #include "VfsTypes.h"
 #include <QStandardPaths>
 #include <QDir>
@@ -80,9 +81,8 @@ void SidebarWidget::setupUi() {
         QProcess::startDetached(QCoreApplication::applicationFilePath(), {});
     });
     auto *termAct = sMenu->addAction(QIcon::fromTheme("utilities-terminal"), tr("Open Terminal Drawer (F12)"));
-    connect(termAct, &QAction::triggered, this, [this]() {
-        QKeyEvent ev(QEvent::KeyPress, Qt::Key_F12, Qt::NoModifier);
-        QApplication::sendEvent(window(), &ev);
+    connect(termAct, &QAction::triggered, this, []() {
+        if (QAction *a = ActionRegistry::instance().action("view.terminal")) a->trigger();
     });
     auto *srvAct = sMenu->addAction(QIcon::fromTheme("network-server"), tr("Connect to Server…"));
     connect(srvAct, &QAction::triggered, this, [this]() {
@@ -102,6 +102,10 @@ void SidebarWidget::setupUi() {
             ThemeManager::instance().setThemeByName(tName);
         });
     }
+    connect(&ThemeManager::instance(), &ThemeManager::themeChanged, themeGroup, [themeGroup]() {
+        const QString cur = ThemeManager::instance().currentThemeName();
+        for (QAction *a : themeGroup->actions()) a->setChecked(a->text() == cur);
+    });
 
     sMenu->addSeparator();
     auto *aboutAct = sMenu->addAction(QIcon::fromTheme("help-about"), tr("About BitFM (F1)"));

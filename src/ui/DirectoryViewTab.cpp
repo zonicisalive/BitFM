@@ -112,6 +112,10 @@ void DirectoryViewTab::setupUi() {
     connect(m_trashBar, &TrashBarWidget::deleteRequested, this, [this]() {
         QStringList sel = m_fileView->selectedPaths();
         if (!sel.isEmpty()) {
+            auto reply = QMessageBox::question(this, tr("Delete Permanently"),
+                tr("Permanently delete %n item(s) from the Trash?\nThis action cannot be undone.", "", sel.size()),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+            if (reply != QMessageBox::Yes) return;
             FileOperations ops;
             ops.deletePermanently(sel, this);
             m_fileModel->refresh();
@@ -140,16 +144,19 @@ QString DirectoryViewTab::currentFolderName() const {
     return info.fileName().isEmpty() ? m_currentPath : info.fileName();
 }
 
-void DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
+bool DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
     QString clean = QDir::cleanPath(path);
-    if (clean.isEmpty()) return;
+    if (clean.isEmpty()) return false;
 
     if (m_searchActive) {
         closeSearch();
     }
 
     // Only touch history/state once the model accepted the directory (missing or unreadable dirs emit directoryLoadError).
-    if (!m_fileModel->setDirectory(clean)) return;
+    if (!m_fileModel->setDirectory(clean)) {
+        m_pendingSelectPaths.clear();
+        return false;
+    }
 
     if (recordHistory && !m_currentPath.isEmpty() && m_currentPath != clean) {
         m_backStack.push(m_currentPath);
@@ -161,6 +168,7 @@ void DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
     updateTrashBar();
     emit pathChanged(m_currentPath);
     emit tabTitleChanged(currentFolderName());
+    return true;
 }
 
 void DirectoryViewTab::navigateToAndSelect(const QString &filePath) {
@@ -186,13 +194,15 @@ void DirectoryViewTab::navigateToAndSelect(const QStringList &filePaths) {
 
 void DirectoryViewTab::navigateBack() {
     if (m_backStack.isEmpty()) return;
-    m_forwardStack.push(m_currentPath);
-    navigateTo(m_backStack.pop(), false);
+    const QString from = m_currentPath;
+    if (navigateTo(m_backStack.pop(), false)) m_forwardStack.push(from);
+    updateNavigationButtons(); // a vanished directory is dropped from history
 }
 void DirectoryViewTab::navigateForward() {
     if (m_forwardStack.isEmpty()) return;
-    m_backStack.push(m_currentPath);
-    navigateTo(m_forwardStack.pop(), false);
+    const QString from = m_currentPath;
+    if (navigateTo(m_forwardStack.pop(), false)) m_backStack.push(from);
+    updateNavigationButtons();
 }
 void DirectoryViewTab::navigateUp() {
     if (!m_currentPath.startsWith('/')) return; // virtual locations (recent:, tags:) have no parent

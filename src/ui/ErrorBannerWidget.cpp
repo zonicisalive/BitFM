@@ -7,6 +7,7 @@
 ErrorBannerWidget::ErrorBannerWidget(QWidget *parent)
     : QWidget(parent)
 {
+    setAttribute(Qt::WA_StyledBackground); // plain QWidget subclasses do not paint stylesheet backgrounds otherwise
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
     mainLayout->setContentsMargins(14, 8, 14, 8);
     mainLayout->setSpacing(10);

@@ -967,7 +967,7 @@ void ThemeManager::setTheme(AppTheme theme) {
 
     QSettings settings;
     settings.setValue("appearance/theme", c.name);
-    settings.setValue("appearance/theme_mode", static_cast<int>(ThemeMode::Builtin));
+    // theme_mode is owned by setThemeMode()/setThemeByName(): accent changes must not cancel External Sync.
 
     if (qApp) {
         QPalette pal;
@@ -1019,6 +1019,7 @@ void ThemeManager::applyAppFont() {
 }
 
 void ThemeManager::setThemeByName(const QString &name) {
+    QSettings().setValue("appearance/theme_mode", static_cast<int>(ThemeMode::Builtin));
     for (int i = 0; i <= static_cast<int>(AppTheme::PureLight); ++i) {
         AppTheme t = static_cast<AppTheme>(i);
         if (getThemeColors(t).name.compare(name, Qt::CaseInsensitive) == 0) {

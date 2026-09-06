@@ -1790,7 +1790,7 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                     return true;
                 } else if (ke->key() == Qt::Key_H) {
                     QDir dir(m_sourceModel->currentDirectory());
-                    if (dir.cdUp()) emit openPathRequested(dir.absolutePath());
+                    if (dir.path().startsWith('/') && dir.cdUp()) emit openPathRequested(dir.absolutePath()); // virtual locations have no parent
                     return true;
                 } else if (ke->key() == Qt::Key_L) {
                     QStringList selected = selectedPaths();
@@ -1908,7 +1908,7 @@ void FileViewWidget::keyPressEvent(QKeyEvent *event) {
             return;
         } else if (event->key() == Qt::Key_H) {
             QDir dir(m_sourceModel->currentDirectory());
-            if (dir.cdUp()) emit openPathRequested(dir.absolutePath());
+            if (dir.path().startsWith('/') && dir.cdUp()) emit openPathRequested(dir.absolutePath());
             event->accept();
             return;
         } else if (event->key() == Qt::Key_L) {

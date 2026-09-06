@@ -235,6 +235,7 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
         .arg(FileItem::formatFileSize(info.size()))
         .arg(info.size()));
     m_modifiedLabel->setText(tr("<b>Modified:</b> %1").arg(info.lastModified().toString("yyyy-MM-dd hh:mm:ss")));
+    m_permissionsLabel->show();
     m_permissionsLabel->setText(tr("<b>Permissions:</b> %1%2%3")
         .arg(info.isReadable() ? "r" : "-")
         .arg(info.isWritable() ? "w" : "-")
@@ -432,6 +433,7 @@ void FileInspectorWidget::inspectDirectory(const QString &dirPath, int totalItem
         .arg(totalItems)
         .arg(FileItem::formatFileSize(totalBytes)));
     m_modifiedLabel->setText(tr("<b>Modified:</b> %1").arg(info.lastModified().toString("yyyy-MM-dd hh:mm:ss")));
+    m_permissionsLabel->show();
     m_permissionsLabel->setText(tr("<b>Permissions:</b> %1%2%3")
         .arg(info.isReadable() ? "r" : "-")
         .arg(info.isWritable() ? "w" : "-")
@@ -453,6 +455,7 @@ void FileInspectorWidget::clear() {
     m_dimensionsLabel->setText(QString());
     m_modifiedLabel->setText(QString());
     m_permissionsLabel->setText(QString());
+    m_permissionsLabel->show();
     m_checksumLabel->setText(QString());
     m_textPreviewLabel->hide();
     m_openBtn->setEnabled(false);

@@ -292,11 +292,12 @@ void FilePickerDialog::paintEvent(QPaintEvent *) {
 
 void FilePickerDialog::navigateTo(const QString &path, bool recordHistory) {
     if (path.isEmpty() || !QDir(path).exists()) return;
-    if (recordHistory && !m_fileModel->currentDirectory().isEmpty() && m_fileModel->currentDirectory() != path) {
-        m_backStack.push(m_fileModel->currentDirectory());
+    const QString previous = m_fileModel->currentDirectory();
+    if (!m_fileModel->setDirectory(path)) return; // unreadable: keep breadcrumb/history on the folder still shown
+    if (recordHistory && !previous.isEmpty() && previous != path) {
+        m_backStack.push(previous);
         m_forwardStack.clear();
     }
-    m_fileModel->setDirectory(path);
     m_breadcrumbBar->setPath(path);
     m_sidebar->highlightPath(path);
     updateNavButtons();

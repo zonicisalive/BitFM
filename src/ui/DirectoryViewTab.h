@@ -35,7 +35,7 @@ public:
     bool isSearchActive() const { return m_searchActive; }
 
 public slots:
-    void navigateTo(const QString &path, bool recordHistory = true);
+    bool navigateTo(const QString &path, bool recordHistory = true);
     void navigateToAndSelect(const QString &filePath);
     void navigateToAndSelect(const QStringList &filePaths);
     void navigateBack();
