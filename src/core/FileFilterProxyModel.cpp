@@ -58,23 +58,20 @@ bool FileFilterProxyModel::directoriesOnly() const {
 
 void FileFilterProxyModel::setNameFilters(const QStringList &filters) {
     m_nameFilters = filters;
-    m_parsedExtensions.clear();
+    m_nameRegexes.clear();
+    bool matchAll = false;
     for (const QString &f : filters) {
         for (QString part : f.split(QRegularExpression("[;,\\s]+"), Qt::SkipEmptyParts)) {
             part = part.trimmed();
-            if (part == "*" || part == "*.*") {
-                m_parsedExtensions.clear(); // Match all files
-                break;
-            }
-            if (part.startsWith("*.")) {
-                m_parsedExtensions.append(part.mid(2).toLower());
-            } else if (part.startsWith(".")) {
-                m_parsedExtensions.append(part.mid(1).toLower());
-            } else {
-                m_parsedExtensions.append(part.toLower());
-            }
+            if (part == "*" || part == "*.*") { matchAll = true; break; }
+            if (part.startsWith('.')) part.prepend('*');      // ".txt" -> "*.txt"
+            else if (!part.contains('*') && !part.contains('?')) part.prepend("*."); // "txt" -> "*.txt"
+            m_nameRegexes.append(QRegularExpression(QRegularExpression::wildcardToRegularExpression(part),
+                                                    QRegularExpression::CaseInsensitiveOption));
         }
+        if (matchAll) break;
     }
+    if (matchAll) m_nameRegexes.clear();
     invalidate();
     int total = sourceModel() ? sourceModel()->rowCount() : 0;
     emit filterChanged(rowCount(), total);
@@ -132,11 +129,12 @@ bool FileFilterProxyModel::filterAcceptsRow(int sourceRow, const QModelIndex &so
     QString fileName = index.data(Qt::DisplayRole).toString();
 
     // Check file extension / type filter if active
-    if (!m_parsedExtensions.isEmpty()) {
-        QString ext = QFileInfo(fileName).suffix().toLower();
-        if (!m_parsedExtensions.contains(ext) && !m_parsedExtensions.contains(fileName.toLower())) {
-            return false;
+    if (!m_nameRegexes.isEmpty()) {
+        bool any = false;
+        for (const QRegularExpression &rx : m_nameRegexes) {
+            if (rx.match(fileName).hasMatch()) { any = true; break; }
         }
+        if (!any) return false;
     }
 
     // Check search pattern if active

@@ -32,9 +32,8 @@ public:
         if (cacheInfo.exists() && cacheInfo.lastModified() >= sourceInfo.lastModified()) {
             QImage cachedImg(m_cachePath);
             if (!cachedImg.isNull()) {
-                QIcon icon(QPixmap::fromImage(cachedImg));
-                QMetaObject::invokeMethod(m_provider, [provider = m_provider, path, icon]() {
-                    emit provider->thumbnailReady(path, icon);
+                QMetaObject::invokeMethod(m_provider, [provider = m_provider, path, img = cachedImg]() {
+                    emit provider->thumbnailReady(path, QIcon(QPixmap::fromImage(img))); // QPixmap must be created on the GUI thread
                 }, Qt::QueuedConnection);
                 return;
             }
@@ -52,9 +51,8 @@ public:
             if (sInfo.exists()) {
                 QImage sImg(sharedPath);
                 if (!sImg.isNull()) {
-                    QIcon icon(QPixmap::fromImage(sImg));
-                    QMetaObject::invokeMethod(m_provider, [provider = m_provider, path, icon]() {
-                        emit provider->thumbnailReady(path, icon);
+                    QMetaObject::invokeMethod(m_provider, [provider = m_provider, path, img = sImg]() {
+                        emit provider->thumbnailReady(path, QIcon(QPixmap::fromImage(img))); // QPixmap must be created on the GUI thread
                     }, Qt::QueuedConnection);
                     return;
                 }
@@ -120,11 +118,8 @@ public:
         }
         img.save(m_cachePath, "PNG");
 
-        QIcon icon(QPixmap::fromImage(img));
-
-        // Safely notify on main thread using captured path value
-        QMetaObject::invokeMethod(m_provider, [provider = m_provider, path, icon]() {
-            emit provider->thumbnailReady(path, icon);
+        QMetaObject::invokeMethod(m_provider, [provider = m_provider, path, img = img]() {
+            emit provider->thumbnailReady(path, QIcon(QPixmap::fromImage(img))); // QPixmap must be created on the GUI thread
         }, Qt::QueuedConnection);
     }
 

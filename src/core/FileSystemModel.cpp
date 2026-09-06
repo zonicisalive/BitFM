@@ -169,10 +169,27 @@ Qt::ItemFlags FileSystemModel::flags(const QModelIndex &index) const {
 void FileSystemModel::sort(int column, Qt::SortOrder order) {
     if (column < 0 || column >= ColumnCount) return;
     
-    emit layoutAboutToBeChanged();
     m_sortColumn = column;
     m_sortOrder = order;
+    resortKeepingIndexes();
+}
+
+void FileSystemModel::resortKeepingIndexes() {
+    emit layoutAboutToBeChanged();
+    const QModelIndexList oldIdx = persistentIndexList();
+    QStringList oldPaths;
+    oldPaths.reserve(oldIdx.size());
+    for (const QModelIndex &i : oldIdx) {
+        oldPaths.append(i.row() >= 0 && i.row() < m_items.size() ? m_items[i.row()].absolutePath : QString());
+    }
     sortInternal();
+    QModelIndexList newIdx;
+    newIdx.reserve(oldIdx.size());
+    for (int k = 0; k < oldIdx.size(); ++k) {
+        int row = m_pathToRow.value(oldPaths[k], -1);
+        newIdx.append(row >= 0 ? index(row, oldIdx[k].column()) : QModelIndex());
+    }
+    changePersistentIndexList(oldIdx, newIdx);
     emit layoutChanged();
 }
 
@@ -207,10 +224,14 @@ void FileSystemModel::sortInternal() {
         if (m_foldersFirst && (x.isDirectory != y.isDirectory)) {
             return x.isDirectory;
         }
-        return (m_sortOrder == Qt::AscendingOrder) ? comparator(x, y) : comparator(y, x);
+        const FileItem &a = (m_sortOrder == Qt::AscendingOrder) ? x : y;
+        const FileItem &b = (m_sortOrder == Qt::AscendingOrder) ? y : x;
+        if (comparator(a, b)) return true;
+        if (comparator(b, a)) return false;
+        return QString::compare(x.name, y.name, Qt::CaseInsensitive) < 0; // tie-break keeps order stable across refreshes
     };
 
-    std::sort(m_items.begin(), m_items.end(), ordered);
+    std::stable_sort(m_items.begin(), m_items.end(), ordered);
 
     // Rebuild quick path-to-row lookup hash
     m_pathToRow.clear();
@@ -254,7 +275,8 @@ Qt::DropActions FileSystemModel::supportedDropActions() const {
 
 FileSystemModel::~FileSystemModel() {
     m_isSearching = false;
-    *m_alive = false;
+    QMutexLocker lock(&m_alive->mutex);
+    m_alive->alive = false;
 }
 
 bool FileSystemModel::canDropMimeData(const QMimeData *data, Qt::DropAction, int, int, const QModelIndex &) const {
@@ -276,7 +298,7 @@ bool FileSystemModel::dropMimeData(const QMimeData *data, Qt::DropAction action,
     return true;
 }
 
-void FileSystemModel::setDirectory(const QString &path) {
+bool FileSystemModel::setDirectory(const QString &path) {
     if (path == "recent:" || path == "recent://" || path.startsWith("tag:") || path.startsWith("tags:") || path == "tags" || path == "tag") {
         if (!m_currentPath.isEmpty()) {
             m_watcher.removePath(m_currentPath);
@@ -288,7 +310,7 @@ void FileSystemModel::setDirectory(const QString &path) {
         else m_currentPath = path;
         refresh();
         emit directoryChanged(m_currentPath);
-        return;
+        return true;
     }
 
     QString cleanPath = QDir::cleanPath(path);
@@ -299,12 +321,12 @@ void FileSystemModel::setDirectory(const QString &path) {
     QFileInfo checkInfo(cleanPath);
     if (!checkInfo.exists()) {
         emit directoryLoadError(cleanPath, tr("Directory does not exist or has been removed."));
-        return;
+        return false;
     }
 
     if (!checkInfo.isReadable()) {
         emit directoryLoadError(cleanPath, tr("Permission Denied: You do not have permission to read this folder."));
-        return;
+        return false;
     }
 
     if (!m_currentPath.isEmpty()) {
@@ -320,6 +342,7 @@ void FileSystemModel::setDirectory(const QString &path) {
 
     refresh();
     emit directoryChanged(m_currentPath);
+    return true;
 }
 
 QString FileSystemModel::currentDirectory() const {
@@ -340,9 +363,7 @@ bool FileSystemModel::showHidden() const {
 void FileSystemModel::setFoldersFirst(bool foldersFirst) {
     if (m_foldersFirst != foldersFirst) {
         m_foldersFirst = foldersFirst;
-        emit layoutAboutToBeChanged();
-        sortInternal();
-        emit layoutChanged();
+        resortKeepingIndexes();
     }
 }
 
@@ -522,6 +543,7 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
     auto alive = m_alive;
     QThreadPool::globalInstance()->start([this, alive, searchId, rootPath, pattern, isRegex, showHidden]() {
         QVector<FileItem> found;
+        QVector<QPair<QString, QString>> mimeIcons; // icon / generic icon names, resolved on the GUI thread
         QDir::Filters filters = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::System;
         if (showHidden) filters |= QDir::Hidden;
 
@@ -534,7 +556,7 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
 
         int count = 0;
         while (it.hasNext() && count < 3000) {
-            if (!*alive || !m_isSearching || m_currentSearchId != searchId) {
+            if (!alive->alive || !m_isSearching || m_currentSearchId != searchId) {
                 return;
             }
 
@@ -569,14 +591,14 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
                     item.formattedSize = (subCount == 0) ? tr("Empty") : (subCount == 1 ? tr("1 item") : tr("%1 items").arg(subCount));
                     item.mimeTypeName = "inode/directory";
                     item.mimeComment = tr("Folder");
-                    item.icon = getFolderIcon(item.absolutePath, item.name);
+                    mimeIcons.append(QPair<QString, QString>());
                 } else {
                     item.sizeBytes = info.size();
                     item.formattedSize = FileItem::formatFileSize(item.sizeBytes);
                     QMimeType mime = mimeDb.mimeTypeForFile(info);
                     item.mimeTypeName = mime.name();
                     item.mimeComment = mime.comment().isEmpty() ? mime.name() : mime.comment();
-                    item.icon = QIcon::fromTheme(mime.iconName(), QIcon::fromTheme(mime.genericIconName(), QIcon::fromTheme("text-x-generic")));
+                    mimeIcons.append({ mime.iconName(), mime.genericIconName() });
                 }
 
                 found.append(item);
@@ -584,9 +606,20 @@ void FileSystemModel::searchRecursive(const QString &pattern, bool isRegex) {
             }
         }
 
-        if (!*alive) return;
-        QMetaObject::invokeMethod(this, [this, searchId, rootPath, found = std::move(found)]() mutable {
+        // Hold the guard while queueing so ~FileSystemModel cannot run between the check and the use of `this`.
+        QMutexLocker lock(&alive->mutex);
+        if (!alive->alive) return;
+        QMetaObject::invokeMethod(this, [this, searchId, rootPath, found = std::move(found), mimeIcons = std::move(mimeIcons)]() mutable {
             if (!m_isSearching || m_currentSearchId != searchId) return;
+
+            for (int i = 0; i < found.size(); ++i) {
+                FileItem &it = found[i];
+                if (it.isDirectory) {
+                    it.icon = getFolderIcon(it.absolutePath, it.name);
+                } else {
+                    it.icon = QIcon::fromTheme(mimeIcons[i].first, QIcon::fromTheme(mimeIcons[i].second, QIcon::fromTheme("text-x-generic")));
+                }
+            }
 
             int files = 0;
             int folders = 0;

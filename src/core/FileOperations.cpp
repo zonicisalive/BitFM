@@ -118,7 +118,12 @@ bool FileOperations::restoreFromTrash(const QStringList &filePaths, QWidget *par
             }
         }
 
-        if (QFile::rename(path, destPath)) {
+        bool restored = QFile::rename(path, destPath);
+        if (!restored && QFileInfo(path).isDir()) {
+            // QFile::rename only copies regular files across devices; directories need the same copy+delete as trashing.
+            restored = copyRecursively(path, destPath, false) && removeEntry(path);
+        }
+        if (restored) {
             QFile::remove(infoFile);
             successCount++;
         }
@@ -146,12 +151,12 @@ bool FileOperations::emptyTrash(QWidget *parentWidget) {
 
     QStringList allFiles;
     QDir dFiles(filesDir);
-    for (const QFileInfo &fi : dFiles.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden)) {
+    for (const QFileInfo &fi : dFiles.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System)) {
         allFiles.append(fi.absoluteFilePath());
     }
 
     QDir dInfo(infoDir);
-    for (const QFileInfo &fi : dInfo.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden)) {
+    for (const QFileInfo &fi : dInfo.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System)) {
         allFiles.append(fi.absoluteFilePath());
     }
 
@@ -830,11 +835,14 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         }
 
         bool moved = false;
-        // rename(2) replaces a file atomically; only a real directory target must be cleared first.
+        // rename(2) replaces a file atomically; a real directory target is set aside first and only
+        // deleted once the move succeeded, so a failed/cancelled cross-device move keeps the old data.
+        QString displaced;
         if (overwrite) {
             QFileInfo tfi(targetPath);
             if (tfi.isDir() && !tfi.isSymLink()) {
-                QDir(targetPath).removeRecursively();
+                displaced = targetPath + QString(".bitfm-replaced-%1").arg(QCoreApplication::applicationPid());
+                if (!QFile::rename(targetPath, displaced)) displaced.clear();
             }
         }
 
@@ -847,6 +855,15 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
             // Fallback for cross-filesystem moves
             if (copyRecursively(src, targetPath, overwrite, &bytesCopied, totalBytes, &itemsCopied, totalItems, progressDialog, &isCanceled)) {
                 moved = removeEntry(src);
+            }
+        }
+
+        if (!displaced.isEmpty()) {
+            if (moved) {
+                QDir(displaced).removeRecursively();
+            } else {
+                QDir(targetPath).removeRecursively(); // partial copy, if any
+                QFile::rename(displaced, targetPath);
             }
         }
 
@@ -1001,47 +1018,40 @@ bool FileOperations::compressFiles(const QStringList &sourcePaths, const QString
 
     QStringList args;
     QString cmd;
+    auto addSources = [&]() {
+        for (const QString &p : sourcePaths) {
+            QString rel = QDir(workDir).relativeFilePath(p);
+            if (rel.isEmpty()) rel = QFileInfo(p).fileName();
+            if (rel.startsWith('-')) rel.prepend("./"); // never let a file name be parsed as a tar/zip option
+            args << rel;
+        }
+    };
 
     QString destExt = QFileInfo(destinationArchive).suffix().toLower();
     if (destExt == "zip" || format == "zip") {
         if (!QStandardPaths::findExecutable("zip").isEmpty()) {
             cmd = "zip";
             args << "-r" << "-v" << destinationArchive;
-            for (const QString &p : sourcePaths) {
-                QString rel = QDir(workDir).relativeFilePath(p);
-                args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
-            }
+            addSources();
         } else if (!QStandardPaths::findExecutable("bsdtar").isEmpty()) {
             cmd = "bsdtar";
             args << "-acf" << destinationArchive;
-            for (const QString &p : sourcePaths) {
-                QString rel = QDir(workDir).relativeFilePath(p);
-                args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
-            }
+            addSources();
         }
     } else if (destExt == "xz" || format == "tar.xz") {
         cmd = "tar";
         args << "-cvJf" << destinationArchive;
-        for (const QString &p : sourcePaths) {
-            QString rel = QDir(workDir).relativeFilePath(p);
-            args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
-        }
+        addSources();
     } else {
         cmd = "tar";
         args << "-cvzf" << destinationArchive;
-        for (const QString &p : sourcePaths) {
-            QString rel = QDir(workDir).relativeFilePath(p);
-            args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
-        }
+        addSources();
     }
 
     if (cmd.isEmpty()) {
         cmd = "tar";
         args << "-cvzf" << destinationArchive;
-        for (const QString &p : sourcePaths) {
-            QString rel = QDir(workDir).relativeFilePath(p);
-            args << (rel.isEmpty() ? QFileInfo(p).fileName() : rel);
-        }
+        addSources();
     }
 
     QObject::connect(&progress, &FileOperationProgressDialog::cancelRequested, &proc, &QProcess::kill);

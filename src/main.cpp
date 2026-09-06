@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
     QDBusConnection session = QDBusConnection::sessionBus();
     if (!parser.isSet(gappOption) && !parser.isSet(saveOption) && !parser.isSet(openOption) && !parser.isSet(folderOption)) {
         if (session.isConnected() && session.interface() && session.interface()->isServiceRegistered("io.bitfm.BitFM")) {
-            QDBusInterface iface("org.freedesktop.FileManager1", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1", session);
+            QDBusInterface iface("io.bitfm.BitFM", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1", session); // our own name: FileManager1 may be owned by another file manager
             if (iface.isValid()) {
                 QStringList uris;
                 if (parser.isSet(selectOption)) {

@@ -148,13 +148,15 @@ void DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
         closeSearch();
     }
 
+    // Only touch history/state once the model accepted the directory (missing or unreadable dirs emit directoryLoadError).
+    if (!m_fileModel->setDirectory(clean)) return;
+
     if (recordHistory && !m_currentPath.isEmpty() && m_currentPath != clean) {
         m_backStack.push(m_currentPath);
         m_forwardStack.clear();
     }
 
     m_currentPath = clean;
-    m_fileModel->setDirectory(m_currentPath);
     updateNavigationButtons();
     updateTrashBar();
     emit pathChanged(m_currentPath);

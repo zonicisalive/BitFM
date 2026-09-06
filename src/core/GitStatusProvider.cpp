@@ -82,6 +82,8 @@ public:
                     statuses.insert(absPath, state);
                 }
             }
+        } else {
+            return; // timeout/failure: keep the previous badges instead of reporting a clean repo
         }
 
         QString dir = m_dirPath;

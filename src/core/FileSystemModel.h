@@ -7,6 +7,7 @@
 #include <QFile>
 #include <memory>
 #include <atomic>
+#include <QMutex>
 #include "VfsTypes.h"
 #include "ThumbnailProvider.h"
 #include "RecentFilesProvider.h"
@@ -55,7 +56,7 @@ public:
     bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) override;
 
     // Navigation and Filtering
-    void setDirectory(const QString &path);
+    bool setDirectory(const QString &path);
     QString currentDirectory() const;
     
     void setShowHidden(bool show);
@@ -97,6 +98,7 @@ private slots:
 private:
     void loadDirectoryInternal();
     void sortInternal();
+    void resortKeepingIndexes();
     static QString permissionString(const QFile::Permissions &p);
 
     QString m_currentPath;
@@ -107,7 +109,8 @@ private:
 
     std::atomic<bool> m_isSearching { false };
     std::atomic<uint> m_currentSearchId { 0 };
-    std::shared_ptr<std::atomic<bool>> m_alive = std::make_shared<std::atomic<bool>>(true);
+    struct AliveGuard { QMutex mutex; std::atomic<bool> alive { true }; };
+    std::shared_ptr<AliveGuard> m_alive = std::make_shared<AliveGuard>();
 
     QVector<FileItem> m_items;
     QHash<QString, int> m_pathToRow;

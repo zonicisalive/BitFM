@@ -40,6 +40,6 @@ private:
     bool m_directoriesOnly = false;
     QRegularExpression m_regex;
     QStringList m_nameFilters;
-    QStringList m_parsedExtensions;
+    QList<QRegularExpression> m_nameRegexes;
     QString m_rawFilterString;
 };
