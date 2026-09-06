@@ -186,15 +186,15 @@ void FileInspectorWidget::applyStyles() {
     m_openBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-weight: 500; }"
         "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_HOVER)));
+    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::ACCENT_SOFT)));
     m_copyPathBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-weight: 500; }"
         "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::BG_HOVER)));
+    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::ACCENT_SOFT)));
     m_sha256Btn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-size: 11px; }"
         "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::BG_HOVER)));
+    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::ACCENT_SOFT)));
     setStyleSheet(ThemeManager::css(QString(
         "FileInspectorWidget { background: transparent; }"
         "QGroupBox {"

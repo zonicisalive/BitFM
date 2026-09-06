@@ -108,6 +108,8 @@ public:
     static QString BG_SELECTION;
     static QString ACCENT;
     static QString ACCENT_PRESS;
+    static QString ACCENT_SOFT;       // accent tint: hover state of buttons, rows, tabs
+    static QString ACCENT_SOFT_PRESS; // stronger tint: pressed state
     static QString TEXT_PRIMARY;
     static QString TEXT_SECONDARY;
     static QString TEXT_MUTED;

@@ -186,7 +186,7 @@ void PaneWidget::setupUi() {
         .arg(ThemeManager::TEXT_SECONDARY)  // %4 unselected tab text
         .arg(ThemeManager::ACCENT)          // %5 selected tab text / accent
         .arg(ThemeManager::TEXT_PRIMARY)    // %6 hover text
-        .arg(ThemeManager::BG_HOVER)        // %7 hover bg
+        .arg(ThemeManager::ACCENT_SOFT)     // %7 hover bg
         .arg(ThemeManager::px(28))          // %8 tab height
         ));
     };

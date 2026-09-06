@@ -87,8 +87,8 @@ void FilePropertiesDialog::setupUi() {
     closeTopBtn->setCursor(Qt::PointingHandCursor);
     closeTopBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; border-radius: 6px; font-size: 13px; }"
-        "QPushButton:hover { background: rgba(255, 255, 255, 0.15); color: #ffffff; }"
-    ).arg(ThemeManager::TEXT_SECONDARY)));
+        "QPushButton:hover { background: %2; color: %3; }"
+    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY)));
     connect(closeTopBtn, &QPushButton::clicked, this, &FilePropertiesDialog::reject);
     headerLayout->addWidget(closeTopBtn);
 

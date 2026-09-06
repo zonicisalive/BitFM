@@ -68,7 +68,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
         .arg(ThemeManager::BG_BASE)
         .arg(ThemeManager::BORDER)
         .arg(ThemeManager::TEXT_PRIMARY)
-        .arg(ThemeManager::BG_HOVER)
+        .arg(ThemeManager::ACCENT_SOFT)
         .arg(ThemeManager::ACCENT)
         .arg(ThemeManager::TEXT_MUTED)));
 
@@ -350,7 +350,7 @@ void BreadcrumbBar::rebuildBreadcrumbs() {
     pathMenuBtn->setPopupMode(QToolButton::InstantPopup);
     pathMenuBtn->setStyleSheet(ThemeManager::css(
         "QToolButton { border: none; font-size: 14px; font-weight: bold; border-radius: 4px; color: " + QString(ThemeManager::TEXT_MUTED) + "; background: transparent; padding: 0px; }"
-        "QToolButton:hover { background: rgba(255,255,255,0.08); color: #ffffff; }"
+        "QToolButton:hover { background: " + QString(ThemeManager::ACCENT_SOFT) + "; color: " + QString(ThemeManager::TEXT_PRIMARY) + "; }"
         "QToolButton::menu-indicator { image: none; width: 0; }"
     ));
 

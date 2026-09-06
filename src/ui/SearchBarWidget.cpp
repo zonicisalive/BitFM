@@ -48,7 +48,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
         .arg(ThemeManager::ACCENT)
         .arg(ThemeManager::TEXT_PRIMARY)
         .arg(ThemeManager::TEXT_MUTED)
-        .arg(ThemeManager::BG_HOVER)
+        .arg(ThemeManager::ACCENT_SOFT)
         .arg(ThemeManager::BG_SELECTION)));
     };
 

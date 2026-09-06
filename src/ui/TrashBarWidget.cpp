@@ -56,7 +56,7 @@ TrashBarWidget::TrashBarWidget(QWidget *parent)
         .arg(ThemeManager::TEXT_PRIMARY)
         .arg(ThemeManager::TEXT_MUTED)
         .arg(ThemeManager::BG_OVERLAY)
-        .arg(ThemeManager::BG_HOVER)
+        .arg(ThemeManager::ACCENT_SOFT)
         .arg(ThemeManager::ACCENT)));
     };
 

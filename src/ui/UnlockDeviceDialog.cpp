@@ -50,8 +50,8 @@ void UnlockDeviceDialog::setupUi() {
     closeBtn->setCursor(Qt::PointingHandCursor);
     closeBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; border-radius: 4px; font-size: 13px; }"
-        "QPushButton:hover { background: rgba(255, 255, 255, 0.15); color: #ffffff; }"
-    ).arg(ThemeManager::TEXT_SECONDARY)));
+        "QPushButton:hover { background: %2; color: %3; }"
+    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY)));
     connect(closeBtn, &QPushButton::clicked, this, &QDialog::reject);
     header->addWidget(closeBtn);
 

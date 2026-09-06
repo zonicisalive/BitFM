@@ -71,7 +71,7 @@ void SidebarWidget::setupUi() {
     sidebarMenuBtn->setPopupMode(QToolButton::InstantPopup);
     sidebarMenuBtn->setStyleSheet(ThemeManager::css(
         "QToolButton { border: none; font-size: 15px; font-weight: bold; border-radius: 6px; color: " + QString(ThemeManager::TEXT_SECONDARY) + "; background: transparent; }"
-        "QToolButton:hover { background: rgba(255,255,255,0.08); color: #ffffff; }"
+        "QToolButton:hover { background: " + QString(ThemeManager::ACCENT_SOFT) + "; color: " + QString(ThemeManager::TEXT_PRIMARY) + "; }"
         "QToolButton::menu-indicator { image: none; width: 0; }"
     ));
 
@@ -173,7 +173,7 @@ void SidebarWidget::setupUi() {
         )
         .arg("transparent")
         .arg(ThemeManager::TEXT_SECONDARY)
-        .arg(ThemeManager::BG_HOVER)
+        .arg(ThemeManager::ACCENT_SOFT)
         .arg(ThemeManager::TEXT_PRIMARY)
         .arg(ThemeManager::BG_SELECTION)
         .arg(ThemeManager::TEXT_MUTED)

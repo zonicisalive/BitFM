@@ -165,7 +165,7 @@ void PreferencesDialog::applyStyle() {
         "QGroupBox { border: 1px solid %3; border-radius: 9px; margin-top: 14px; padding: 12px 10px 8px 10px; font-weight: 600; color: %6; }"
         "QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 4px; color: %4; }"
     ).arg("transparent", ThemeManager::BG_SURFACE, ThemeManager::BORDER, ThemeManager::TEXT_SECONDARY,
-          ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY, ThemeManager::BG_SELECTION, ThemeManager::ACCENT)));
+          ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY, ThemeManager::BG_SELECTION, ThemeManager::ACCENT)));
 }
 
 void PreferencesDialog::showPage(int index) {

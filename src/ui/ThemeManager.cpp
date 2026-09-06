@@ -30,6 +30,8 @@ QString ThemeManager::BG_HOVER       = "#202028";
 QString ThemeManager::BG_SELECTION   = "#10352b";
 QString ThemeManager::ACCENT         = "#00ff9f";
 QString ThemeManager::ACCENT_PRESS   = "#00dd88";
+QString ThemeManager::ACCENT_SOFT    = "rgba(0, 255, 159, 0.16)";
+QString ThemeManager::ACCENT_SOFT_PRESS = "rgba(0, 255, 159, 0.28)";
 QString ThemeManager::TEXT_PRIMARY   = "#ffffff";
 QString ThemeManager::TEXT_SECONDARY = "#a0a0b0";
 QString ThemeManager::TEXT_MUTED     = "#606075";
@@ -442,6 +444,8 @@ void ThemeManager::updateStaticColors(const ThemeColors &c) {
     }
     ACCENT         = c.accent;
     ACCENT_PRESS   = c.accentPress;
+    ACCENT_SOFT    = hexToRgba(c.accent, 0.16);
+    ACCENT_SOFT_PRESS = hexToRgba(c.accent, 0.28);
     TEXT_PRIMARY   = c.textPrimary;
     TEXT_SECONDARY = c.textSecondary;
     TEXT_MUTED     = c.textMuted;
@@ -532,11 +536,13 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "  font-weight: 500;"
         "}"
         "QToolButton:hover, QPushButton:hover {"
-        "  background-color: %6;"
-        "  border: 1px solid %3;"
+        "  background-color: %15;"
+        "  color: %2;"
+        "  border: 1px solid transparent;"
         "}"
         "QToolButton:pressed, QPushButton:pressed {"
-        "  background-color: %7;"
+        "  background-color: %16;"
+        "  border: 1px solid transparent;"
         "}"
         "QToolButton:checked {"
         "  background-color: %9;"
@@ -599,7 +605,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "  border: none;"
         "}"
         "QListView::item:hover, QTreeView::item:hover {"
-        "  background-color: %6;"
+        "  background-color: %15;"
         "}"
         "QListView::item:selected, QTreeView::item:selected {"
         "  background-color: %9;"
@@ -623,7 +629,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "  letter-spacing: 0.5px;"
         "}"
         "QHeaderView::section:hover {"
-        "  background-color: %6;"
+        "  background-color: %15;"
         "  color: %2;"
         "}"
 
@@ -875,7 +881,11 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "  background-color: %10;"
         "}"
         "QDialogButtonBox QPushButton:hover, QMessageBox QPushButton:hover {"
-        "  background-color: %6;"
+        "  background-color: %15;"
+        "  border: 1px solid %4;"
+        "}"
+        "QDialogButtonBox QPushButton:pressed, QMessageBox QPushButton:pressed {"
+        "  background-color: %16;"
         "}"
         "QDialogButtonBox QPushButton:default, QMessageBox QPushButton:default {"
         "  background-color: %4;"
@@ -908,6 +918,8 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
     .arg(c.textSecondary)    // %12
     .arg(c.bgSurface)        // %13 opaque popup surface
     .arg(c.bgOverlay)        // %14 opaque popup overlay
+    .arg(hexToRgba(c.accent, 0.16)) // %15 hover tint
+    .arg(hexToRgba(c.accent, 0.28)) // %16 pressed tint
     .replace("GLYPH", QColor(c.accent).lightness() > 140 ? "dark" : "light");
 }
 

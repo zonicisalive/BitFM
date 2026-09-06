@@ -210,6 +210,13 @@ int main(int argc, char *argv[]) {
                     target = dlg;
                 }
             }
+            // BITFM_SCREENSHOT_HOVER=x,y[;x,y...] marks the widgets under those window points as hovered.
+            for (const QByteArray &pt : qgetenv("BITFM_SCREENSHOT_HOVER").split(';')) {
+                const QList<QByteArray> xy = pt.split(',');
+                if (xy.size() != 2) continue;
+                QWidget *w = target->childAt(QPoint(xy[0].toInt(), xy[1].toInt()));
+                for (; w && w != target; w = w->parentWidget()) { w->setAttribute(Qt::WA_UnderMouse, true); w->update(); }
+            }
             QTimer::singleShot(400, target, [target, shot]() {
                 target->grab().save(QString::fromLocal8Bit(shot));
                 QCoreApplication::quit();

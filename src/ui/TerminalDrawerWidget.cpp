@@ -139,7 +139,7 @@ void TerminalDrawerWidget::setupUi() {
     clearBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; }"
         "QPushButton:hover { background: %2; color: %3; }"
-    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY)));
+    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY)));
     connect(clearBtn, &QPushButton::clicked, this, &TerminalDrawerWidget::clearConsole);
     headerLayout->addWidget(clearBtn);
 
@@ -149,7 +149,7 @@ void TerminalDrawerWidget::setupUi() {
     extTermBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; }"
         "QPushButton:hover { background: %2; color: %3; }"
-    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY)));
+    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY)));
     connect(extTermBtn, &QPushButton::clicked, this, &TerminalDrawerWidget::openInExternalTerminal);
     headerLayout->addWidget(extTermBtn);
 
@@ -158,8 +158,8 @@ void TerminalDrawerWidget::setupUi() {
     closeBtn->setCursor(Qt::PointingHandCursor);
     closeBtn->setStyleSheet(ThemeManager::css(QString(
         "QPushButton { background: transparent; color: %1; border: none; border-radius: 12px /*fixed*/; font-size: 12px; font-weight: bold; }"
-        "QPushButton:hover { background: rgba(255, 255, 255, 0.12); color: #ffffff; }"
-    ).arg(ThemeManager::TEXT_SECONDARY)));
+        "QPushButton:hover { background: %2; color: %3; }"
+    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY)));
     connect(closeBtn, &QPushButton::clicked, this, &TerminalDrawerWidget::closeRequested);
     headerLayout->addWidget(closeBtn);
 
@@ -250,12 +250,12 @@ void TerminalDrawerWidget::setupUi() {
         clearBtn->setStyleSheet(ThemeManager::css(QString(
             "QPushButton { background: transparent; color: %1; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; }"
             "QPushButton:hover { background: %2; color: %3; }"
-        ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY)));
+        ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY)));
 
         extTermBtn->setStyleSheet(ThemeManager::css(QString(
             "QPushButton { background: transparent; color: %1; border: none; padding: 4px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; }"
             "QPushButton:hover { background: %2; color: %3; }"
-        ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER, ThemeManager::TEXT_PRIMARY)));
+        ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY)));
 
         m_console->setStyleSheet(ThemeManager::css(QString(
             "QTextEdit {"

@@ -39,8 +39,8 @@ ErrorBannerWidget::ErrorBannerWidget(QWidget *parent)
     m_closeBtn->setToolTip(tr("Dismiss"));
     m_closeBtn->setStyleSheet(ThemeManager::css(QString(
         "QToolButton { border: none; color: %1; font-size: 14px; padding: 4px 6px; border-radius: 5px; background: transparent; }"
-        "QToolButton:hover { background: rgba(255,255,255,0.10); }"
-    ).arg(ThemeManager::TEXT_SECONDARY)));
+        "QToolButton:hover { background: %2; color: %3; }"
+    ).arg(ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT, ThemeManager::TEXT_PRIMARY)));
     connect(m_closeBtn, &QToolButton::clicked, this, &ErrorBannerWidget::hideMessage);
     mainLayout->addWidget(m_closeBtn, 0, Qt::AlignTop);
 

@@ -124,7 +124,7 @@ void HeaderBar::applyStyle() {
         "#HeaderBar QToolButton:disabled { color: %8; }"
         "#HeaderBar QToolButton::menu-indicator { image: none; width: 0; }"
         "#HeaderSep { background: %2; margin: 6px 3px; }"
-    ).arg("transparent", ThemeManager::BORDER, ThemeManager::TEXT_SECONDARY, ThemeManager::BG_HOVER,
+    ).arg("transparent", ThemeManager::BORDER, ThemeManager::TEXT_SECONDARY, ThemeManager::ACCENT_SOFT,
           ThemeManager::TEXT_PRIMARY, ThemeManager::BG_SELECTION, ThemeManager::ACCENT, ThemeManager::TEXT_MUTED)));
 }
 
