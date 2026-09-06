@@ -554,6 +554,7 @@ bool FileOperations::copyRecursively(const QString &srcFilePath, const QString &
             if (canceled && *canceled) return false;
             QString newSrcFilePath = entryInfo.absoluteFilePath();
             QString newTgtFilePath = targetDir.absoluteFilePath(entryInfo.fileName());
+            if (QDir::cleanPath(newTgtFilePath) == QDir::cleanPath(srcFilePath)) continue; // merging into own parent: skip self
             if (!copyRecursively(newSrcFilePath, newTgtFilePath, overwrite, bytesCopied, totalBytes, itemsCopied, totalItems, progressDialog, canceled)) {
                 return false;
             }
@@ -835,15 +836,32 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         }
 
         bool moved = false;
-        // rename(2) replaces a file atomically; a real directory target is set aside first and only
-        // deleted once the move succeeded, so a failed/cancelled cross-device move keeps the old data.
-        QString displaced;
-        if (overwrite) {
-            QFileInfo tfi(targetPath);
-            if (tfi.isDir() && !tfi.isSymLink()) {
-                displaced = targetPath + QString(".bitfm-replaced-%1").arg(QCoreApplication::applicationPid());
-                if (!QFile::rename(targetPath, displaced)) displaced.clear();
+        const bool srcIsRealDir = srcInfo.isDir() && !srcInfo.isSymLink();
+        const QFileInfo tfi(targetPath);
+        const bool tgtIsRealDir = tfi.isDir() && !tfi.isSymLink();
+
+        // Folder onto an existing folder: merge (also covers moving "x/foo" onto its own parent "foo",
+        // where deleting the target first would destroy the source).
+        if (overwrite && srcIsRealDir && tgtIsRealDir) {
+            if (copyRecursively(src, targetPath, true, &bytesCopied, totalBytes, &itemsCopied, totalItems, progressDialog, &isCanceled)) {
+                moved = removeEntry(src); // contents are merged; also right when the source lived inside the target
             }
+            if (moved) {
+                successTopLevel++;
+            } else if (!isCanceled && parentWidget) {
+                QMessageBox::warning(parentWidget, tr("Move Error"), getDetailedErrorMessage(src, "move"));
+            }
+            emit operationProgress(itemsCopied, totalItems);
+            QApplication::processEvents();
+            continue;
+        }
+
+        // rename(2) replaces a file atomically; a mismatched target (dir vs file) is set aside first and
+        // only deleted once the move succeeded, so a failed/cancelled cross-device move keeps the old data.
+        QString displaced;
+        if (overwrite && (tgtIsRealDir || srcIsRealDir) && entryExists(tfi)) {
+            displaced = targetPath + QString(".bitfm-replaced-%1").arg(QCoreApplication::applicationPid());
+            if (!QFile::rename(targetPath, displaced)) displaced.clear();
         }
 
         // Fast atomic rename (same filesystem)
@@ -860,9 +878,9 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
 
         if (!displaced.isEmpty()) {
             if (moved) {
-                QDir(displaced).removeRecursively();
+                removeEntry(displaced);
             } else {
-                QDir(targetPath).removeRecursively(); // partial copy, if any
+                removeEntry(targetPath); // partial copy, if any
                 QFile::rename(displaced, targetPath);
             }
         }
