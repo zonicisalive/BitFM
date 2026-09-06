@@ -446,9 +446,9 @@ void MainWindow::setupActions() {
     syncViewMode(AppSettings::instance().viewMode());
     connect(&AppSettings::instance(), &AppSettings::viewModeChanged, this, syncViewMode);
 
-    connect(A("view.zoom_in"),    &QAction::triggered, this, [this]() { m_zoomSlider->setValue(qMin(m_zoomSlider->maximum(), m_zoomSlider->value() + 10)); });
-    connect(A("view.zoom_out"),   &QAction::triggered, this, [this]() { m_zoomSlider->setValue(qMax(m_zoomSlider->minimum(), m_zoomSlider->value() - 10)); });
-    connect(A("view.zoom_reset"), &QAction::triggered, this, [this]() { m_zoomSlider->setValue(48); });
+    connect(A("view.zoom_in"),    &QAction::triggered, this, [this]() { int v = m_zoomSlider->value(); m_zoomSlider->setValue(qMin(m_zoomSlider->maximum(), v + FileViewWidget::zoomStep(v))); });
+    connect(A("view.zoom_out"),   &QAction::triggered, this, [this]() { int v = m_zoomSlider->value(); m_zoomSlider->setValue(qMax(m_zoomSlider->minimum(), v - FileViewWidget::zoomStep(v))); });
+    connect(A("view.zoom_reset"), &QAction::triggered, this, [this]() { m_zoomSlider->setValue(FileViewWidget::kDefaultZoom); });
 
     connect(A("view.split"),        &QAction::triggered, this, &MainWindow::toggleDualPane);
     connect(A("view.split_orient"), &QAction::triggered, this, &MainWindow::toggleSplitOrientation);

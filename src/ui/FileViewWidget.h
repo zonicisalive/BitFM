@@ -25,6 +25,8 @@ public:
     ViewMode viewMode() const;
 
     void setGridIconSize(int size);
+    static constexpr int kDefaultZoom = 56;
+    static int zoomStep(int size) { return qMax(6, size / 8); } // proportional: 24..192 in ~12 notches
     void fitNameColumn();
     void handleDroppedFiles(const QStringList &sourcePaths, const QString &destDir, Qt::DropAction action);
     int gridIconSize() const;
@@ -61,6 +63,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 
     void updateGridGeometry();
+    void applyZoom();
 
 public slots:
     void onRenameAction();

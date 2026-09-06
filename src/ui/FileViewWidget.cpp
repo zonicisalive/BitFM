@@ -83,8 +83,9 @@ public:
 
         // Paint column content with persistent fixed geometry
         if (index.column() == FileSystemModel::ColName) {
-            // 1. Draw Icon inside a STRICTLY fixed 20x20 square bounding box
-            QRect iconBox(rect.left() + 10, rect.center().y() - 10, 20, 20);
+            // 1. Icon box follows the view's icon size (zoom), centred vertically
+            const int iconPx = option.decorationSize.isValid() ? option.decorationSize.width() : 20;
+            QRect iconBox(rect.left() + 10, rect.center().y() - iconPx / 2, iconPx, iconPx);
             QIcon icon = qvariant_cast<QIcon>(index.data(Qt::DecorationRole));
             if (!icon.isNull()) {
                 icon.paint(painter, iconBox, Qt::AlignCenter);
@@ -101,7 +102,7 @@ public:
             if (tagColor.isValid()) rightMargin += 16;
             if (state != GitFileState::None) rightMargin += 20;
 
-            int textLeft = rect.left() + 38;
+            int textLeft = rect.left() + 18 + iconPx;
             int textWidth = qMax(10, rect.right() - textLeft - rightMargin);
             QRect textRect(textLeft, rect.top(), textWidth, rect.height());
 
@@ -489,8 +490,7 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
     updateStyles();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this, updateStyles]() {
         updateStyles();
-        m_tableView->verticalHeader()->setDefaultSectionSize(ThemeManager::px(34));
-        updateGridGeometry();
+        applyZoom();
     });
 
     m_stackedWidget->addWidget(m_tableView);
@@ -534,8 +534,8 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
         m_listView->viewport()->update();
     });
 
-    m_currentGridSize = AppSettings::instance().zoomLevel();
-    setGridIconSize(m_currentGridSize);
+    m_currentGridSize = qBound(24, AppSettings::instance().zoomLevel(), 192);
+    applyZoom();
     connect(&AppSettings::instance(), &AppSettings::zoomLevelChanged, this, [this](int level) {
         if (m_currentGridSize != level) {
             setGridIconSize(level);
@@ -815,15 +815,25 @@ void FileViewWidget::setGridIconSize(int size) {
     int clamped = qBound(24, size, 192);
     if (clamped == m_currentGridSize) return;
     m_currentGridSize = clamped;
+    applyZoom();
+    if (AppSettings::instance().zoomLevel() != m_currentGridSize) {
+        AppSettings::instance().setZoomLevel(m_currentGridSize);
+    }
+    emit zoomChanged(m_currentGridSize);
+}
+
+// One zoom level drives all three views: grid icon = zoom, compact icon = zoom/2, list icon = zoom*2/5.
+void FileViewWidget::applyZoom() {
     m_listView->setIconSize(QSize(m_currentGridSize, m_currentGridSize));
     if (m_compactView) {
         int compactIcon = qBound(16, m_currentGridSize / 2, 72);
         m_compactView->setIconSize(QSize(compactIcon, compactIcon));
     }
-    if (AppSettings::instance().zoomLevel() != m_currentGridSize) {
-        AppSettings::instance().setZoomLevel(m_currentGridSize);
+    if (m_tableView) {
+        int listIcon = qBound(16, m_currentGridSize * 2 / 5, 64);
+        m_tableView->setIconSize(QSize(listIcon, listIcon));
+        m_tableView->verticalHeader()->setDefaultSectionSize(qMax(ThemeManager::px(28), listIcon + ThemeManager::px(14)));
     }
-    emit zoomChanged(m_currentGridSize);
     updateGridGeometry();
 }
 
@@ -1337,13 +1347,13 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         auto *zoomNormalAct = menu.addAction(QIcon::fromTheme("zoom-original"), tr("Normal Size"));
 
         connect(zoomInAct, &QAction::triggered, this, [this]() {
-            setGridIconSize(m_currentGridSize + 8);
+            setGridIconSize(m_currentGridSize + zoomStep(m_currentGridSize));
         });
         connect(zoomOutAct, &QAction::triggered, this, [this]() {
-            setGridIconSize(m_currentGridSize - 8);
+            setGridIconSize(m_currentGridSize - zoomStep(m_currentGridSize));
         });
         connect(zoomNormalAct, &QAction::triggered, this, [this]() {
-            setGridIconSize(56);
+            setGridIconSize(kDefaultZoom);
         });
 
         // Properties & Refresh
@@ -1721,7 +1731,7 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
             QWheelEvent *we = static_cast<QWheelEvent*>(event);
             if (we->modifiers() & Qt::ControlModifier) {
                 int delta = we->angleDelta().y();
-                int mag = qMax(6, m_currentGridSize / 8);   // proportional steps: 24→192 in ~12 notches
+                int mag = zoomStep(m_currentGridSize);
                 int step = (delta > 0) ? mag : -mag;
                 int newSize = qBound(24, m_currentGridSize + step, 192);
                 if (newSize != m_currentGridSize) {
