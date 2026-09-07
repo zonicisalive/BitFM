@@ -57,10 +57,8 @@ void SidebarWidget::setupUi() {
     headerLayout->setSpacing(6);
 
     QLabel *appIcon = new QLabel(header);
-    appIcon->setPixmap(QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder")).pixmap(20, 20));
-    connect(&ThemeManager::instance(), &ThemeManager::iconThemeChanged, appIcon, [appIcon]() {
-        appIcon->setPixmap(QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder")).pixmap(20, 20));
-    });
+    appIcon->setPixmap(QIcon(":/icons/bitfm.png").pixmap(22, 22));   // our own logo, not the icon theme's file manager glyph
+    appIcon->setStyleSheet("background: transparent;");
     headerLayout->addWidget(appIcon);
 
     QLabel *appName = new QLabel("Files", header);
