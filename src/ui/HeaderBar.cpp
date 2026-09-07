@@ -40,6 +40,7 @@ HeaderBar::HeaderBar(bool primary, QWidget *parent)
     m_layout->addSpacing(6);
 
     m_toolCluster = new QWidget(this);
+    m_toolCluster->setObjectName("ToolCluster");
     m_toolLayout = new QHBoxLayout(m_toolCluster);
     m_toolLayout->setContentsMargins(0, 0, 0, 0);
     m_toolLayout->setSpacing(2);
@@ -118,6 +119,7 @@ void HeaderBar::applyStyle() {
     for (QToolButton *b : findChildren<QToolButton*>()) b->setIconSize(QSize(iconPx, iconPx));
     setStyleSheet(ThemeManager::css(QString(
         "#HeaderBar { background: %1; border-bottom: 1px solid %2; }"
+        "#ToolCluster { background: transparent; }"
         "#HeaderBar QToolButton { background: transparent; color: %3; border: none; border-radius: 7px; padding: 6px 8px; min-width: 26px; }"
         "#HeaderBar QToolButton:hover { background: %4; color: %5; }"
         "#HeaderBar QToolButton:pressed, #HeaderBar QToolButton:checked { background: %6; color: %7; }"

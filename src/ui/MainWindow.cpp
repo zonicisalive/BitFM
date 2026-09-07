@@ -286,6 +286,7 @@ void MainWindow::setupUi() {
             .arg(ThemeManager::TEXT_MUTED)));
 
         m_zoomSlider->setStyleSheet(ThemeManager::css(QString(
+            "QSlider { background: transparent; }"
             "QSlider::groove:horizontal { height: 4px; background: %1; border-radius: 2px /*fixed*/; }"
             "QSlider::sub-page:horizontal { background: %2; border-radius: 2px /*fixed*/; }"
             "QSlider::handle:horizontal { background: %2; border: none; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px /*fixed*/; }"

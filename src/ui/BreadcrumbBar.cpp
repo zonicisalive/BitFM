@@ -92,7 +92,7 @@ void BreadcrumbBar::applyStyles() {
         "QToolButton[crumb='true'][dropTarget='true'] { background-color: %6; border-color: %5; color: %3; }"
         "QToolButton[crumb='true']::menu-indicator { image: none; width: 0; }"
         "QLabel[sep='true'] { color: %9; font-size: 11px; padding: 0 1px; background: transparent; }"
-        "QLabel[gitBadge='true'] { background-color: %6; color: %5; border-radius: 9px; padding: 2px 8px; font-size: 11px; font-weight: 600; margin-left: 4px; }"
+        "QLabel[gitBadge='true'] { background-color: %6; color: %5; border-radius: 8px /*fixed*/; padding: 0 7px; font-size: 10.5px; font-weight: 600; margin-left: 4px; }"
         "QToolButton[more='true'] { background: transparent; border: none; border-radius: 6px; padding: 0 4px; color: %9; font-size: 14px; font-weight: bold; }"
         "QToolButton[more='true']:hover { background-color: %6; color: %3; }"
         "QToolButton[more='true']::menu-indicator { image: none; width: 0; }"
@@ -250,6 +250,8 @@ void BreadcrumbBar::rebuildBreadcrumbs() {
         if (!branch.isEmpty()) {
             auto *b = new QLabel(branch, m_breadcrumbContainer);
             b->setProperty("gitBadge", true);
+            b->setFixedHeight(16);   // slim pill well inside the 30px capsule
+            b->setAlignment(Qt::AlignCenter);
             b->setToolTip(tr("Git branch %1 (repository at %2)").arg(branch, GitStatusProvider::instance().getRepoRoot(m_currentPath)));
             gitBadge = b;
         }
@@ -270,20 +272,36 @@ void BreadcrumbBar::rebuildBreadcrumbs() {
     });
     menuBtn->setMenu(pMenu);
 
-    // Fold leading crumbs into a "…" menu until the rest fits.
-    int avail = m_breadcrumbContainer->width() - m_breadcrumbLayout->contentsMargins().left() - m_breadcrumbLayout->contentsMargins().right()
-              - m_placeIcon->sizeHint().width() - menuBtn->width() - (gitBadge ? gitBadge->sizeHint().width() : 0) - 8;
+    // Fold leading crumbs into a "…" menu until the rest fits; the git badge goes before the
+    // last crumb does, and only then may the last crumb elide.
     QList<QToolButton*> buttons;
-    for (int i = 0; i < crumbs.size(); ++i) buttons << makeCrumb(crumbs[i], i == crumbs.size() - 1);
-    const int sepW = fontMetrics().horizontalAdvance("›") + 4;
-    int used = 0, firstShown = 0;
-    for (int i = crumbs.size() - 1; i >= 0; --i) {
-        const int w = buttons[i]->sizeHint().width() + (i > 0 ? sepW : 0);
-        if (used + w > avail && i < crumbs.size() - 1) break;
-        used += w;
-        firstShown = i;
+    for (int i = 0; i < crumbs.size(); ++i) {
+        buttons << makeCrumb(crumbs[i], i == crumbs.size() - 1);
+        buttons.last()->ensurePolished();   // sizeHint must see the stylesheet font (the last crumb is bold)
     }
-    if (firstShown > 0 && used + 30 > avail) firstShown = qMin(crumbs.size() - 1, firstShown + 1);   // make room for "…"
+    const int sepW = fontMetrics().horizontalAdvance("›") + 4;
+    const int moreW = fontMetrics().horizontalAdvance("…") + 12 + sepW;
+    const int fixedW = m_breadcrumbLayout->contentsMargins().left() + m_breadcrumbLayout->contentsMargins().right()
+                     + m_placeIcon->sizeHint().width() + menuBtn->width() + 8;
+    int firstShown = 0;
+    auto fold = [&](int avail) {
+        int used = 0;
+        firstShown = crumbs.size() - 1;
+        for (int i = crumbs.size() - 1; i >= 0; --i) {
+            const int w = buttons[i]->sizeHint().width() + (i > 0 ? sepW : 0);
+            const int reserve = i > 0 ? moreW : 0;   // "…" needed if anything stays folded
+            if (used + w + reserve > avail && i < crumbs.size() - 1) break;
+            used += w;
+            firstShown = i;
+        }
+        return used + (firstShown > 0 ? moreW : 0) <= avail;
+    };
+    const int badgeW = gitBadge ? gitBadge->sizeHint().width() + 4 : 0;
+    if (!fold(m_breadcrumbContainer->width() - fixedW - badgeW) && gitBadge) {
+        delete gitBadge;
+        gitBadge = nullptr;
+        fold(m_breadcrumbContainer->width() - fixedW);
+    }
 
     if (firstShown > 0) {
         auto *more = new QToolButton(m_breadcrumbContainer);

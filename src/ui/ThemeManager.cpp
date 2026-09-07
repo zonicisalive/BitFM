@@ -770,6 +770,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "}"
 
         /* ─── Slider ─── */
+        "QSlider { background: transparent; }"
         "QSlider::groove:horizontal {"
         "  height: 4px;"
         "  background: %3;"
