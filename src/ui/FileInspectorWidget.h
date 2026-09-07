@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QScrollArea>
+#include <QFormLayout>
 #include "VfsTypes.h"
 
 class FileInspectorWidget : public QWidget {
@@ -23,6 +24,7 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private slots:
     void onCopyPathClicked();
@@ -31,6 +33,14 @@ private slots:
 private:
     void setupUi();
     void applyStyles();
+    QSize heroSize() const;
+    void setHero(const QPixmap &pix, bool playBadge = false);
+    void setHeroIcon(const QIcon &icon);
+    void setDetail(QLabel *value, const QString &key, const QString &text);
+    void hideDetail(QLabel *value);
+    void showSnippet(const QString &text);
+    void updateDetailsVisibility();
+    static constexpr int kHeroHeight = 190;
 
     QString m_currentFilePath;
 
@@ -43,6 +53,12 @@ private:
     QLabel *m_permissionsLabel;
     QLabel *m_checksumLabel;
     QLabel *m_textPreviewLabel;
+    QLabel *m_textHeader;
+    QFormLayout *m_details;
+    QLabel *m_detailsHeader;
+    QWidget *m_detailsBox;
+    QPixmap m_heroSource;
+    bool m_heroBadge = false;
 
     QPushButton *m_openBtn;
     QPushButton *m_copyPathBtn;

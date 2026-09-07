@@ -14,7 +14,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QDesktopServices>
 #include <QUrl>
-#include <QGroupBox>
+#include <QFormLayout>
 #include <QPainter>
 #include <QPolygon>
 #include <QProcess>
@@ -69,153 +69,174 @@ void FileInspectorWidget::setupUi() {
 
     QWidget *content = new QWidget(scrollArea);
     QVBoxLayout *layout = new QVBoxLayout(content);
-    layout->setContentsMargins(12, 12, 12, 12);
-    layout->setSpacing(12);
+    layout->setContentsMargins(14, 14, 14, 14);
+    layout->setSpacing(14);
 
-    // Section 1: Preview Card
-    QGroupBox *previewBox = new QGroupBox(tr("Preview"), content);
-    QVBoxLayout *previewLayout = new QVBoxLayout(previewBox);
-    previewLayout->setAlignment(Qt::AlignCenter);
-
-    m_previewImageLabel = new QLabel(previewBox);
+    // Hero: full-width thumbnail, name and kind underneath.
+    m_previewImageLabel = new QLabel(content);
+    m_previewImageLabel->setObjectName("InspectorHero");
     m_previewImageLabel->setAlignment(Qt::AlignCenter);
-    m_previewImageLabel->setFixedSize(160, 160);
-    previewLayout->addWidget(m_previewImageLabel, 0, Qt::AlignCenter);
+    m_previewImageLabel->setMinimumHeight(kHeroHeight);
+    m_previewImageLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    layout->addWidget(m_previewImageLabel);
 
-    m_fileNameLabel = new QLabel(previewBox);
+    m_fileNameLabel = new QLabel(content);
+    m_fileNameLabel->setObjectName("InspectorName");
     m_fileNameLabel->setAlignment(Qt::AlignCenter);
     m_fileNameLabel->setWordWrap(true);
-    QFont nameFont = m_fileNameLabel->font();
-    nameFont.setBold(true);
-    nameFont.setPointSize(11);
-    m_fileNameLabel->setFont(nameFont);
-    previewLayout->addWidget(m_fileNameLabel);
+    m_fileNameLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(m_fileNameLabel);
 
-    m_fileTypeLabel = new QLabel(previewBox);
+    m_fileTypeLabel = new QLabel(content);
+    m_fileTypeLabel->setObjectName("InspectorKind");
     m_fileTypeLabel->setAlignment(Qt::AlignCenter);
-    previewLayout->addWidget(m_fileTypeLabel);
+    layout->addWidget(m_fileTypeLabel);
 
-    layout->addWidget(previewBox);
-
-    // Section 2: Details Card
-    QGroupBox *detailsBox = new QGroupBox(tr("Information"), content);
-    QVBoxLayout *detailsLayout = new QVBoxLayout(detailsBox);
-    detailsLayout->setSpacing(6);
-
-    m_fileSizeLabel = new QLabel(detailsBox);
-    detailsLayout->addWidget(m_fileSizeLabel);
-
-    m_dimensionsLabel = new QLabel(detailsBox);
-    detailsLayout->addWidget(m_dimensionsLabel);
-
-    m_modifiedLabel = new QLabel(detailsBox);
-    detailsLayout->addWidget(m_modifiedLabel);
-
-    m_permissionsLabel = new QLabel(detailsBox);
-    detailsLayout->addWidget(m_permissionsLabel);
-
-    m_checksumLabel = new QLabel(detailsBox);
-    m_checksumLabel->setWordWrap(true);
-    detailsLayout->addWidget(m_checksumLabel);
-
-    layout->addWidget(detailsBox);
-
-    // Section 3: Text Snippet Preview (if text)
-    m_textPreviewLabel = new QLabel(content);
-    m_textPreviewLabel->setWordWrap(true);
-    m_textPreviewLabel->hide();
-    layout->addWidget(m_textPreviewLabel);
-
-    // Section 4: Quick Actions
+    // Actions: two pills side by side.
     QHBoxLayout *actionsLayout = new QHBoxLayout();
-    actionsLayout->setSpacing(6);
-
+    actionsLayout->setSpacing(8);
     m_openBtn = new QPushButton(QIcon::fromTheme("document-open"), tr("Open"), content);
+    m_openBtn->setObjectName("InspectorPill");
     connect(m_openBtn, &QPushButton::clicked, this, [this]() {
-        if (!m_currentFilePath.isEmpty()) {
-            AppLauncher::instance().openPath(m_currentFilePath);
-        }
+        if (!m_currentFilePath.isEmpty()) AppLauncher::instance().openPath(m_currentFilePath);
     });
     actionsLayout->addWidget(m_openBtn);
-
     m_copyPathBtn = new QPushButton(QIcon::fromTheme("edit-copy"), tr("Copy Path"), content);
+    m_copyPathBtn->setObjectName("InspectorPill");
     connect(m_copyPathBtn, &QPushButton::clicked, this, &FileInspectorWidget::onCopyPathClicked);
     actionsLayout->addWidget(m_copyPathBtn);
-
     layout->addLayout(actionsLayout);
 
-    m_sha256Btn = new QPushButton(QIcon::fromTheme("security-high", QIcon::fromTheme("dialog-information")), tr("Calculate SHA-256 Checksum"), content);
-    connect(m_sha256Btn, &QPushButton::clicked, this, &FileInspectorWidget::onCalculateSha256Clicked);
-    layout->addWidget(m_sha256Btn);
+    // Details: muted key on the left, value on the right, hairline between rows.
+    m_detailsHeader = new QLabel(tr("Details").toUpper(), content);
+    m_detailsHeader->setObjectName("InspectorSection");
+    layout->addWidget(m_detailsHeader);
 
+    QWidget *details = m_detailsBox = new QWidget(content);
+    details->setObjectName("InspectorDetails");
+    details->setAttribute(Qt::WA_StyledBackground);
+    m_details = new QFormLayout(details);
+    m_details->setContentsMargins(12, 4, 12, 4);
+    m_details->setHorizontalSpacing(12);
+    m_details->setVerticalSpacing(0);
+    m_details->setLabelAlignment(Qt::AlignLeft | Qt::AlignTop);
+    m_details->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    m_details->setRowWrapPolicy(QFormLayout::DontWrapRows);
+    for (QLabel **value : { &m_fileSizeLabel, &m_dimensionsLabel, &m_modifiedLabel, &m_permissionsLabel, &m_checksumLabel }) {
+        *value = new QLabel(details);
+        (*value)->setObjectName("InspectorValue");
+        (*value)->setWordWrap(true);
+        (*value)->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        QLabel *key = new QLabel(details);
+        key->setObjectName("InspectorKey");
+        m_details->addRow(key, *value);
+    }
+    layout->addWidget(details);
+
+    m_sha256Btn = new QPushButton(QIcon::fromTheme("security-high", QIcon::fromTheme("dialog-information")), tr("Compute SHA-256"), content);
+    m_sha256Btn->setObjectName("InspectorLink");
+    m_sha256Btn->setCursor(Qt::PointingHandCursor);
+    connect(m_sha256Btn, &QPushButton::clicked, this, &FileInspectorWidget::onCalculateSha256Clicked);
+    layout->addWidget(m_sha256Btn, 0, Qt::AlignLeft);
+
+    // Text snippet
+    m_textHeader = new QLabel(tr("Contents").toUpper(), content);
+    m_textHeader->setObjectName("InspectorSection");
+    layout->addWidget(m_textHeader);
+    m_textPreviewLabel = new QLabel(content);
+    m_textPreviewLabel->setObjectName("InspectorSnippet");
+    m_textPreviewLabel->setWordWrap(true);
+    m_textPreviewLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_textPreviewLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    layout->addWidget(m_textPreviewLabel);
+    m_textHeader->hide();
+    m_textPreviewLabel->hide();
+
+    layout->addStretch(1);
     scrollArea->setWidget(content);
     rootLayout->addWidget(scrollArea);
 
     connect(&ThumbnailProvider::instance(), &ThumbnailProvider::thumbnailReady, this, [this](const QString &path, const QIcon &icon) {
-        if (m_currentFilePath == path) {
-            QPixmap pix = icon.pixmap(150, 150);
-            QFileInfo fi(path);
-            QString ext = fi.suffix().toLower();
-            if (ext == "mp4" || ext == "mkv" || ext == "webm" || ext == "avi" || ext == "mov" || ext == "flv" || ext == "wmv" || ext == "m4v") {
-                m_previewImageLabel->setPixmap(drawPlayBadge(pix));
-            } else {
-                m_previewImageLabel->setPixmap(pix);
-            }
-        }
+        if (m_currentFilePath != path) return;
+        const QString ext = QFileInfo(path).suffix().toLower();
+        const bool video = ext == "mp4" || ext == "mkv" || ext == "webm" || ext == "avi" || ext == "mov" || ext == "flv" || ext == "wmv" || ext == "m4v";
+        setHero(icon.pixmap(heroSize()), video);
     });
-
 
     applyStyles();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FileInspectorWidget::applyStyles);
 }
 
+QSize FileInspectorWidget::heroSize() const {
+    const int w = qMax(120, m_previewImageLabel->width() - 16);
+    return QSize(w, kHeroHeight - 16);
+}
+
+// A real thumbnail fills the hero; an icon sits small on the plain surface.
+void FileInspectorWidget::setHero(const QPixmap &pix, bool playBadge) {
+    if (pix.isNull()) { setHeroIcon(QIcon::fromTheme("dialog-information")); return; }
+    m_heroSource = pix;
+    m_heroBadge = playBadge;
+    QPixmap scaled = pix.scaled(heroSize(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    m_previewImageLabel->setPixmap(playBadge ? drawPlayBadge(scaled) : scaled);
+}
+
+void FileInspectorWidget::setHeroIcon(const QIcon &icon) {
+    m_heroSource = QPixmap();
+    m_previewImageLabel->setPixmap(icon.pixmap(72, 72));
+}
+
+void FileInspectorWidget::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    if (!m_heroSource.isNull()) setHero(m_heroSource, m_heroBadge);   // refit the thumbnail to the new width
+}
+
+void FileInspectorWidget::setDetail(QLabel *value, const QString &key, const QString &text) {
+    if (auto *k = qobject_cast<QLabel*>(m_details->labelForField(value))) k->setText(key);
+    value->setText(text);
+    m_details->setRowVisible(value, !text.isEmpty());
+    updateDetailsVisibility();
+}
+
+void FileInspectorWidget::hideDetail(QLabel *value) {
+    m_details->setRowVisible(value, false);
+    updateDetailsVisibility();
+}
+
+void FileInspectorWidget::updateDetailsVisibility() {
+    bool any = false;
+    for (int i = 0; i < m_details->rowCount() && !any; ++i) any = m_details->isRowVisible(i);
+    m_detailsHeader->setVisible(any);
+    m_detailsBox->setVisible(any);
+}
+
+void FileInspectorWidget::showSnippet(const QString &text) {
+    m_textPreviewLabel->setText(text);
+    m_textHeader->setVisible(!text.isEmpty());
+    m_textPreviewLabel->setVisible(!text.isEmpty());
+}
+
 void FileInspectorWidget::applyStyles() {
-    m_previewImageLabel->setStyleSheet(ThemeManager::css(QString(
-        "background-color: %1; border-radius: 10px; border: 1px solid %2; padding: 4px;"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER)));
-    m_fileNameLabel->setStyleSheet(ThemeManager::css(QString("color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
-    m_fileTypeLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 11px; background: transparent;").arg(ThemeManager::TEXT_MUTED)));
-    m_fileSizeLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
-    m_dimensionsLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
-    m_modifiedLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
-    m_permissionsLabel->setStyleSheet(ThemeManager::css(QString("color: %1; font-size: 12px; background: transparent;").arg(ThemeManager::TEXT_SECONDARY)));
-    m_checksumLabel->setStyleSheet(ThemeManager::css(QString("font-family: monospace; font-size: 11px; color: %1; background: transparent;").arg(ThemeManager::ACCENT)));
-    m_textPreviewLabel->setStyleSheet(ThemeManager::css(QString(
-        "background-color: %1; border: 1px solid %2; border-radius: 8px; padding: 8px; font-family: monospace; font-size: 11px; color: %3;"
-    ).arg(ThemeManager::BG_BASE).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY)));
-    m_openBtn->setStyleSheet(ThemeManager::css(QString(
-        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-weight: 500; }"
-        "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::ACCENT_SOFT)));
-    m_copyPathBtn->setStyleSheet(ThemeManager::css(QString(
-        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-weight: 500; }"
-        "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::ACCENT_SOFT)));
-    m_sha256Btn->setStyleSheet(ThemeManager::css(QString(
-        "QPushButton { background-color: %1; border: 1px solid %2; border-radius: 6px; padding: 6px 10px; color: %3; font-size: 11px; }"
-        "QPushButton:hover { background-color: %4; }"
-    ).arg(ThemeManager::BG_OVERLAY).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_SECONDARY).arg(ThemeManager::ACCENT_SOFT)));
     setStyleSheet(ThemeManager::css(QString(
         "FileInspectorWidget { background: transparent; }"
-        "QGroupBox {"
-        "  font-weight: bold;"
-        "  border: 1px solid %2;"
-        "  border-radius: 8px;"
-        "  margin-top: 10px;"
-        "  padding-top: 12px;"
-        "  color: %3;"
-        "}"
-        "QGroupBox::title {"
-        "  subcontrol-origin: margin;"
-        "  subcontrol-position: top left;"
-        "  left: 10px;"
-        "  padding: 0 6px;"
-        "  color: %4;"
-        "  font-size: 11px;"
-        "  text-transform: uppercase;"
-        "  letter-spacing: 0.6px;"
-        "}"
-    ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER).arg(ThemeManager::TEXT_PRIMARY).arg(ThemeManager::TEXT_MUTED)));
+        "#InspectorHero { background-color: %1; border: 1px solid %2; border-radius: %6px; padding: 8px; }"
+        "#InspectorName { color: %3; font-size: 14px; font-weight: 600; background: transparent; }"
+        "#InspectorKind { color: %5; font-size: 11.5px; background: transparent; }"
+        "#InspectorSection { color: %5; font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px; background: transparent; padding-left: 2px; }"
+        "#InspectorDetails { background-color: %1; border: 1px solid %2; border-radius: %6px; }"
+        "#InspectorKey { color: %5; font-size: 12px; padding: 7px 0; background: transparent; }"
+        "#InspectorValue { color: %3; font-size: 12px; padding: 7px 0; background: transparent; }"
+        "#InspectorSnippet { background-color: %1; border: 1px solid %2; border-radius: %6px; padding: 10px; font-family: monospace; font-size: 11px; color: %4; }"
+        "#InspectorPill { background-color: %8; border: 1px solid %2; border-radius: 15px; padding: 6px 12px; color: %3; font-weight: 500; }"
+        "#InspectorPill:hover { background-color: %7; border-color: %9; }"
+        "#InspectorPill:pressed { background-color: %10; }"
+        "#InspectorPill:disabled { color: %5; }"
+        "#InspectorLink { background: transparent; border: none; padding: 2px 4px; color: %9; font-size: 12px; text-align: left; }"
+        "#InspectorLink:hover { text-decoration: underline; }"
+        "#InspectorLink:disabled { color: %5; text-decoration: none; }"
+    ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER, ThemeManager::TEXT_PRIMARY, ThemeManager::TEXT_SECONDARY, ThemeManager::TEXT_MUTED)
+     .arg(ThemeManager::radius() + 2).arg(ThemeManager::ACCENT_SOFT, ThemeManager::BG_OVERLAY, ThemeManager::ACCENT, ThemeManager::ACCENT_SOFT_PRESS)));
+    m_checksumLabel->setStyleSheet(ThemeManager::css(QString("font-family: monospace; font-size: 10.5px; color: %1; padding: 7px 0; background: transparent;").arg(ThemeManager::ACCENT)));
 }
 
 void FileInspectorWidget::inspectItem(const QString &filePath) {
@@ -231,17 +252,15 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
 
     m_fileNameLabel->setText(info.fileName());
     m_fileTypeLabel->setText(mime.comment().isEmpty() ? mime.name() : mime.comment());
-    m_fileSizeLabel->setText(tr("<b>Size:</b> %1 (%2 bytes)")
-        .arg(FileItem::formatFileSize(info.size()))
-        .arg(info.size()));
-    m_modifiedLabel->setText(tr("<b>Modified:</b> %1").arg(info.lastModified().toString("yyyy-MM-dd hh:mm:ss")));
-    m_permissionsLabel->show();
-    m_permissionsLabel->setText(tr("<b>Permissions:</b> %1%2%3")
+    setDetail(m_fileSizeLabel, tr("Size"), FileItem::formatFileSize(info.size()));
+    m_fileSizeLabel->setToolTip(tr("%1 bytes").arg(info.size()));
+    setDetail(m_modifiedLabel, tr("Modified"), info.lastModified().toString("yyyy-MM-dd hh:mm"));
+    setDetail(m_permissionsLabel, tr("Access"), QString("%1%2%3")
         .arg(info.isReadable() ? "r" : "-")
         .arg(info.isWritable() ? "w" : "-")
         .arg(info.isExecutable() ? "x" : "-"));
-
-    m_checksumLabel->setText(QString());
+    hideDetail(m_checksumLabel);
+    showSnippet(QString());
     m_sha256Btn->setEnabled(!info.isDir());
     m_sha256Btn->setVisible(!info.isDir());
     m_openBtn->setEnabled(true);
@@ -255,38 +274,30 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
     bool isPdf = (ext == "pdf");
     bool isText = mimeType.startsWith("text/") || mimeType.contains("json") || mimeType.contains("xml") || mimeType.contains("javascript") || mimeType.contains("x-sh") || ext == "md" || ext == "txt" || ext == "cpp" || ext == "h" || ext == "py" || ext == "rs" || ext == "go" || ext == "js" || ext == "ts";
 
+    hideDetail(m_dimensionsLabel);
     if (isImage) {
-        m_dimensionsLabel->show();
-        m_textPreviewLabel->hide();
 
         QImageReader reader(filePath);
         reader.setAutoTransform(true);
         QSize originalSize = reader.size();
-        if (originalSize.isValid()) reader.setScaledSize(originalSize.scaled(300, 300, Qt::KeepAspectRatio));
+        if (originalSize.isValid()) reader.setScaledSize(originalSize.scaled(heroSize() * 2, Qt::KeepAspectRatio));
         QImage img = reader.read();
 
         if (!img.isNull()) {
-            QPixmap pix = QPixmap::fromImage(img).scaled(150, 150, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            m_previewImageLabel->setPixmap(pix);
-            if (originalSize.isValid()) {
-                m_dimensionsLabel->setText(tr("<b>Dimensions:</b> %1 × %2 px").arg(originalSize.width()).arg(originalSize.height()));
-            } else {
-                m_dimensionsLabel->setText(tr("<b>Dimensions:</b> %1 × %2 px").arg(img.width()).arg(img.height()));
-            }
+            setHero(QPixmap::fromImage(img));
+            const QSize dim = originalSize.isValid() ? originalSize : img.size();
+            setDetail(m_dimensionsLabel, tr("Dimensions"), tr("%1 × %2 px").arg(dim.width()).arg(dim.height()));
         } else {
-            m_previewImageLabel->setPixmap(QIcon::fromTheme("image-x-generic").pixmap(64, 64));
-            m_dimensionsLabel->setText(tr("<b>Dimensions:</b> Unknown"));
+            setHeroIcon(QIcon::fromTheme("image-x-generic"));
+            setDetail(m_dimensionsLabel, tr("Dimensions"), tr("Unknown"));
         }
     } else if (isVideo) {
-        m_dimensionsLabel->show();
-        m_dimensionsLabel->setText(tr("<b>Type:</b> Video (analyzing...)"));
-        m_textPreviewLabel->hide();
+        setDetail(m_dimensionsLabel, tr("Video"), tr("analyzing…"));
 
         if (ThumbnailProvider::instance().hasThumbnail(filePath)) {
-            QPixmap pix = ThumbnailProvider::instance().getThumbnail(filePath).pixmap(150, 150);
-            m_previewImageLabel->setPixmap(drawPlayBadge(pix));
+            setHero(ThumbnailProvider::instance().getThumbnail(filePath).pixmap(heroSize()), true);
         } else {
-            m_previewImageLabel->setPixmap(QIcon::fromTheme("video-x-generic").pixmap(64, 64));
+            setHeroIcon(QIcon::fromTheme("video-x-generic"));
             ThumbnailProvider::instance().requestThumbnail(filePath, mime.name());
         }
 
@@ -312,29 +323,24 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
                     if (!self) return;
                     if (self->m_currentFilePath == filePath) {
                         if (vidW > 0 && vidH > 0) {
-                            self->m_dimensionsLabel->setText(QObject::tr("<b>Resolution:</b> %1 × %2 px (%3)").arg(vidW).arg(vidH).arg(durStr));
+                            self->setDetail(self->m_dimensionsLabel, QObject::tr("Video"), QObject::tr("%1 × %2 px · %3").arg(vidW).arg(vidH).arg(durStr));
                         } else {
-                            self->m_dimensionsLabel->setText(QObject::tr("<b>Duration:</b> %1").arg(durStr));
+                            self->setDetail(self->m_dimensionsLabel, QObject::tr("Duration"), durStr);
                         }
                     }
                 });
             }
         });
     } else if (isPdf) {
-        m_dimensionsLabel->hide();
-        m_textPreviewLabel->hide();
-
         if (ThumbnailProvider::instance().hasThumbnail(filePath)) {
-            m_previewImageLabel->setPixmap(ThumbnailProvider::instance().getThumbnail(filePath).pixmap(150, 150));
+            setHero(ThumbnailProvider::instance().getThumbnail(filePath).pixmap(heroSize()));
         } else {
-            m_previewImageLabel->setPixmap(QIcon::fromTheme("application-pdf").pixmap(64, 64));
+            setHeroIcon(QIcon::fromTheme("application-pdf"));
             ThumbnailProvider::instance().requestThumbnail(filePath, mime.name());
         }
     } else if (isAudio) {
-        m_dimensionsLabel->show();
-        m_dimensionsLabel->setText(tr("<b>Type:</b> Audio (analyzing...)"));
-        m_textPreviewLabel->hide();
-        m_previewImageLabel->setPixmap(QIcon::fromTheme("audio-x-generic").pixmap(64, 64));
+        setDetail(m_dimensionsLabel, tr("Audio"), tr("analyzing…"));
+        setHeroIcon(QIcon::fromTheme("audio-x-generic"));
 
         // Query audio metadata asynchronously
         QPointer<FileInspectorWidget> self(this);
@@ -356,34 +362,21 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
                 QMetaObject::invokeMethod(self, [self, filePath, durStr, bitRate]() {
                     if (!self) return;
                     if (self->m_currentFilePath == filePath) {
-                        self->m_dimensionsLabel->setText(QObject::tr("<b>Duration:</b> %1 · %2 kbps").arg(durStr).arg(bitRate / 1000));
+                        self->setDetail(self->m_dimensionsLabel, QObject::tr("Audio"), QObject::tr("%1 · %2 kbps").arg(durStr).arg(bitRate / 1000));
                     }
                 });
             }
         });
     } else if (info.isDir()) {
-        m_dimensionsLabel->hide();
-        m_textPreviewLabel->hide();
-        m_previewImageLabel->setPixmap(FileSystemModel::getFolderIcon(filePath, info.fileName()).pixmap(64, 64));
-        m_fileSizeLabel->setText(tr("<b>Type:</b> Folder"));
+        setHeroIcon(FileSystemModel::getFolderIcon(filePath, info.fileName()));
+        hideDetail(m_fileSizeLabel);
     } else {
-        m_dimensionsLabel->hide();
-        m_previewImageLabel->setPixmap(QIcon::fromTheme(mime.iconName(), QIcon::fromTheme("text-x-generic")).pixmap(64, 64));
-
-        if (isText) {
-            QFile file(filePath);
-            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QByteArray snippet = file.read(512);
-                QString text = QString::fromUtf8(snippet);
-                if (text.length() > 200) text = text.left(200) + "...";
-                m_textPreviewLabel->setText(text);
-                m_textPreviewLabel->show();
-                file.close();
-            } else {
-                m_textPreviewLabel->hide();
-            }
-        } else {
-            m_textPreviewLabel->hide();
+        setHeroIcon(QIcon::fromTheme(mime.iconName(), QIcon::fromTheme("text-x-generic")));
+        QFile file(filePath);
+        if (isText && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString text = QString::fromUtf8(file.read(512));
+            if (text.length() > 200) text = text.left(200) + "…";
+            showSnippet(text);
         }
     }
 }
@@ -391,7 +384,7 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
 void FileInspectorWidget::inspectMultiple(const QStringList &filePaths) {
     clear();
     m_currentFilePath.clear();
-    m_previewImageLabel->setPixmap(QIcon::fromTheme("emblem-documents").pixmap(64, 64));
+    setHeroIcon(QIcon::fromTheme("emblem-documents"));
     m_fileNameLabel->setText(tr("%1 items selected").arg(filePaths.size()));
     m_fileTypeLabel->setText(tr("Multiple Selection"));
 
@@ -409,13 +402,9 @@ void FileInspectorWidget::inspectMultiple(const QStringList &filePaths) {
         }
     }
 
-    m_fileSizeLabel->setText(tr("<b>Total Size:</b> %1 (%2 bytes)")
-        .arg(FileItem::formatFileSize(totalSize))
-        .arg(totalSize));
-    m_modifiedLabel->setText(tr("<b>Contains:</b> %1 folders, %2 files").arg(folderCount).arg(fileCount));
-    m_dimensionsLabel->hide();
-    m_permissionsLabel->hide();
-    m_textPreviewLabel->hide();
+    setDetail(m_fileSizeLabel, tr("Total size"), FileItem::formatFileSize(totalSize));
+    m_fileSizeLabel->setToolTip(tr("%1 bytes").arg(totalSize));
+    setDetail(m_modifiedLabel, tr("Contains"), tr("%1 folders, %2 files").arg(folderCount).arg(fileCount));
     m_sha256Btn->hide();
     m_openBtn->setEnabled(false);
     m_copyPathBtn->setEnabled(true);
@@ -426,21 +415,15 @@ void FileInspectorWidget::inspectDirectory(const QString &dirPath, int totalItem
     m_currentFilePath = dirPath;
     QFileInfo info(dirPath);
 
-    m_previewImageLabel->setPixmap(QIcon::fromTheme("folder").pixmap(64, 64));
+    setHeroIcon(FileSystemModel::getFolderIcon(dirPath, info.fileName()));
     m_fileNameLabel->setText(info.fileName().isEmpty() ? "/" : info.fileName());
-    m_fileTypeLabel->setText(tr("Current Folder"));
-    m_fileSizeLabel->setText(tr("<b>Contents:</b> %1 items (%2)")
-        .arg(totalItems)
-        .arg(FileItem::formatFileSize(totalBytes)));
-    m_modifiedLabel->setText(tr("<b>Modified:</b> %1").arg(info.lastModified().toString("yyyy-MM-dd hh:mm:ss")));
-    m_permissionsLabel->show();
-    m_permissionsLabel->setText(tr("<b>Permissions:</b> %1%2%3")
+    m_fileTypeLabel->setText(tr("Current folder"));
+    setDetail(m_fileSizeLabel, tr("Contents"), tr("%1 items (%2)").arg(totalItems).arg(FileItem::formatFileSize(totalBytes)));
+    setDetail(m_modifiedLabel, tr("Modified"), info.lastModified().toString("yyyy-MM-dd hh:mm"));
+    setDetail(m_permissionsLabel, tr("Access"), QString("%1%2%3")
         .arg(info.isReadable() ? "r" : "-")
         .arg(info.isWritable() ? "w" : "-")
         .arg(info.isExecutable() ? "x" : "-"));
-
-    m_dimensionsLabel->hide();
-    m_textPreviewLabel->hide();
     m_sha256Btn->hide();
     m_openBtn->setEnabled(false);
     m_copyPathBtn->setEnabled(true);
@@ -448,16 +431,11 @@ void FileInspectorWidget::inspectDirectory(const QString &dirPath, int totalItem
 
 void FileInspectorWidget::clear() {
     m_currentFilePath.clear();
-    m_previewImageLabel->setPixmap(QIcon::fromTheme("dialog-information").pixmap(48, 48));
+    setHeroIcon(QIcon::fromTheme("dialog-information"));
     m_fileNameLabel->setText(tr("No selection"));
     m_fileTypeLabel->setText(tr("Select an item to inspect"));
-    m_fileSizeLabel->setText(QString());
-    m_dimensionsLabel->setText(QString());
-    m_modifiedLabel->setText(QString());
-    m_permissionsLabel->setText(QString());
-    m_permissionsLabel->show();
-    m_checksumLabel->setText(QString());
-    m_textPreviewLabel->hide();
+    for (QLabel *l : { m_fileSizeLabel, m_dimensionsLabel, m_modifiedLabel, m_permissionsLabel, m_checksumLabel }) hideDetail(l);
+    showSnippet(QString());
     m_openBtn->setEnabled(false);
     m_copyPathBtn->setEnabled(false);
     m_sha256Btn->hide();
@@ -472,7 +450,7 @@ void FileInspectorWidget::onCopyPathClicked() {
 void FileInspectorWidget::onCalculateSha256Clicked() {
     if (m_currentFilePath.isEmpty()) return;
 
-    m_checksumLabel->setText(tr("Calculating SHA-256..."));
+    setDetail(m_checksumLabel, tr("SHA-256"), tr("calculating…"));
     m_sha256Btn->setEnabled(false);
 
     QString path = m_currentFilePath;
@@ -494,11 +472,7 @@ void FileInspectorWidget::onCalculateSha256Clicked() {
     connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, path]() {
         if (m_currentFilePath == path) {
             QString result = watcher->result();
-            if (!result.isEmpty()) {
-                m_checksumLabel->setText(QString("<b>SHA-256:</b><br>%1").arg(result));
-            } else {
-                m_checksumLabel->setText(tr("Failed to compute SHA-256"));
-            }
+            setDetail(m_checksumLabel, tr("SHA-256"), result.isEmpty() ? tr("failed") : result);
         }
         m_sha256Btn->setEnabled(true);
         watcher->deleteLater();

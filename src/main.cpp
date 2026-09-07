@@ -13,6 +13,8 @@
 #include <QDBusInterface>
 #include <QDBusConnectionInterface>
 #include "MainWindow.h"
+#include "FileViewWidget.h"
+#include "PaneWidget.h"
 #include "ThemeManager.h"
 #include "FilePickerDialog.h"
 #include "PortalBackend.h"
@@ -219,6 +221,14 @@ int main(int argc, char *argv[]) {
                 QWidget *w = target->childAt(QPoint(xy[0].toInt(), xy[1].toInt()));
                 for (; w && w != target; w = w->parentWidget()) { w->setAttribute(Qt::WA_UnderMouse, true); w->update(); }
             }
+            // BITFM_SCREENSHOT_SELECT=/path selects that entry in the active pane.
+            const QString sel = qEnvironmentVariable("BITFM_SCREENSHOT_SELECT");
+            if (!sel.isEmpty()) {
+                if (auto *view = window.activePane() ? window.activePane()->findChild<FileViewWidget*>() : nullptr) view->selectFile(sel);
+            }
+            // BITFM_SCREENSHOT_SIZE=WxH resizes the window first.
+            const QList<QByteArray> wh = qgetenv("BITFM_SCREENSHOT_SIZE").split('x');
+            if (wh.size() == 2) window.resize(wh[0].toInt(), wh[1].toInt());
             // BITFM_SCREENSHOT_MENU=x,y opens the context menu at that window point and grabs it.
             const QList<QByteArray> mxy = qgetenv("BITFM_SCREENSHOT_MENU").split(',');
             if (mxy.size() == 2) {
