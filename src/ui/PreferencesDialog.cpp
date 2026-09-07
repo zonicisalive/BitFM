@@ -6,6 +6,8 @@
 #include <QToolButton>
 #include <QGridLayout>
 #include <QScrollArea>
+#include <QScrollBar>
+#include <QAbstractSpinBox>
 #include <QPushButton>
 #include <QCheckBox>
 #include <QSlider>
@@ -412,6 +414,16 @@ void PreferencesDialog::showPage(int index) {
             case 2: page = buildToolbarPage(); break;
             default: page = buildShortcutsPage(); break;
         }
+        // Scrolling the page must never change a value in passing: combos, spin boxes and
+        // sliders ignore the wheel (scroll bars keep it).
+        auto *noWheel = new NoWheel(page);
+        for (QWidget *w : page->findChildren<QWidget*>()) {
+            if (qobject_cast<QScrollBar*>(w)) continue;
+            if (qobject_cast<QComboBox*>(w) || qobject_cast<QAbstractSpinBox*>(w) || qobject_cast<QAbstractSlider*>(w)) {
+                w->installEventFilter(noWheel);
+                w->setFocusPolicy(Qt::StrongFocus);
+            }
+        }
         QWidget *placeholder = m_stack->widget(index);
         m_stack->insertWidget(index, page);
         m_stack->removeWidget(placeholder);
@@ -564,11 +576,6 @@ QWidget* PreferencesDialog::buildAppearancePage() {
     iconCombo->setCurrentIndex(cur < 0 ? 0 : cur);
     connect(iconCombo, &QComboBox::currentIndexChanged, this, [iconCombo](int i) { AppSettings::instance().setIconTheme(iconCombo->itemData(i).toString()); });
     typeCard->addRow(tr("Icon theme"), tr("Automatic picks the best installed set."), iconCombo, 190);
-    auto *noWheel = new NoWheel(typeCard);
-    for (QWidget *w : { static_cast<QWidget*>(fontCombo), static_cast<QWidget*>(iconCombo), static_cast<QWidget*>(density) }) {
-        w->installEventFilter(noWheel);
-        w->setFocusPolicy(Qt::StrongFocus);
-    }
     layout->addWidget(typeCard);
 
     // Translucency
@@ -673,9 +680,6 @@ QWidget* PreferencesDialog::buildLayoutPage() {
     connect(statusbar, &QCheckBox::toggled, this, [](bool on) { AppSettings::instance().setStatusbarVisible(on); });
     chrome->addRow(tr("Status bar"), tr("Selection summary, free space and the zoom slider."), statusbar);
     layout->addWidget(chrome);
-
-    auto *noWheel = new NoWheel(content);
-    for (QWidget *w : { static_cast<QWidget*>(sidebar), static_cast<QWidget*>(inspector) }) { w->installEventFilter(noWheel); w->setFocusPolicy(Qt::StrongFocus); }
 
     connect(&st, &AppSettings::layoutChanged, this, [sidebar, inspector, menubar, statusbar]() {
         AppSettings &s = AppSettings::instance();
