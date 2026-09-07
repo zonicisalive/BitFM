@@ -68,7 +68,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
             "#SearchFrame { background-color: %1; border: 1px solid %2; border-radius: %7px /*fixed*/; }"
             "#SearchFrame[active='true'] { border-color: %5; background-color: %8; }"
             "#SearchIcon { background: transparent; }"
-            "#SearchEdit { background: transparent; border: none; padding: 0; font-size: 13px; color: %3; selection-background-color: %5; selection-color: %1; }"
+            "#SearchEdit, #SearchEdit:focus { background: transparent; border: none; padding: 0; font-size: 13px; color: %3; selection-background-color: %5; selection-color: %9; }"
             "#SearchCount { background-color: %6; color: %5; border-radius: 8px; padding: 2px 8px; font-size: 11px; font-weight: 600; }"
             "#SearchCount[empty='true'] { background-color: transparent; color: %4; padding: 2px 2px; font-weight: 500; }"
             "#SearchChip { background: transparent; border: none; border-radius: 6px; padding: 2px 6px; font-family: monospace; font-size: 14px; font-weight: 700; color: %4; }"
@@ -77,7 +77,8 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
             "#SearchClose { background: transparent; border: none; border-radius: 6px; padding: 2px; }"
             "#SearchClose:hover { background-color: %6; }"
         ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER, ThemeManager::TEXT_PRIMARY, ThemeManager::TEXT_SECONDARY,
-              ThemeManager::ACCENT, ThemeManager::ACCENT_SOFT, QString::number(h / 2), ThemeManager::BG_SURFACE)));
+              ThemeManager::ACCENT, ThemeManager::ACCENT_SOFT, QString::number(h / 2), ThemeManager::BG_SURFACE,
+              QColor(ThemeManager::ACCENT).lightness() > 140 ? "#101014" : "#ffffff")));
         m_closeBtn->setIcon(tinted("window-close", "dialog-close", QColor(ThemeManager::TEXT_SECONDARY), 14));
         m_closeBtn->setIconSize(QSize(14, 14));
         refreshLook();

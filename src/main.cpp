@@ -233,6 +233,7 @@ int main(int argc, char *argv[]) {
                 window.activePane()->setSearchVisible(true);
                 if (auto *e = window.activePane()->findChild<QLineEdit*>("SearchEdit")) e->setText(search);
             }
+            window.activateWindow();   // so :focus rules apply like in a real session
             if (qEnvironmentVariableIsSet("BITFM_SCREENSHOT_EDITLOC") && window.activePane())
                 window.activePane()->headerBar()->breadcrumb()->activateEditMode();
             // BITFM_SCREENSHOT_SIZE=WxH resizes the window first.

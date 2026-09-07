@@ -50,6 +50,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
     m_pathEdit = new QLineEdit(m_editContainer);
     m_pathEdit->setObjectName("PathEdit");
     m_pathEdit->setPlaceholderText(tr("Type a path and press Enter"));
+    m_pathEdit->setFrame(false);
     editLayout->addWidget(m_editIcon);
     editLayout->addWidget(m_pathEdit, 1);
 
@@ -81,7 +82,7 @@ void BreadcrumbBar::applyStyles() {
         "#BreadcrumbContainer, #EditContainer { background-color: %1; border: 1px solid %2; border-radius: %8px /*fixed*/; }"
         "#EditContainer { border-color: %5; }"
         "#EditContainer[error='true'] { border-color: %7; }"
-        "#PathEdit { background: transparent; border: none; padding: 4px 0; font-size: 13px; color: %3; selection-background-color: %5; }"
+        "#PathEdit, #PathEdit:focus { background: transparent; border: none; padding: 0; font-size: 13px; color: %3; selection-background-color: %5; selection-color: %10; }"
         "#PlaceIcon { background: transparent; padding-right: 4px; }"
         "QToolButton[crumb='true'] { background: transparent; border: 1px solid transparent; border-radius: 6px;"
         "  padding: 4px 7px; font-size: 12.5px; color: %4; }"
@@ -95,7 +96,8 @@ void BreadcrumbBar::applyStyles() {
         "QToolButton[more='true']:hover { background-color: %6; color: %3; }"
         "QToolButton[more='true']::menu-indicator { image: none; width: 0; }"
     ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER, ThemeManager::TEXT_PRIMARY, ThemeManager::TEXT_SECONDARY,
-          ThemeManager::ACCENT, ThemeManager::ACCENT_SOFT, ThemeManager::DANGER, r, ThemeManager::TEXT_MUTED);
+          ThemeManager::ACCENT, ThemeManager::ACCENT_SOFT, ThemeManager::DANGER, r, ThemeManager::TEXT_MUTED)
+     .arg(QColor(ThemeManager::ACCENT).lightness() > 140 ? "#101014" : "#ffffff");   // opaque: BG_BASE may be rgba
     setStyleSheet(ThemeManager::css(sheet));
     rebuildBreadcrumbs();
 }
