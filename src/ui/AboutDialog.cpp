@@ -200,7 +200,7 @@ QWidget* AboutDialog::createAboutTab() {
 
     // Website Link
     QLabel *linkBtn = new QLabel(
-        "<a href='https://github.com/ZonicExists' style='color: #89b4fa; text-decoration: underline; font-weight: 600; font-size: 13px;'>Website (GitHub)</a>", tab);
+        "<a href='https://github.com/zonicisalive/BitFM' style='color: #89b4fa; text-decoration: underline; font-weight: 600; font-size: 13px;'>Website (GitHub)</a>", tab);
     linkBtn->setOpenExternalLinks(true);
     linkBtn->setAlignment(Qt::AlignCenter);
     linkBtn->setCursor(Qt::PointingHandCursor);
@@ -211,7 +211,7 @@ QWidget* AboutDialog::createAboutTab() {
     // Copyright
     QLabel *copyrightLabel = new QLabel(
         "Copyright © 2026 <b>Zonic</b><br/>"
-        "<a href='https://github.com/ZonicExists' style='color: #89b4fa; text-decoration: none; font-size: 11px;'>https://github.com/ZonicExists</a>", tab);
+        "<a href='https://github.com/zonicisalive/BitFM' style='color: #89b4fa; text-decoration: none; font-size: 11px;'>https://github.com/zonicisalive/BitFM</a>", tab);
     copyrightLabel->setOpenExternalLinks(true);
     copyrightLabel->setAlignment(Qt::AlignCenter);
     copyrightLabel->setStyleSheet(ThemeManager::css(QString("font-size: 11px; color: %1;").arg(ThemeManager::TEXT_MUTED)));
@@ -232,7 +232,7 @@ QWidget* AboutDialog::createCreditsTab() {
 
     QLabel *author = new QLabel(
         "<b>Zonic</b> — Lead Developer & Architect<br/>"
-        "<a href='https://github.com/ZonicExists' style='color: #89b4fa; text-decoration: underline;'>https://github.com/ZonicExists</a>", tab);
+        "<a href='https://github.com/zonicisalive/BitFM' style='color: #89b4fa; text-decoration: underline;'>https://github.com/zonicisalive/BitFM</a>", tab);
     author->setOpenExternalLinks(true);
     author->setStyleSheet(ThemeManager::css(QString("font-size: 12px; color: %1;").arg(ThemeManager::TEXT_SECONDARY)));
     layout->addWidget(author);
@@ -277,7 +277,7 @@ QWidget* AboutDialog::createLicenseTab() {
 
     licenseView->setPlainText(
         "MIT License\n\n"
-        "Copyright (c) 2026 Zonic (https://github.com/ZonicExists)\n\n"
+        "Copyright (c) 2026 Zonic (https://github.com/zonicisalive/BitFM)\n\n"
         "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
         "of this software and associated documentation files (the \"Software\"), to deal\n"
         "in the Software without restriction, including without limitation the rights\n"
