@@ -33,7 +33,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
     m_breadcrumbContainer->setObjectName("BreadcrumbContainer");
     m_breadcrumbContainer->setAttribute(Qt::WA_StyledBackground);
     m_breadcrumbLayout = new QHBoxLayout(m_breadcrumbContainer);
-    m_breadcrumbLayout->setContentsMargins(10, 2, 6, 2);
+    m_breadcrumbLayout->setContentsMargins(12, 0, 8, 0);
     m_breadcrumbLayout->setSpacing(0);
     m_placeIcon = new QLabel(m_breadcrumbContainer);
     m_placeIcon->setObjectName("PlaceIcon");
@@ -43,20 +43,19 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
     m_editContainer->setObjectName("EditContainer");
     m_editContainer->setAttribute(Qt::WA_StyledBackground);
     auto *editLayout = new QHBoxLayout(m_editContainer);
-    editLayout->setContentsMargins(10, 2, 6, 2);
+    editLayout->setContentsMargins(12, 0, 8, 0);
     editLayout->setSpacing(6);
     m_editIcon = new QLabel(m_editContainer);
     m_editIcon->setPixmap(QIcon::fromTheme("document-edit", QIcon::fromTheme("edit-rename")).pixmap(16, 16));
     m_pathEdit = new QLineEdit(m_editContainer);
     m_pathEdit->setObjectName("PathEdit");
     m_pathEdit->setPlaceholderText(tr("Type a path and press Enter"));
-    m_pathEdit->setClearButtonEnabled(true);
     editLayout->addWidget(m_editIcon);
     editLayout->addWidget(m_pathEdit, 1);
 
     m_stackedWidget->addWidget(m_breadcrumbContainer);
     m_stackedWidget->addWidget(m_editContainer);
-    mainLayout->addWidget(m_stackedWidget);
+    mainLayout->addWidget(m_stackedWidget, 0, Qt::AlignVCenter);
 
     m_relayout.setSingleShot(true);
     m_relayout.setInterval(60);
@@ -75,9 +74,11 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
 }
 
 void BreadcrumbBar::applyStyles() {
-    const QString r = QString::number(ThemeManager::radius() + 1);
+    const int h = qMax(ThemeManager::px(30), fontMetrics().height() + 12);
+    m_stackedWidget->setFixedHeight(h);   // capsule centred in the taller header row
+    const QString r = QString::number(h / 2);   // pill, same as the search capsule
     const QString sheet = QString(
-        "#BreadcrumbContainer, #EditContainer { background-color: %1; border: 1px solid %2; border-radius: %8px; }"
+        "#BreadcrumbContainer, #EditContainer { background-color: %1; border: 1px solid %2; border-radius: %8px /*fixed*/; }"
         "#EditContainer { border-color: %5; }"
         "#EditContainer[error='true'] { border-color: %7; }"
         "#PathEdit { background: transparent; border: none; padding: 4px 0; font-size: 13px; color: %3; selection-background-color: %5; }"

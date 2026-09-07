@@ -33,7 +33,7 @@ private slots:
     void onCloseClicked();
 
 private:
-    void setActiveLook(bool on);
+    void refreshLook();
     QWidget *m_frame;
     QLabel *m_iconLabel;
     QLineEdit *m_lineEdit;
