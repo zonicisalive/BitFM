@@ -46,8 +46,10 @@ void SidebarWidget::setupUi() {
 
     // App name header matching the reference topbar
     QWidget *header = new QWidget(this);
+    header->setObjectName("SidebarHeader");
+    header->setAttribute(Qt::WA_StyledBackground);
     header->setStyleSheet(ThemeManager::css(QString(
-        "QWidget { background-color: %1; border-bottom: 1px solid %2; }"
+        "#SidebarHeader { background-color: %1; border-bottom: 1px solid %2; }"
     ).arg(ThemeManager::BG_SURFACE).arg(ThemeManager::BORDER)));
 
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
@@ -136,7 +138,7 @@ void SidebarWidget::setupUi() {
         header->setFixedHeight(ThemeManager::px(44));
         m_treeWidget->setIconSize(QSize(ThemeManager::px(18), ThemeManager::px(18)));
         header->setStyleSheet(ThemeManager::css(QString(
-            "QWidget { background-color: transparent; border-bottom: 1px solid %1; }"
+            "#SidebarHeader { background-color: transparent; border-bottom: 1px solid %1; }"
         ).arg(ThemeManager::BORDER)));
 
         appName->setStyleSheet(ThemeManager::css(QString(

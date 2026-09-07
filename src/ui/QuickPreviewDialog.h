@@ -24,6 +24,7 @@ protected:
 
 private:
     void setupUi();
+    void fitToScreen();
     void setImage(const QPixmap &pix, bool playBadge = false);
     void fitImage();
     QPixmap m_source;

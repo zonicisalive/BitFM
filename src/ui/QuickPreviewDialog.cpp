@@ -1,5 +1,6 @@
 #include "QuickPreviewDialog.h"
 #include <QScreen>
+#include <QGuiApplication>
 #include <QShowEvent>
 #include <QPointer>
 #include <QTemporaryDir>
@@ -58,16 +59,25 @@ QuickPreviewDialog::QuickPreviewDialog(QWidget *parent)
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setupUi();
+    fitToScreen();
 }
 
-// Most of the screen: a preview should read like the file, not a thumbnail of it.
+// Most of the screen: a preview should read like the file, not a thumbnail of it. Sized before
+// the first show (Wayland compositors take the initial size, not a later resize) and again on
+// every show in case the window moved to another screen.
+void QuickPreviewDialog::fitToScreen() {
+    QScreen *scr = screen() ? screen() : QGuiApplication::primaryScreen();
+    if (!scr) return;
+    const QRect avail = scr->availableGeometry();
+    const QSize want(avail.width() * 0.8, avail.height() * 0.85);
+    setMinimumSize(want * 0.6);
+    resize(want);
+    move(avail.center() - QRect(QPoint(), want).center());
+}
+
 void QuickPreviewDialog::showEvent(QShowEvent *event) {
+    fitToScreen();
     QDialog::showEvent(event);
-    if (QScreen *scr = screen()) {
-        const QRect avail = scr->availableGeometry();
-        resize(avail.width() * 0.8, avail.height() * 0.85);
-        move(avail.center() - rect().center());
-    }
 }
 
 // Keep the source and refit it to whatever size the preview label has now.

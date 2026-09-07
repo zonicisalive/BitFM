@@ -7,6 +7,7 @@
 #include <QListWidget>
 #include <QLineEdit>
 #include <QMenu>
+#include <QToolButton>
 #include <QContextMenuEvent>
 #include <QUrl>
 #include <iostream>
@@ -245,6 +246,21 @@ int main(int argc, char *argv[]) {
             // BITFM_SCREENSHOT_SIZE=WxH resizes the window first.
             const QList<QByteArray> wh = qgetenv("BITFM_SCREENSHOT_SIZE").split('x');
             if (wh.size() == 2) window.resize(wh[0].toInt(), wh[1].toInt());
+            // BITFM_SCREENSHOT_CLICK=x,y left-clicks the widget at that window point (e.g. a menu button).
+            const QList<QByteArray> cxy = qgetenv("BITFM_SCREENSHOT_CLICK").split(',');
+            if (cxy.size() == 2) {
+                const QPoint p(cxy[0].toInt(), cxy[1].toInt());
+                if (QWidget *w = target->childAt(p)) {
+                    auto *tb = qobject_cast<QToolButton*>(w);
+                    if (tb && tb->menu()) {
+                        QTimer::singleShot(0, tb, &QToolButton::showMenu);   // popup exec() nests an event loop
+                    } else {
+                        const QPointF local = w->mapFrom(target, p), global = target->mapToGlobal(p);
+                        QCoreApplication::postEvent(w, new QMouseEvent(QEvent::MouseButtonPress, local, local, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier));
+                        QCoreApplication::postEvent(w, new QMouseEvent(QEvent::MouseButtonRelease, local, local, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier));
+                    }
+                }
+            }
             // BITFM_SCREENSHOT_MENU=x,y opens the context menu at that window point and grabs it.
             const QList<QByteArray> mxy = qgetenv("BITFM_SCREENSHOT_MENU").split(',');
             if (mxy.size() == 2) {

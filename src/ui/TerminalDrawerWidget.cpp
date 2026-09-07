@@ -99,9 +99,11 @@ void TerminalDrawerWidget::setupUi() {
 
     // Modern Header Bar
     QWidget *header = new QWidget(this);
+    header->setObjectName("TerminalHeader");
+    header->setAttribute(Qt::WA_StyledBackground);
     header->setFixedHeight(ThemeManager::px(38));
     header->setStyleSheet(ThemeManager::css(QString(
-        "QWidget { background: %1; border-top: 1px solid %2; border-bottom: 1px solid %2; }"
+        "#TerminalHeader { background: %1; border-top: 1px solid %2; border-bottom: 1px solid %2; }"
     ).arg(ThemeManager::BG_SURFACE, ThemeManager::BORDER)));
 
     QHBoxLayout *headerLayout = new QHBoxLayout(header);
@@ -229,7 +231,7 @@ void TerminalDrawerWidget::setupUi() {
     auto updateStyles = [header, titleLabel, clearBtn, extTermBtn, inputContainer, inputPill, this]() {
         update();
         header->setStyleSheet(ThemeManager::css(QString(
-            "QWidget { background: transparent; border-bottom: 1px solid %1; }"
+            "#TerminalHeader { background: transparent; border-bottom: 1px solid %1; }"
         ).arg(ThemeManager::BORDER)));
 
         titleLabel->setStyleSheet(ThemeManager::css(QString("font-weight: 700; font-size: 12px; color: %1; background: transparent;").arg(ThemeManager::TEXT_PRIMARY)));
