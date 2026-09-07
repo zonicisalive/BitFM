@@ -506,8 +506,10 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
 
     m_emptyStateIcon = new QLabel(m_emptyStateWidget);
     m_emptyStateIcon->setAlignment(Qt::AlignCenter);
-    QIcon emptyIcon = QIcon::fromTheme("folder-open", QIcon::fromTheme("folder"));
-    m_emptyStateIcon->setPixmap(emptyIcon.pixmap(48, 48));
+    m_emptyStateIcon->setPixmap(QIcon::fromTheme("folder-open", QIcon::fromTheme("folder")).pixmap(48, 48));
+    connect(&ThemeManager::instance(), &ThemeManager::iconThemeChanged, m_emptyStateIcon, [this]() {
+        m_emptyStateIcon->setPixmap(QIcon::fromTheme("folder-open", QIcon::fromTheme("folder")).pixmap(48, 48));
+    });
 
     m_emptyStateText = new QLabel(tr("This folder is empty"), m_emptyStateWidget);
     m_emptyStateText->setAlignment(Qt::AlignCenter);

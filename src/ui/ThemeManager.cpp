@@ -1041,7 +1041,10 @@ void ThemeManager::applyAppFont() {
     // or an invalid name restores the theme detected at startup, which also serves as fallback.
     QString iconTheme = AppSettings::instance().iconTheme();
     QString want = isIconTheme(iconTheme) ? iconTheme : s_autoIconTheme;
-    if (!want.isEmpty() && QIcon::themeName() != want) QIcon::setThemeName(want);
+    if (!want.isEmpty() && QIcon::themeName() != want) {
+        QIcon::setThemeName(want);
+        emit iconThemeChanged();
+    }
 }
 
 void ThemeManager::setThemeByName(const QString &name) {

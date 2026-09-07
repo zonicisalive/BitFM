@@ -57,6 +57,13 @@ MainWindow::MainWindow(QWidget *parent)
         if (sizes[ii] < 200) { sizes[ci] -= 340 - sizes[ii]; sizes[ii] = 340; m_mainSplitter->setSizes(sizes); }
     }
     connect(&AppSettings::instance(), &AppSettings::layoutChanged, this, &MainWindow::applyLayoutSettings);
+    // Rows cache their icon (with per-theme fallbacks), so a new icon theme means a reload.
+    connect(&ThemeManager::instance(), &ThemeManager::iconThemeChanged, this, [this]() {
+        for (DirectoryViewTab *tab : findChildren<DirectoryViewTab*>()) tab->refresh();
+    });
+    // Panel widths persist as they are dragged, not only on a clean close.
+    connect(m_mainSplitter, &QSplitter::splitterMoved, this, [this]() { AppSettings::instance().setMainSplitterSizes(m_mainSplitter->sizes()); });
+    connect(m_panesSplitter, &QSplitter::splitterMoved, this, [this]() { AppSettings::instance().setPanesSplitterSizes(m_panesSplitter->sizes()); });
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
         for (QDialog **d : { reinterpret_cast<QDialog**>(&m_quickPreviewDialog), reinterpret_cast<QDialog**>(&m_quickSwitcherDialog) }) {
             if (*d && !(*d)->isVisible()) { (*d)->deleteLater(); *d = nullptr; }

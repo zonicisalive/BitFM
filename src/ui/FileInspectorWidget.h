@@ -46,6 +46,7 @@ private:
     QString m_currentFilePath;
 
     QLabel *m_previewImageLabel;
+    QLabel *m_iconLabel;
     QLabel *m_fileNameLabel;
     QLabel *m_fileTypeLabel;
     QLabel *m_fileSizeLabel;

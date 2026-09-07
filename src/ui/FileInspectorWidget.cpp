@@ -92,6 +92,13 @@ void FileInspectorWidget::setupUi() {
     m_textPreviewLabel->hide();
     layout->addWidget(m_textPreviewLabel);
 
+    // Small icon for things that have no real preview (folders, binaries, unknown types).
+    m_iconLabel = new QLabel(content);
+    m_iconLabel->setObjectName("InspectorIcon");
+    m_iconLabel->setAlignment(Qt::AlignCenter);
+    m_iconLabel->hide();
+    layout->addWidget(m_iconLabel);
+
     m_fileNameLabel = new QLabel(content);
     m_fileNameLabel->setObjectName("InspectorName");
     m_fileNameLabel->setAlignment(Qt::AlignCenter);
@@ -164,6 +171,9 @@ void FileInspectorWidget::setupUi() {
 
     applyStyles();
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FileInspectorWidget::applyStyles);
+    connect(&ThemeManager::instance(), &ThemeManager::iconThemeChanged, this, [this]() {
+        if (!m_currentFilePath.isEmpty() && !m_iconLabel->isHidden()) inspectItem(m_currentFilePath);
+    });
 }
 
 // The hero is a 4:3 box that grows with the panel, so a wider inspector means a bigger preview.
@@ -193,6 +203,10 @@ void FileInspectorWidget::setHero(const QPixmap &pix, bool playBadge) {
     if (pix.isNull()) { setHeroIcon(QIcon::fromTheme("dialog-information")); return; }
     m_heroSource = pix;
     m_heroBadge = playBadge;
+    m_snippetSource.clear();
+    m_iconLabel->hide();
+    m_textPreviewLabel->hide();
+    m_previewImageLabel->show();
     applyHeroHeight();
     QPixmap scaled = pix.scaled(heroSize(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
     m_previewImageLabel->setPixmap(playBadge ? drawPlayBadge(scaled) : scaled);
@@ -200,8 +214,11 @@ void FileInspectorWidget::setHero(const QPixmap &pix, bool playBadge) {
 
 void FileInspectorWidget::setHeroIcon(const QIcon &icon) {
     m_heroSource = QPixmap();
-    applyHeroHeight();
-    m_previewImageLabel->setPixmap(icon.pixmap(72, 72));
+    m_snippetSource.clear();
+    m_previewImageLabel->hide();
+    m_textPreviewLabel->hide();
+    m_iconLabel->setPixmap(icon.pixmap(48, 48));
+    m_iconLabel->show();
 }
 
 void FileInspectorWidget::resizeEvent(QResizeEvent *event) {
@@ -241,14 +258,17 @@ void FileInspectorWidget::showSnippet(const QString &text) {
     if (lines.size() > maxRows) lines = lines.mid(0, maxRows);
     for (QString &l : lines) { l.replace('\t', "    "); if (l.length() > maxCols) l = l.left(maxCols - 1) + "…"; }
     m_textPreviewLabel->setText(lines.join('\n'));
-    m_textPreviewLabel->setVisible(!text.isEmpty());
-    m_previewImageLabel->setVisible(text.isEmpty());
+    if (text.isEmpty()) return;   // caller picks the hero or icon next
+    m_iconLabel->hide();
+    m_previewImageLabel->hide();
+    m_textPreviewLabel->show();
 }
 
 void FileInspectorWidget::applyStyles() {
     setStyleSheet(ThemeManager::css(QString(
         "FileInspectorWidget { background: transparent; }"
         "#InspectorHero { background-color: %1; border: 1px solid %2; border-radius: %6px; padding: 8px; }"
+        "#InspectorIcon { background: transparent; padding-top: 6px; }"
         "#InspectorName { color: %3; font-size: 14px; font-weight: 600; background: transparent; }"
         "#InspectorKind { color: %5; font-size: 11.5px; background: transparent; }"
         "#InspectorSection { color: %5; font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px; background: transparent; padding-left: 2px; }"

@@ -33,6 +33,7 @@ SidebarWidget::SidebarWidget(QWidget *parent)
 
     connect(&TagManager::instance(), &TagManager::tagsChanged, this, &SidebarWidget::populateAll);
     connect(&DeviceManager::instance(), &DeviceManager::devicesChanged, this, &SidebarWidget::populateAll);
+    connect(&ThemeManager::instance(), &ThemeManager::iconThemeChanged, this, &SidebarWidget::populateAll);   // fallback icons were picked per theme
 }
 
 #include "AboutDialog.h"
@@ -55,6 +56,9 @@ void SidebarWidget::setupUi() {
 
     QLabel *appIcon = new QLabel(header);
     appIcon->setPixmap(QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder")).pixmap(20, 20));
+    connect(&ThemeManager::instance(), &ThemeManager::iconThemeChanged, appIcon, [appIcon]() {
+        appIcon->setPixmap(QIcon::fromTheme("system-file-manager", QIcon::fromTheme("folder")).pixmap(20, 20));
+    });
     headerLayout->addWidget(appIcon);
 
     QLabel *appName = new QLabel("Files", header);

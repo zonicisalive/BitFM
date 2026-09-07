@@ -69,6 +69,7 @@ TrashBarWidget::TrashBarWidget(QWidget *parent)
 
     m_iconLabel = new QLabel(this);
     m_iconLabel->setPixmap(QIcon::fromTheme("user-trash").pixmap(20, 20));
+    connect(&ThemeManager::instance(), &ThemeManager::iconThemeChanged, m_iconLabel, [this]() { m_iconLabel->setPixmap(QIcon::fromTheme("user-trash").pixmap(20, 20)); });
     layout->addWidget(m_iconLabel);
 
     m_titleLabel = new QLabel(tr("Trash"), this);

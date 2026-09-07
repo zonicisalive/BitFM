@@ -125,6 +125,7 @@ public:
 
 signals:
     void themeChanged(AppTheme newTheme);
+    void iconThemeChanged();   // QIcon::themeName() actually changed: rebuild anything holding resolved icons
 
 private:
     ThemeManager();
