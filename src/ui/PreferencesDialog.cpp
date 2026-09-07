@@ -25,6 +25,7 @@
 #include <QStyledItemDelegate>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QEvent>
 #include <QIcon>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -80,6 +81,15 @@ void ThemeCardWidget::mousePressEvent(QMouseEvent *) { emit themeSelected(m_them
 // ─────────────────────────────────────────────────────────────────────────────
 // PreferencesDialog
 // ─────────────────────────────────────────────────────────────────────────────
+
+namespace {
+// Wheel over a closed combo scrolls the page instead of changing the value.
+class NoWheel : public QObject {
+public:
+    using QObject::QObject;
+    bool eventFilter(QObject *, QEvent *e) override { return e->type() == QEvent::Wheel; }
+};
+}
 
 PreferencesDialog::PreferencesDialog(QWidget *parent)
     : CardDialog(parent)
@@ -335,6 +345,11 @@ QWidget* PreferencesDialog::buildAppearancePage() {
     iconCombo->setCurrentIndex(cur < 0 ? 0 : cur);
     connect(iconCombo, &QComboBox::currentIndexChanged, this, [iconCombo](int i) { AppSettings::instance().setIconTheme(iconCombo->itemData(i).toString()); });
     fontForm->addRow(tr("Icon theme"), iconCombo);
+    auto *noWheel = new NoWheel(fontBox);
+    for (QWidget *w : {static_cast<QWidget*>(fontCombo), static_cast<QWidget*>(iconCombo)}) {
+        w->installEventFilter(noWheel);
+        w->setFocusPolicy(Qt::StrongFocus);
+    }
     layout->addWidget(fontBox);
 
     // Translucency
