@@ -551,6 +551,7 @@ QWidget* PreferencesDialog::buildAppearancePage() {
     if (!fam.isEmpty()) fontCombo->setCurrentFont(QFont(fam));
     auto *fontSize = new QSpinBox(typeCard);
     fontSize->setRange(0, 24);
+    fontSize->setKeyboardTracking(false);   // apply on Enter / focus-out, not per keystroke ("1" of "16" would set 1px)
     fontSize->setSpecialValueText(tr("Auto"));
     fontSize->setSuffix(" px");
     fontSize->setValue(st.fontSize());
@@ -563,7 +564,10 @@ QWidget* PreferencesDialog::buildAppearancePage() {
     fontRow->addWidget(fontDefault);
     typeCard->addRow(tr("Font"), tr("Family and size for the whole interface."), fontRow);
     connect(fontCombo, &QFontComboBox::currentFontChanged, this, [](const QFont &f) { AppSettings::instance().setFontFamily(f.family()); });
-    connect(fontSize, &QSpinBox::valueChanged, this, [](int v) { AppSettings::instance().setFontSize(v); });
+    connect(fontSize, &QSpinBox::valueChanged, this, [fontSize](int v) {
+        if (v > 0 && v < 8) { fontSize->setValue(8); return; }   // nothing below 8px is readable; 0 stays "Auto"
+        AppSettings::instance().setFontSize(v);
+    });
     connect(fontDefault, &QPushButton::clicked, this, [fontSize, fontCombo]() {
         AppSettings::instance().setFontFamily(QString()); fontSize->setValue(0);
         fontCombo->blockSignals(true); fontCombo->setCurrentFont(QApplication::font()); fontCombo->blockSignals(false);
@@ -664,6 +668,7 @@ QWidget* PreferencesDialog::buildLayoutPage() {
     drawer->setRange(100, 800);
     drawer->setSuffix(" px");
     drawer->setValue(st.drawerHeight());
+    drawer->setKeyboardTracking(false);
     drawer->setFixedWidth(100);
     connect(drawer, &QSpinBox::valueChanged, this, [](int v) { AppSettings::instance().setDrawerHeight(v); });
     panels->addRow(tr("Terminal drawer height"), tr("Height of the drawer opened with F12."), drawer);
