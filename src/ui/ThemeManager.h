@@ -1,4 +1,6 @@
 #pragma once
+#include <QPixmap>
+#include <QColor>
 
 #include <QObject>
 #include <QApplication>
@@ -78,6 +80,8 @@ public:
     // Rescale border-radius / padding / font-size values in a stylesheet by the tokens.
     // Append "/*fixed*/" after a value to keep it (circles, hairlines).
     static QString css(const QString &sheet);
+    // Theme icon recoloured to one flat colour, so glyphs follow the theme rather than the icon set.
+    static QPixmap tintedIcon(const QString &name, const QString &fallback, const QColor &color, int px = 16);
 
     // Theme Mode: Built-in Presets vs External File Sync
     ThemeMode themeMode() const;

@@ -46,7 +46,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
     editLayout->setContentsMargins(12, 0, 8, 0);
     editLayout->setSpacing(6);
     m_editIcon = new QLabel(m_editContainer);
-    m_editIcon->setPixmap(QIcon::fromTheme("document-edit", QIcon::fromTheme("edit-rename")).pixmap(16, 16));
+
     m_pathEdit = new QLineEdit(m_editContainer);
     m_pathEdit->setObjectName("PathEdit");
     m_pathEdit->setPlaceholderText(tr("Type a path and press Enter"));
@@ -99,6 +99,7 @@ void BreadcrumbBar::applyStyles() {
           ThemeManager::ACCENT, ThemeManager::ACCENT_SOFT, ThemeManager::DANGER, r, ThemeManager::TEXT_MUTED)
      .arg(QColor(ThemeManager::ACCENT).lightness() > 140 ? "#101014" : "#ffffff");   // opaque: BG_BASE may be rgba
     setStyleSheet(ThemeManager::css(sheet));
+    m_editIcon->setPixmap(ThemeManager::tintedIcon("document-edit", "edit-rename", QColor(ThemeManager::ACCENT)));   // same accent glyph as the search bar
     rebuildBreadcrumbs();
 }
 
@@ -238,7 +239,7 @@ void BreadcrumbBar::rebuildBreadcrumbs() {
     const QString first = crumbs.first().path;
     const QString iconName = first == "recent:" ? "document-open-recent" : first == "tags:" ? "tag"
                            : first == "/" ? "drive-harddisk" : "user-home";
-    m_placeIcon->setPixmap(QIcon::fromTheme(iconName, QIcon::fromTheme("folder")).pixmap(16, 16));
+    m_placeIcon->setPixmap(ThemeManager::tintedIcon(iconName, "folder", QColor(ThemeManager::TEXT_SECONDARY)));
     m_breadcrumbLayout->addWidget(m_placeIcon);
 
     // Trailing widgets first so their width is known when deciding how many crumbs fit.

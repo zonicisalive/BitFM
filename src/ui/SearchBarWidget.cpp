@@ -3,17 +3,7 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeyEvent>
-#include <QPainter>
 #include <QStyle>
-
-// Icon recoloured to a flat colour, so the glyph follows the theme instead of the icon set.
-static QPixmap tinted(const QString &iconName, const QString &fallback, const QColor &color, int px = 16) {
-    QPixmap pix = QIcon::fromTheme(iconName, QIcon::fromTheme(fallback)).pixmap(px, px);
-    QPainter p(&pix);
-    p.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    p.fillRect(pix.rect(), color);
-    return pix;
-}
 
 // Search capsule: quiet at rest, accent-outlined while typing, live match pill, ".*" regex chip.
 // One ✕ does both jobs: clears the text while there is any, closes the bar when empty.
@@ -79,7 +69,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
         ).arg(ThemeManager::BG_BASE, ThemeManager::BORDER, ThemeManager::TEXT_PRIMARY, ThemeManager::TEXT_SECONDARY,
               ThemeManager::ACCENT, ThemeManager::ACCENT_SOFT, QString::number(h / 2), ThemeManager::BG_SURFACE,
               QColor(ThemeManager::ACCENT).lightness() > 140 ? "#101014" : "#ffffff")));
-        m_closeBtn->setIcon(tinted("window-close", "dialog-close", QColor(ThemeManager::TEXT_SECONDARY), 14));
+        m_closeBtn->setIcon(ThemeManager::tintedIcon("window-close", "dialog-close", QColor(ThemeManager::TEXT_SECONDARY), 14));
         m_closeBtn->setIconSize(QSize(14, 14));
         refreshLook();
     };
@@ -99,7 +89,7 @@ void SearchBarWidget::refreshLook() {
     m_frame->setProperty("active", focused);
     m_frame->style()->unpolish(m_frame);
     m_frame->style()->polish(m_frame);
-    m_iconLabel->setPixmap(tinted("edit-find", "system-search", QColor(focused || hasText ? ThemeManager::ACCENT : ThemeManager::TEXT_MUTED)));
+    m_iconLabel->setPixmap(ThemeManager::tintedIcon("edit-find", "system-search", QColor(focused || hasText ? ThemeManager::ACCENT : ThemeManager::TEXT_MUTED)));
     m_closeBtn->setToolTip(hasText ? tr("Clear") : tr("Close search (Esc)"));
 }
 

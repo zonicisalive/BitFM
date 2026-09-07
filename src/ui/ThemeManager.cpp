@@ -1,4 +1,5 @@
 #include "ThemeManager.h"
+#include <QPainter>
 #include <QRegularExpression>
 #include <memory>
 #include "AppSettings.h"
@@ -379,6 +380,14 @@ int ThemeManager::baseFontSize() {
 }
 
 // One regex pass per stylesheet string; only runs when a theme/token changes.
+QPixmap ThemeManager::tintedIcon(const QString &name, const QString &fallback, const QColor &color, int px) {
+    QPixmap pix = QIcon::fromTheme(name, QIcon::fromTheme(fallback)).pixmap(px, px);
+    QPainter p(&pix);
+    p.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    p.fillRect(pix.rect(), color);
+    return pix;
+}
+
 QString ThemeManager::css(const QString &sheet) {
     // Every stylesheet in the codebase was authored against radius 6-7px, density normal, 13px font.
     const double radiusScale = radius() / 6.0;
