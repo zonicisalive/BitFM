@@ -46,6 +46,7 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
     editLayout->setContentsMargins(12, 0, 8, 0);
     editLayout->setSpacing(6);
     m_editIcon = new QLabel(m_editContainer);
+    m_editIcon->setObjectName("EditIcon");
 
     m_pathEdit = new QLineEdit(m_editContainer);
     m_pathEdit->setObjectName("PathEdit");
@@ -83,7 +84,7 @@ void BreadcrumbBar::applyStyles() {
         "#EditContainer { border-color: %5; }"
         "#EditContainer[error='true'] { border-color: %7; }"
         "#PathEdit, #PathEdit:focus { background: transparent; border: none; padding: 0; font-size: 13px; color: %3; selection-background-color: %5; selection-color: %10; }"
-        "#PlaceIcon { background: transparent; padding-right: 4px; }"
+        "#PlaceIcon, #EditIcon { background: transparent; padding-right: 4px; }"
         "QToolButton[crumb='true'] { background: transparent; border: 1px solid transparent; border-radius: 6px;"
         "  padding: 4px 7px; font-size: 12.5px; color: %4; }"
         "QToolButton[crumb='true'][last='true'] { color: %3; font-weight: 600; }"
