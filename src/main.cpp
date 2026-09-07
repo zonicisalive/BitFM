@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QTimer>
 #include <QListWidget>
+#include <QLineEdit>
 #include <QMenu>
 #include <QContextMenuEvent>
 #include <QUrl>
@@ -226,6 +227,14 @@ int main(int argc, char *argv[]) {
             if (!sel.isEmpty()) {
                 if (auto *view = window.activePane() ? window.activePane()->findChild<FileViewWidget*>() : nullptr) view->selectFile(sel);
             }
+            // BITFM_SCREENSHOT_SEARCH=<text> opens the filter bar with that text; BITFM_SCREENSHOT_EDITLOC=1 opens the path editor.
+            const QString search = qEnvironmentVariable("BITFM_SCREENSHOT_SEARCH");
+            if (!search.isNull() && window.activePane()) {
+                window.activePane()->setSearchVisible(true);
+                if (auto *e = window.activePane()->findChild<QLineEdit*>("SearchEdit")) e->setText(search);
+            }
+            if (qEnvironmentVariableIsSet("BITFM_SCREENSHOT_EDITLOC") && window.activePane())
+                window.activePane()->headerBar()->breadcrumb()->activateEditMode();
             // BITFM_SCREENSHOT_SIZE=WxH resizes the window first.
             const QList<QByteArray> wh = qgetenv("BITFM_SCREENSHOT_SIZE").split('x');
             if (wh.size() == 2) window.resize(wh[0].toInt(), wh[1].toInt());

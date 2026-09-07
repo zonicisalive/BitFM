@@ -33,6 +33,9 @@ private slots:
     void onCloseClicked();
 
 private:
+    void setActiveLook(bool on);
+    QWidget *m_frame;
+    QLabel *m_iconLabel;
     QLineEdit *m_lineEdit;
     QToolButton *m_regexBtn;
     QLabel *m_matchCountLabel;

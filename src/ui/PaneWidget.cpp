@@ -122,6 +122,10 @@ void PaneWidget::setupUi() {
         if (QFileInfo(p).isFile()) t->navigateToAndSelect(p);
         else t->navigateTo(p);
     });
+    connect(m_header->breadcrumb(), &BreadcrumbBar::filesDropped, this, [this](const QStringList &src, const QString &dest, Qt::DropAction act) {
+        if (auto *t = currentTab()) t->fileView()->handleDroppedFiles(src, dest, act);
+    });
+    connect(m_header->breadcrumb(), &BreadcrumbBar::openInNewTabRequested, this, [this](const QString &p) { addNewTab(p); });
     connect(m_header->breadcrumb(), &BreadcrumbBar::pathNavigationError, this, [this](const QString &, const QString &msg) {
         if (auto *t = currentTab()) t->showErrorMessage(tr("Invalid Location"), msg);
         emit statusMessageRequested(msg);
