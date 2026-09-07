@@ -609,7 +609,13 @@ void MainWindow::buildMenus() {
 
     // ☰ menu on the header bar reuses the very same QMenu objects.
     m_appMenu = new QMenu(this);
-    for (QMenu *m : { fileMenu, editMenu, viewMenu, goMenu, bmMenu }) m_appMenu->addMenu(m);
+    // The ☰ menu lists these as rows, so give each a glyph like the actions below them.
+    const char *menuIcons[] = { "folder", "edit-paste", "view-list-details", "go-jump", "bookmarks" };
+    int mi = 0;
+    for (QMenu *m : { fileMenu, editMenu, viewMenu, goMenu, bmMenu }) {
+        m->setIcon(QIcon::fromTheme(menuIcons[mi++], QIcon::fromTheme("folder")));
+        m_appMenu->addMenu(m);
+    }
     m_appMenu->addSeparator();
     m_appMenu->addAction(A("app.preferences"));
     m_appMenu->addAction(A("app.about"));

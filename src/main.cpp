@@ -247,10 +247,19 @@ int main(int argc, char *argv[]) {
             const QList<QByteArray> wh = qgetenv("BITFM_SCREENSHOT_SIZE").split('x');
             if (wh.size() == 2) window.resize(wh[0].toInt(), wh[1].toInt());
             // BITFM_SCREENSHOT_CLICK=x,y left-clicks the widget at that window point (e.g. a menu button).
-            const QList<QByteArray> cxy = qgetenv("BITFM_SCREENSHOT_CLICK").split(',');
-            if (cxy.size() == 2) {
-                const QPoint p(cxy[0].toInt(), cxy[1].toInt());
-                if (QWidget *w = target->childAt(p)) {
+            const QByteArray clickSpec = qgetenv("BITFM_SCREENSHOT_CLICK");
+            const QList<QByteArray> cxy = clickSpec.split(',');
+            if (cxy.size() == 2 || clickSpec.startsWith("tip:")) {
+                QWidget *w = nullptr;
+                QPoint p;
+                if (clickSpec.startsWith("tip:")) {   // BITFM_SCREENSHOT_CLICK=tip:<tooltip> finds a button by tooltip
+                    for (QToolButton *b : target->findChildren<QToolButton*>()) if (b->toolTip() == QString::fromUtf8(clickSpec.mid(4))) { w = b; break; }
+                    if (w) p = w->mapTo(target, w->rect().center());
+                } else {
+                    p = QPoint(cxy[0].toInt(), cxy[1].toInt());
+                    w = target->childAt(p);
+                }
+                if (w) {
                     auto *tb = qobject_cast<QToolButton*>(w);
                     if (tb && tb->menu()) {
                         QTimer::singleShot(0, tb, &QToolButton::showMenu);   // popup exec() nests an event loop
