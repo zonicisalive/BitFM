@@ -470,7 +470,7 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         bgHover = hexToRgba(c.bgHover, qBound(0.2, opacity * 1.18, 1.0));
         bgSelection = hexToRgba(c.bgSelection, 0.85);
     }
-    return QString(
+    QString sheet = QString(
         /* ─── Base Window ─── */
         "QMainWindow, QWidget {"
         "  background-color: %1;"
@@ -718,7 +718,6 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "QMenu::item:selected {"
         "  background-color: %4;"
         "  color: %1;"
-        "  font-weight: 600;"
         "}"
         "QMenu::item:disabled {"
         "  color: %12;"
@@ -903,23 +902,29 @@ QString ThemeManager::getModernStyleSheet(const ThemeColors &c, double opacity, 
         "  padding: 5px 9px;"
         "  font-size: 12px;"
         "}"
-    )
-    .arg(bgBase)             // %1
-    .arg(c.textPrimary)      // %2
-    .arg(c.border)           // %3
-    .arg(c.accent)           // %4
-    .arg(bgSurface)          // %5
-    .arg(bgHover)            // %6
-    .arg(bgSelection)        // %7
-    .arg(c.accentPress)      // %8
-    .arg(bgSelection)        // %9
-    .arg(bgOverlay)          // %10
-    .arg(bgOverlay)          // %11
-    .arg(c.textSecondary)    // %12
-    .arg(c.bgSurface)        // %13 opaque popup surface
-    .arg(c.bgOverlay)        // %14 opaque popup overlay
-    .arg(hexToRgba(c.accent, 0.16)) // %15 hover tint
-    .arg(hexToRgba(c.accent, 0.28)) // %16 pressed tint
+    );
+    // Substitute by explicit number, highest first: QString::arg() fills the lowest *remaining*
+    // placeholder, so dropping every use of one %N would silently shift all later colours.
+    const QString args[] = {
+        bgBase,             // %1
+        c.textPrimary,      // %2
+        c.border,           // %3
+        c.accent,           // %4
+        bgSurface,          // %5
+        bgHover,            // %6
+        bgSelection,        // %7
+        c.accentPress,      // %8
+        bgSelection,        // %9
+        bgOverlay,          // %10
+        bgOverlay,          // %11
+        c.textSecondary,    // %12
+        c.bgSurface,        // %13 opaque popup surface
+        c.bgOverlay,        // %14 opaque popup overlay
+        hexToRgba(c.accent, 0.16), // %15 hover tint
+        hexToRgba(c.accent, 0.28), // %16 pressed tint
+    };
+    for (int i = std::size(args); i >= 1; --i) sheet.replace("%" + QString::number(i), args[i - 1]);
+    return sheet
     .replace("GLYPH", QColor(c.accent).lightness() > 140 ? "dark" : "light");
 }
 

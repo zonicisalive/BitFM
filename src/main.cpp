@@ -5,6 +5,8 @@
 #include <QDir>
 #include <QTimer>
 #include <QListWidget>
+#include <QMenu>
+#include <QContextMenuEvent>
 #include <QUrl>
 #include <iostream>
 #include <sys/prctl.h>
@@ -217,8 +219,28 @@ int main(int argc, char *argv[]) {
                 QWidget *w = target->childAt(QPoint(xy[0].toInt(), xy[1].toInt()));
                 for (; w && w != target; w = w->parentWidget()) { w->setAttribute(Qt::WA_UnderMouse, true); w->update(); }
             }
+            // BITFM_SCREENSHOT_MENU=x,y opens the context menu at that window point and grabs it.
+            const QList<QByteArray> mxy = qgetenv("BITFM_SCREENSHOT_MENU").split(',');
+            if (mxy.size() == 2) {
+                const QPoint p(mxy[0].toInt(), mxy[1].toInt());
+                if (QWidget *w = target->childAt(p)) {
+                    QCoreApplication::postEvent(w, new QContextMenuEvent(QContextMenuEvent::Mouse, w->mapFrom(target, p), target->mapToGlobal(p)));
+                }
+            }
             QTimer::singleShot(400, target, [target, shot]() {
-                target->grab().save(QString::fromLocal8Bit(shot));
+                QWidget *popup = QApplication::activePopupWidget();
+                if (popup) {
+                    // BITFM_SCREENSHOT_MENU_HOVER=<row> highlights that action.
+                    if (auto *menu = qobject_cast<QMenu*>(popup)) {
+                        bool okRow = false;
+                        int row = qEnvironmentVariableIntValue("BITFM_SCREENSHOT_MENU_HOVER", &okRow);
+                        if (okRow && row < menu->actions().size()) menu->setActiveAction(menu->actions().at(row));
+                    }
+                    popup->grab().save(QString::fromLocal8Bit(shot));
+                    popup->close();
+                } else {
+                    target->grab().save(QString::fromLocal8Bit(shot));
+                }
                 QCoreApplication::quit();
             });
         });
