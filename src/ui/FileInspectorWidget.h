@@ -40,7 +40,8 @@ private:
     void hideDetail(QLabel *value);
     void showSnippet(const QString &text);
     void updateDetailsVisibility();
-    static constexpr int kHeroHeight = 190;
+    int heroHeight() const;
+    void applyHeroHeight();
 
     QString m_currentFilePath;
 
@@ -53,11 +54,11 @@ private:
     QLabel *m_permissionsLabel;
     QLabel *m_checksumLabel;
     QLabel *m_textPreviewLabel;
-    QLabel *m_textHeader;
     QFormLayout *m_details;
     QLabel *m_detailsHeader;
     QWidget *m_detailsBox;
     QPixmap m_heroSource;
+    QString m_snippetSource;
     bool m_heroBadge = false;
 
     QPushButton *m_openBtn;

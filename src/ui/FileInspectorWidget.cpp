@@ -65,9 +65,11 @@ void FileInspectorWidget::setupUi() {
     QScrollArea *scrollArea = new QScrollArea(this);
     scrollArea->setWidgetResizable(true);
     scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setStyleSheet(ThemeManager::css("QScrollArea { background: transparent; border: none; }"));
 
     QWidget *content = new QWidget(scrollArea);
+    content->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);   // width follows the panel, never the content
     QVBoxLayout *layout = new QVBoxLayout(content);
     layout->setContentsMargins(14, 14, 14, 14);
     layout->setSpacing(14);
@@ -76,9 +78,19 @@ void FileInspectorWidget::setupUi() {
     m_previewImageLabel = new QLabel(content);
     m_previewImageLabel->setObjectName("InspectorHero");
     m_previewImageLabel->setAlignment(Qt::AlignCenter);
-    m_previewImageLabel->setMinimumHeight(kHeroHeight);
     m_previewImageLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     layout->addWidget(m_previewImageLabel);
+
+    // Text files preview as text: the first lines fill the hero instead of an icon.
+    m_textPreviewLabel = new QLabel(content);
+    m_textPreviewLabel->setObjectName("InspectorSnippet");
+    m_textPreviewLabel->setTextFormat(Qt::PlainText);
+    { QFont mono("monospace"); mono.setStyleHint(QFont::Monospace); mono.setPointSizeF(qMax(7.0, font().pointSizeF() - 1.5)); m_textPreviewLabel->setFont(mono); }
+    m_textPreviewLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    m_textPreviewLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    m_textPreviewLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    m_textPreviewLabel->hide();
+    layout->addWidget(m_textPreviewLabel);
 
     m_fileNameLabel = new QLabel(content);
     m_fileNameLabel->setObjectName("InspectorName");
@@ -139,19 +151,6 @@ void FileInspectorWidget::setupUi() {
     connect(m_sha256Btn, &QPushButton::clicked, this, &FileInspectorWidget::onCalculateSha256Clicked);
     layout->addWidget(m_sha256Btn, 0, Qt::AlignLeft);
 
-    // Text snippet
-    m_textHeader = new QLabel(tr("Contents").toUpper(), content);
-    m_textHeader->setObjectName("InspectorSection");
-    layout->addWidget(m_textHeader);
-    m_textPreviewLabel = new QLabel(content);
-    m_textPreviewLabel->setObjectName("InspectorSnippet");
-    m_textPreviewLabel->setWordWrap(true);
-    m_textPreviewLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_textPreviewLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-    layout->addWidget(m_textPreviewLabel);
-    m_textHeader->hide();
-    m_textPreviewLabel->hide();
-
     layout->addStretch(1);
     scrollArea->setWidget(content);
     rootLayout->addWidget(scrollArea);
@@ -167,9 +166,26 @@ void FileInspectorWidget::setupUi() {
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, &FileInspectorWidget::applyStyles);
 }
 
+// The hero is a 4:3 box that grows with the panel, so a wider inspector means a bigger preview.
+// Thumbnails take the box their aspect needs (no dead space around a landscape shot),
+// text gets a tall box, icons a modest one.
+int FileInspectorWidget::heroHeight() const {
+    const int tall = qBound(220, qMax(width() * 3 / 4, height() * 2 / 5), 640);
+    if (!m_heroSource.isNull()) {
+        const int innerW = qMax(60, width() - 28 - 16);
+        return qBound(160, innerW * m_heroSource.height() / qMax(1, m_heroSource.width()) + 16, tall);
+    }
+    return m_snippetSource.isEmpty() ? 200 : tall;
+}
+
+void FileInspectorWidget::applyHeroHeight() {
+    m_previewImageLabel->setFixedHeight(heroHeight());
+    m_textPreviewLabel->setFixedHeight(heroHeight());
+}
+
 QSize FileInspectorWidget::heroSize() const {
     const int w = qMax(120, m_previewImageLabel->width() - 16);
-    return QSize(w, kHeroHeight - 16);
+    return QSize(w, heroHeight() - 16);
 }
 
 // A real thumbnail fills the hero; an icon sits small on the plain surface.
@@ -177,18 +193,22 @@ void FileInspectorWidget::setHero(const QPixmap &pix, bool playBadge) {
     if (pix.isNull()) { setHeroIcon(QIcon::fromTheme("dialog-information")); return; }
     m_heroSource = pix;
     m_heroBadge = playBadge;
+    applyHeroHeight();
     QPixmap scaled = pix.scaled(heroSize(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
     m_previewImageLabel->setPixmap(playBadge ? drawPlayBadge(scaled) : scaled);
 }
 
 void FileInspectorWidget::setHeroIcon(const QIcon &icon) {
     m_heroSource = QPixmap();
+    applyHeroHeight();
     m_previewImageLabel->setPixmap(icon.pixmap(72, 72));
 }
 
 void FileInspectorWidget::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
+    applyHeroHeight();
     if (!m_heroSource.isNull()) setHero(m_heroSource, m_heroBadge);   // refit the thumbnail to the new width
+    if (!m_snippetSource.isEmpty()) showSnippet(m_snippetSource);    // reclip lines to the new width
 }
 
 void FileInspectorWidget::setDetail(QLabel *value, const QString &key, const QString &text) {
@@ -210,10 +230,19 @@ void FileInspectorWidget::updateDetailsVisibility() {
     m_detailsBox->setVisible(any);
 }
 
+// Lines are clipped, never wrapped, so a long line cannot widen the panel.
 void FileInspectorWidget::showSnippet(const QString &text) {
-    m_textPreviewLabel->setText(text);
-    m_textHeader->setVisible(!text.isEmpty());
+    m_snippetSource = text;
+    applyHeroHeight();
+    QStringList lines = text.split('\n');
+    const QFontMetrics fm = m_textPreviewLabel->fontMetrics();
+    const int maxCols = qMax(20, (width() - 28 - 24) / qMax(1, fm.horizontalAdvance('M')));
+    const int maxRows = qMax(4, (heroHeight() - 24) / fm.lineSpacing());
+    if (lines.size() > maxRows) lines = lines.mid(0, maxRows);
+    for (QString &l : lines) { l.replace('\t', "    "); if (l.length() > maxCols) l = l.left(maxCols - 1) + "…"; }
+    m_textPreviewLabel->setText(lines.join('\n'));
     m_textPreviewLabel->setVisible(!text.isEmpty());
+    m_previewImageLabel->setVisible(text.isEmpty());
 }
 
 void FileInspectorWidget::applyStyles() {
@@ -226,7 +255,7 @@ void FileInspectorWidget::applyStyles() {
         "#InspectorDetails { background-color: %1; border: 1px solid %2; border-radius: %6px; }"
         "#InspectorKey { color: %5; font-size: 12px; padding: 7px 0; background: transparent; }"
         "#InspectorValue { color: %3; font-size: 12px; padding: 7px 0; background: transparent; }"
-        "#InspectorSnippet { background-color: %1; border: 1px solid %2; border-radius: %6px; padding: 10px; font-family: monospace; font-size: 11px; color: %4; }"
+        "#InspectorSnippet { background-color: %1; border: 1px solid %2; border-radius: %6px; padding: 10px; color: %4; }"
         "#InspectorPill { background-color: %8; border: 1px solid %2; border-radius: 15px; padding: 6px 12px; color: %3; font-weight: 500; }"
         "#InspectorPill:hover { background-color: %7; border-color: %9; }"
         "#InspectorPill:pressed { background-color: %10; }"
@@ -373,11 +402,7 @@ void FileInspectorWidget::inspectItem(const QString &filePath) {
     } else {
         setHeroIcon(QIcon::fromTheme(mime.iconName(), QIcon::fromTheme("text-x-generic")));
         QFile file(filePath);
-        if (isText && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QString text = QString::fromUtf8(file.read(512));
-            if (text.length() > 200) text = text.left(200) + "…";
-            showSnippet(text);
-        }
+        if (isText && file.open(QIODevice::ReadOnly | QIODevice::Text)) showSnippet(QString::fromUtf8(file.read(8 * 1024)));
     }
 }
 

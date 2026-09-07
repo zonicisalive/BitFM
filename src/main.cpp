@@ -16,6 +16,7 @@
 #include "MainWindow.h"
 #include "FileViewWidget.h"
 #include "PaneWidget.h"
+#include "QuickPreviewDialog.h"
 #include "ThemeManager.h"
 #include "FilePickerDialog.h"
 #include "PortalBackend.h"
@@ -236,6 +237,11 @@ int main(int argc, char *argv[]) {
             window.activateWindow();   // so :focus rules apply like in a real session
             if (qEnvironmentVariableIsSet("BITFM_SCREENSHOT_EDITLOC") && window.activePane())
                 window.activePane()->headerBar()->breadcrumb()->activateEditMode();
+            // BITFM_SCREENSHOT_PREVIEW=1 opens Quick Preview on the selection and grabs the dialog.
+            if (qEnvironmentVariableIsSet("BITFM_SCREENSHOT_PREVIEW")) {
+                window.quickPreviewSelectedItem();
+                if (QWidget *dlg = window.findChild<QuickPreviewDialog*>()) target = dlg;
+            }
             // BITFM_SCREENSHOT_SIZE=WxH resizes the window first.
             const QList<QByteArray> wh = qgetenv("BITFM_SCREENSHOT_SIZE").split('x');
             if (wh.size() == 2) window.resize(wh[0].toInt(), wh[1].toInt());

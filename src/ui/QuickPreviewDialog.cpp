@@ -1,4 +1,6 @@
 #include "QuickPreviewDialog.h"
+#include <QScreen>
+#include <QShowEvent>
 #include <QPointer>
 #include <QTemporaryDir>
 #include "ThemeManager.h"
@@ -40,7 +42,7 @@ static QString highlightCodeSyntax(const QString &sourceCode) {
             line.replace(typeRegex, "<span style='color: #f9e2af;'>\\1</span>");
             line.replace(numberRegex, "<span style='color: #fab387;'>\\1</span>");
         }
-        result.append(QString("<span style='color: #585b70; margin-right: 12px;'>%1</span>%2\n")
+        result.append(QString("<span style='color: #585b70;'>%1</span>&nbsp;&nbsp;%2\n")
             .arg(lineNum, 4, 10, QChar(' '))
             .arg(line));
         lineNum++;
@@ -49,12 +51,43 @@ static QString highlightCodeSyntax(const QString &sourceCode) {
     return result;
 }
 
+static QPixmap drawPlayBadge(const QPixmap &src);
+
 QuickPreviewDialog::QuickPreviewDialog(QWidget *parent)
     : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint)
 {
     setAttribute(Qt::WA_TranslucentBackground);
-    resize(760, 560);
     setupUi();
+}
+
+// Most of the screen: a preview should read like the file, not a thumbnail of it.
+void QuickPreviewDialog::showEvent(QShowEvent *event) {
+    QDialog::showEvent(event);
+    if (QScreen *scr = screen()) {
+        const QRect avail = scr->availableGeometry();
+        resize(avail.width() * 0.8, avail.height() * 0.85);
+        move(avail.center() - rect().center());
+    }
+}
+
+// Keep the source and refit it to whatever size the preview label has now.
+void QuickPreviewDialog::setImage(const QPixmap &pix, bool playBadge) {
+    m_source = pix;
+    m_sourceBadge = playBadge;
+    fitImage();
+}
+
+void QuickPreviewDialog::fitImage() {
+    if (m_source.isNull()) return;
+    const QSize area = m_imagePreview->contentsRect().size() - QSize(12, 12);
+    QPixmap scaled = m_source.size().width() > area.width() || m_source.size().height() > area.height()
+        ? m_source.scaled(area, Qt::KeepAspectRatio, Qt::SmoothTransformation) : m_source;
+    m_imagePreview->setPixmap(m_sourceBadge ? drawPlayBadge(scaled) : scaled);
+}
+
+void QuickPreviewDialog::resizeEvent(QResizeEvent *event) {
+    QDialog::resizeEvent(event);
+    fitImage();
 }
 
 void QuickPreviewDialog::setupUi() {
@@ -256,7 +289,7 @@ void QuickPreviewDialog::updatePreview() {
     if (isVideo) {
         m_textPreview->hide();
         m_imagePreview->show();
-        m_imagePreview->setPixmap(QIcon::fromTheme("video-x-generic").pixmap(128, 128));
+        m_source = QPixmap(); m_imagePreview->setPixmap(QIcon::fromTheme("video-x-generic").pixmap(128, 128));
         m_infoLabel->setText(QString("Video File · Loading preview... · Size: %1").arg(FileItem::formatFileSize(info.size())));
 
         QString filePath = m_currentFilePath;
@@ -267,9 +300,9 @@ void QuickPreviewDialog::updatePreview() {
             QTemporaryDir tmpDir;
             QString tmpOut = tmpDir.filePath("frame.jpg");
             QProcess proc;
-            proc.start("ffmpegthumbnailer", { "-i", filePath, "-o", tmpOut, "-s", "720", "-q", "8" });
+            proc.start("ffmpegthumbnailer", { "-i", filePath, "-o", tmpOut, "-s", "1280", "-q", "8" });
             if (!proc.waitForFinished(3000) || !QFile::exists(tmpOut)) {
-                proc.start("ffmpeg", { "-ss", "00:00:01", "-i", filePath, "-vframes", "1", "-vf", "scale=720:-1", tmpOut, "-y" });
+                proc.start("ffmpeg", { "-ss", "00:00:01", "-i", filePath, "-vframes", "1", "-vf", "scale=1280:-1", tmpOut, "-y" });
                 proc.waitForFinished(3000);
             }
 
@@ -305,8 +338,7 @@ void QuickPreviewDialog::updatePreview() {
                     if (!self) return;
                 if (self->m_currentFilePath == filePath) {
                     if (!frame.isNull()) {
-                        QPixmap pix = QPixmap::fromImage(frame).scaled(700, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                        self->m_imagePreview->setPixmap(drawPlayBadge(pix));
+                        self->setImage(QPixmap::fromImage(frame), true);
                     }
                     self->m_infoLabel->setText(QString("Resolution: %1 × %2 px · Duration: %3 · Codec: %4 · Size: %5")
                         .arg(vidWidth > 0 ? QString::number(vidWidth) : "HD")
@@ -321,7 +353,7 @@ void QuickPreviewDialog::updatePreview() {
     } else if (isPdf) {
         m_textPreview->hide();
         m_imagePreview->show();
-        m_imagePreview->setPixmap(QIcon::fromTheme("application-pdf").pixmap(128, 128));
+        m_source = QPixmap(); m_imagePreview->setPixmap(QIcon::fromTheme("application-pdf").pixmap(128, 128));
         m_infoLabel->setText(QString("PDF Document · Loading page 1 preview... · Size: %1").arg(FileItem::formatFileSize(info.size())));
 
         QString filePath = m_currentFilePath;
@@ -341,8 +373,7 @@ void QuickPreviewDialog::updatePreview() {
                     QMetaObject::invokeMethod(self, [self, filePath, pdfImg, fileSize]() {
                     if (!self) return;
                         if (self->m_currentFilePath == filePath) {
-                            QPixmap pix = QPixmap::fromImage(pdfImg).scaled(700, 420, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                            self->m_imagePreview->setPixmap(pix);
+                            self->setImage(QPixmap::fromImage(pdfImg));
                             self->m_infoLabel->setText(QString("PDF Document · Page 1 Preview · Size: %1").arg(FileItem::formatFileSize(fileSize)));
                         }
                     });
@@ -354,7 +385,7 @@ void QuickPreviewDialog::updatePreview() {
     } else if (isAudio) {
         m_textPreview->hide();
         m_imagePreview->show();
-        m_imagePreview->setPixmap(QIcon::fromTheme("audio-x-generic").pixmap(128, 128));
+        m_source = QPixmap(); m_imagePreview->setPixmap(QIcon::fromTheme("audio-x-generic").pixmap(128, 128));
         m_infoLabel->setText(QString("Audio Track · %1 · Size: %2").arg(mimeName).arg(FileItem::formatFileSize(info.size())));
 
     } else if (isImage) {
@@ -364,14 +395,14 @@ void QuickPreviewDialog::updatePreview() {
         QImageReader reader(m_currentFilePath);
         reader.setAutoTransform(true);
         QSize originalSize = reader.size();
-        if (originalSize.isValid() && (originalSize.width() > 1400 || originalSize.height() > 800)) {
-            reader.setScaledSize(originalSize.scaled(1400, 800, Qt::KeepAspectRatio));
+        const QSize cap = screen() ? screen()->size() * 2 : QSize(3840, 2160);
+        if (originalSize.isValid() && (originalSize.width() > cap.width() || originalSize.height() > cap.height())) {
+            reader.setScaledSize(originalSize.scaled(cap, Qt::KeepAspectRatio));
         }
         QImage img = reader.read();
 
         if (!img.isNull()) {
-            QPixmap pix = QPixmap::fromImage(img).scaled(700, 400, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            m_imagePreview->setPixmap(pix);
+            setImage(QPixmap::fromImage(img));
             if (originalSize.isValid()) {
                 m_infoLabel->setText(QString("Dimensions: %1 × %2 px · Size: %3 · %4")
                     .arg(originalSize.width())
@@ -413,7 +444,7 @@ void QuickPreviewDialog::updatePreview() {
             }
         }
 
-        m_imagePreview->setPixmap(QIcon::fromTheme("folder").pixmap(96, 96));
+        m_source = QPixmap(); m_imagePreview->setPixmap(QIcon::fromTheme("folder").pixmap(96, 96));
         m_infoLabel->setText(QString("Folder contains %1 items (%2 folders, %3 files) · %4")
             .arg(entries.size())
             .arg(folderCount)
@@ -422,7 +453,7 @@ void QuickPreviewDialog::updatePreview() {
     } else {
         m_textPreview->hide();
         m_imagePreview->show();
-        m_imagePreview->setPixmap(QIcon::fromTheme(mime.iconName(), QIcon::fromTheme("application-octet-stream")).pixmap(96, 96));
+        m_source = QPixmap(); m_imagePreview->setPixmap(QIcon::fromTheme(mime.iconName(), QIcon::fromTheme("application-octet-stream")).pixmap(96, 96));
     }
 }
 

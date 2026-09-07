@@ -54,7 +54,7 @@ MainWindow::MainWindow(QWidget *parent)
     if (!m_inspector->isHidden()) {   // window not shown yet, so isVisible() would lie
         QList<int> sizes = m_mainSplitter->sizes();
         const int ii = m_mainSplitter->indexOf(m_inspector), ci = m_mainSplitter->indexOf(m_contentSplitter);
-        if (sizes[ii] < 200) { sizes[ci] -= 280 - sizes[ii]; sizes[ii] = 280; m_mainSplitter->setSizes(sizes); }
+        if (sizes[ii] < 200) { sizes[ci] -= 340 - sizes[ii]; sizes[ii] = 340; m_mainSplitter->setSizes(sizes); }
     }
     connect(&AppSettings::instance(), &AppSettings::layoutChanged, this, &MainWindow::applyLayoutSettings);
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, [this]() {
@@ -806,8 +806,8 @@ void MainWindow::toggleInspector() {
         int si = m_mainSplitter->indexOf(m_sidebar), ci = m_mainSplitter->indexOf(m_contentSplitter), ii = m_mainSplitter->indexOf(m_inspector);
         int sideW = m_sidebar->isVisible() ? qMax(sizes[si], 220) : 0;
         sizes[si] = sideW;
-        sizes[ii] = 280;
-        sizes[ci] = qMax(200, m_mainSplitter->width() - sideW - 280);
+        sizes[ii] = 340;
+        sizes[ci] = qMax(200, m_mainSplitter->width() - sideW - 340);
         m_mainSplitter->setSizes(sizes);
         statusBar()->showMessage(tr("Inspector panel shown (F4)"), 2000);
     } else {

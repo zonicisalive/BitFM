@@ -19,9 +19,15 @@ public:
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void setupUi();
+    void setImage(const QPixmap &pix, bool playBadge = false);
+    void fitImage();
+    QPixmap m_source;
+    bool m_sourceBadge = false;
 
     QString m_currentFilePath;
 
