@@ -345,6 +345,17 @@ void PaneWidget::closeCurrentTab() {
     if (idx != -1) onTabCloseRequested(idx);
 }
 
+bool PaneWidget::reopenClosedTab() {
+    while (!m_closedTabs.isEmpty()) {
+        const QString path = m_closedTabs.takeLast();
+        if (QDir(path).exists()) {           // skip folders that went away in the meantime
+            addNewTab(path);
+            return true;
+        }
+    }
+    return false;
+}
+
 void PaneWidget::navigateTo(const QString &path) {
     if (DirectoryViewTab *tab = currentTab()) tab->navigateTo(path);
 }
@@ -384,6 +395,10 @@ void PaneWidget::onTabCloseRequested(int index) {
         return;
     }
     QWidget *w = m_tabWidget->widget(index);
+    if (auto *tab = qobject_cast<DirectoryViewTab*>(w)) {   // remember it for Ctrl+Shift+T
+        m_closedTabs.append(tab->currentPath());
+        if (m_closedTabs.size() > 10) m_closedTabs.removeFirst();
+    }
     m_tabWidget->removeTab(index);
     if (w) w->deleteLater();
 

@@ -32,6 +32,7 @@ public:
 public slots:
     DirectoryViewTab* addNewTab(const QString &path = QString());
     void closeCurrentTab();
+    bool reopenClosedTab();          // brings back the most recently closed tab
     void nextTab();
     void previousTab();
     void navigateTo(const QString &path);
@@ -57,6 +58,8 @@ private slots:
     void onCurrentTabChanged(int index);
 
 private:
+    QStringList m_closedTabs;   // paths of tabs closed in this pane, newest last
+
     void setupUi();
     void updateTabButtons();
     void connectTabSignals(DirectoryViewTab *tab);

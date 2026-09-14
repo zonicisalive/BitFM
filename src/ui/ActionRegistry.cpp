@@ -17,6 +17,7 @@ static const ActionRegistry::Spec kSpecs[] = {
 
     { "tab.new",           QT_TR_NOOP("New Tab"),                  "tab-new",              "Ctrl+T",          QT_TR_NOOP("Tabs"), false },
     { "tab.close",         QT_TR_NOOP("Close Tab"),                "tab-close",            "Ctrl+W",          QT_TR_NOOP("Tabs"), false },
+    { "tab.reopen",        QT_TR_NOOP("Reopen Closed Tab"),        "tab-new",              "Ctrl+Shift+T",    QT_TR_NOOP("Tabs"), false },
     { "tab.next",          QT_TR_NOOP("Next Tab"),                 "",                     "Ctrl+Tab",        QT_TR_NOOP("Tabs"), false },
     { "tab.prev",          QT_TR_NOOP("Previous Tab"),             "",                     "Ctrl+Shift+Tab",  QT_TR_NOOP("Tabs"), false },
     { "app.new_window",    QT_TR_NOOP("New Window"),               "window-new",           "Ctrl+N",          QT_TR_NOOP("Tabs"), false },

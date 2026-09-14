@@ -403,6 +403,10 @@ void MainWindow::setupActions() {
     // Tabs / window
     connect(A("tab.new"),        &QAction::triggered, this, &MainWindow::addNewTab);
     connect(A("tab.close"),      &QAction::triggered, this, &MainWindow::closeCurrentTab);
+    connect(A("tab.reopen"),     &QAction::triggered, this, [this]() {
+        if (activePane() && !activePane()->reopenClosedTab())
+            statusBar()->showMessage(tr("No recently closed tab"), 3000);
+    });
     connect(A("tab.next"),       &QAction::triggered, this, [this]() { activePane()->nextTab(); });
     connect(A("tab.prev"),       &QAction::triggered, this, [this]() { activePane()->previousTab(); });
     connect(A("app.new_window"), &QAction::triggered, this, []() { QProcess::startDetached(QCoreApplication::applicationFilePath(), {}); });
@@ -522,6 +526,7 @@ void MainWindow::buildMenus() {
     fileMenu->addAction(A("file.terminal_here"));
     fileMenu->addAction(A("file.properties"));
     fileMenu->addSeparator();
+    fileMenu->addAction(A("tab.reopen"));
     fileMenu->addAction(A("tab.close"));
     fileMenu->addAction(A("app.quit"));
 
