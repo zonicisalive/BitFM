@@ -409,7 +409,11 @@ void MainWindow::setupActions() {
     });
     connect(A("tab.next"),       &QAction::triggered, this, [this]() { activePane()->nextTab(); });
     connect(A("tab.prev"),       &QAction::triggered, this, [this]() { activePane()->previousTab(); });
-    connect(A("app.new_window"), &QAction::triggered, this, []() { QProcess::startDetached(QCoreApplication::applicationFilePath(), {}); });
+    connect(A("app.new_window"), &QAction::triggered, this, [this]() {
+        QStringList args { "--new-window" };
+        if (activePane() && activePane()->currentTab()) args << activePane()->currentTab()->currentPath();
+        QProcess::startDetached(QCoreApplication::applicationFilePath(), args);
+    });
     connect(A("app.quit"),       &QAction::triggered, this, &MainWindow::close);
 
     // Files

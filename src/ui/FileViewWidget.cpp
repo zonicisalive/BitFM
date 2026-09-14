@@ -1,4 +1,5 @@
 #include "FileViewWidget.h"
+#include <QCoreApplication>
 #include <utility>
 #include "ThemeManager.h"
 #include "TagManager.h"
@@ -424,6 +425,11 @@ public:
 private:
     FileViewWidget *m_fileView = nullptr;
 };
+
+// A separate window, rather than a tab handed to the instance already running.
+static void openInNewWindow(const QString &path) {
+    QProcess::startDetached(QCoreApplication::applicationFilePath(), { "--new-window", path });
+}
 
 // Defined below; the context menu needs it before its definition.
 static QString askName(QWidget *parent, const QString &title, const QString &label, const QString &value, bool *ok);
@@ -1133,6 +1139,15 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
                 openAct->setFont(boldFont);
                 connect(openAct, &QAction::triggered, this, [this, path = selected.first()]() {
                     emit openPathRequested(path);
+                });
+
+                auto *newTabAct = menu.addAction(QIcon::fromTheme("tab-new"), tr("Open in New Tab"));
+                connect(newTabAct, &QAction::triggered, this, [this, path = selected.first()]() {
+                    emit openInNewTabRequested(path);
+                });
+                auto *newWinAct = menu.addAction(QIcon::fromTheme("window-new"), tr("Open in New Window"));
+                connect(newWinAct, &QAction::triggered, this, [path = selected.first()]() {
+                    openInNewWindow(path);
                 });
 
                 // "Open With..." Submenu for directory

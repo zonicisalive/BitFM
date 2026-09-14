@@ -52,6 +52,7 @@ int main(int argc, char *argv[]) {
     QCommandLineOption openOption({"o", "open-file"}, QObject::tr("Open in Open File dialog mode (optionally pass path)"));
     QCommandLineOption multipleOption({"m", "multiple"}, QObject::tr("Allow multiple files to be selected in open dialog"));
     QCommandLineOption folderOption({"d", "choose-folder", "select-folder"}, QObject::tr("Open in Choose Folder dialog mode (optionally pass path)"));
+    QCommandLineOption newWindowOption("new-window", QObject::tr("Always open a new window instead of reusing the running one"));
     QCommandLineOption filterOption({"f", "filter"}, QObject::tr("File type filter for dialog mode (e.g. *.png)"), QObject::tr("filter"));
     parser.addOption(portalOption);
     parser.addOption(gappOption);
@@ -60,6 +61,7 @@ int main(int argc, char *argv[]) {
     parser.addOption(openOption);
     parser.addOption(multipleOption);
     parser.addOption(folderOption);
+    parser.addOption(newWindowOption);
     parser.addOption(filterOption);
     parser.addPositionalArgument(QObject::tr("paths"), QObject::tr("Target paths or default filename"), QObject::tr("[paths...]"));
     parser.process(app);
@@ -85,7 +87,8 @@ int main(int argc, char *argv[]) {
 
     // Check if an existing BitFM FileManager1 instance is already running
     QDBusConnection session = QDBusConnection::sessionBus();
-    if (!parser.isSet(gappOption) && !parser.isSet(saveOption) && !parser.isSet(openOption) && !parser.isSet(folderOption)) {
+    if (!parser.isSet(gappOption) && !parser.isSet(saveOption) && !parser.isSet(openOption) && !parser.isSet(folderOption)
+        && !parser.isSet(newWindowOption)) {
         if (session.isConnected() && session.interface() && session.interface()->isServiceRegistered("io.bitfm.BitFM")) {
             QDBusInterface iface("io.bitfm.BitFM", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1", session); // our own name: FileManager1 may be owned by another file manager
             if (iface.isValid()) {
