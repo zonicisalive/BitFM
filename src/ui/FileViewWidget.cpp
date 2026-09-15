@@ -1226,8 +1226,10 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
             bool isCut = false;
             QStringList clipPaths = getClipboardPaths(&isCut);
             auto *pasteAct = menu.addAction(QIcon::fromTheme("edit-paste"),
-                isCut ? tr("Paste / Move (%1 items) (Ctrl+V)").arg(clipPaths.size())
-                      : tr("Paste (%1 items) (Ctrl+V)").arg(clipPaths.size()));
+                selected.size() == 1 && QFileInfo(selected.first()).isDir()
+                    ? tr("Paste %1 items into \"%2\" (Ctrl+V)").arg(clipPaths.size()).arg(QFileInfo(selected.first()).fileName())
+                    : (isCut ? tr("Paste / Move (%1 items) (Ctrl+V)").arg(clipPaths.size())
+                             : tr("Paste (%1 items) (Ctrl+V)").arg(clipPaths.size())));
             connect(pasteAct, &QAction::triggered, this, &FileViewWidget::onPasteAction);
         }
 
@@ -1724,6 +1726,15 @@ void FileViewWidget::onPasteAction() {
         destDir = UserEnvironment::realUserHome();
     }
 
+    // With a single folder selected, paste lands inside it, the way Dolphin does. The status
+    // message always names the destination, so it is never a silent surprise.
+    const QStringList selection = selectedPaths();
+    bool intoFolder = false;
+    if (selection.size() == 1 && QFileInfo(selection.first()).isDir() && !srcPaths.contains(selection.first())) {
+        destDir = selection.first();
+        intoFolder = true;
+    }
+
     QWidget *dlgParent = window() ? window() : this;
 
     if (isCut) {
@@ -1734,13 +1745,15 @@ void FileViewWidget::onPasteAction() {
             m_isCutOperation = false;
             updateViews();
             m_sourceModel->refresh();
-            emit statusMessageRequested(tr("Moved %1 item(s) to %2").arg(srcPaths.size()).arg(QFileInfo(destDir).fileName()));
+            emit statusMessageRequested(tr("Moved %1 item(s) into %2").arg(srcPaths.size()).arg(QFileInfo(destDir).fileName()));
         }
     } else {
         bool ok = m_fileOps.copyFiles(srcPaths, destDir, dlgParent);
         if (ok) {
             m_sourceModel->refresh();
-            emit statusMessageRequested(tr("Pasted %1 item(s)").arg(srcPaths.size()));
+            emit statusMessageRequested(intoFolder
+                ? tr("Pasted %1 item(s) into %2").arg(srcPaths.size()).arg(QFileInfo(destDir).fileName())
+                : tr("Pasted %1 item(s)").arg(srcPaths.size()));
         }
     }
 }
