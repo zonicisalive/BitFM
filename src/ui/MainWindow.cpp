@@ -445,6 +445,7 @@ void MainWindow::setupActions() {
             syncUndo();
         });
     }
+    connect(A("file.invert"),       &QAction::triggered, this, withView([](FileViewWidget *v) { v->invertSelection(); }));
     connect(A("file.duplicate"),    &QAction::triggered, this, withView([](FileViewWidget *v) { v->onDuplicateAction(); }));
     connect(A("file.rename"),       &QAction::triggered, this, withView([](FileViewWidget *v) { v->onRenameAction(); }));
     connect(A("file.batch_rename"), &QAction::triggered, this, withView([](FileViewWidget *v) { v->onBatchRenameAction(); }));
@@ -538,6 +539,7 @@ void MainWindow::buildMenus() {
     for (const char *id : { "file.cut", "file.copy", "file.paste" }) editMenu->addAction(A(id));
     editMenu->addSeparator();
     editMenu->addAction(A("file.select_all"));
+    editMenu->addAction(A("file.invert"));
     editMenu->addSeparator();
     editMenu->addAction(A("file.undo"));
     editMenu->addSeparator();

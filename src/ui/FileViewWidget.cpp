@@ -1004,6 +1004,18 @@ void FileViewWidget::selectFile(const QString &filePath) {
     selectFiles(QStringList{ filePath });
 }
 
+void FileViewWidget::invertSelection() {
+    QAbstractItemView *v = currentActiveView();
+    if (!v || !v->selectionModel() || !m_proxyModel) return;
+    const int lastCol = (m_viewMode == ViewMode::DetailedList) ? m_proxyModel->columnCount() - 1 : 0;
+    QItemSelection inverted;
+    for (int row = 0, rows = m_proxyModel->rowCount(); row < rows; ++row) {
+        const QModelIndex idx = m_proxyModel->index(row, 0);
+        if (!v->selectionModel()->isSelected(idx)) inverted.select(idx, m_proxyModel->index(row, lastCol));
+    }
+    v->selectionModel()->select(inverted, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+}
+
 void FileViewWidget::selectAfterLoad(const QStringList &paths) {
     m_selectAfterLoad = paths;
     m_selectArmed.setRemainingTime(1500);

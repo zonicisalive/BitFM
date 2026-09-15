@@ -35,6 +35,7 @@ public:
 
     QStringList selectedPaths() const;
     void selectAll();
+    void invertSelection();
     void selectAfterLoad(const QStringList &paths);   // apply once the model has reloaded
     void setSpringTarget(const QString &folder);      // folder hovered mid-drag, empty to cancel
     void selectFile(const QString &filePath);
