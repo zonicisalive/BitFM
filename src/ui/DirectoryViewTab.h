@@ -60,6 +60,7 @@ signals:
     void quickPreviewRequested();
     void searchOpenRequested();
     void searchMatchCount(int matching, int total);
+    void openInNewTabRequested(const QString &path);
 
 private slots:
     void onDirectoryLoaded(const QString &path, int itemCount);
@@ -86,4 +87,5 @@ private:
     bool m_lastSearchRegex = false;
     bool m_searchActive = false;
     QStringList m_pendingSelectPaths;
+    QHash<QString, QString> m_lastSelected;   // directory -> child last selected there
 };

@@ -61,6 +61,7 @@ void DirectoryViewTab::setupUi() {
     layout->addWidget(m_fileView, 1);
 
     // Connections
+    connect(m_fileView, &FileViewWidget::openInNewTabRequested, this, &DirectoryViewTab::openInNewTabRequested);
     connect(m_fileView, &FileViewWidget::openPathRequested, this, [this](const QString &path) {
         if (FileOperations::isTrashPath(m_currentPath)) {
             auto res = QMessageBox::question(this, tr("Restore Item"),
@@ -150,6 +151,23 @@ bool DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
 
     if (m_searchActive) {
         closeSearch();
+    }
+
+    // Remember where the cursor was, so coming back here later lands on the same item.
+    if (!m_currentPath.isEmpty() && m_currentPath != clean && m_fileView) {
+        const QStringList sel = m_fileView->selectedPaths();
+        if (!sel.isEmpty()) {
+            if (m_lastSelected.size() > 500) m_lastSelected.clear();   // ponytail: plain cap, an LRU buys nothing here
+            m_lastSelected.insert(m_currentPath, sel.first());
+        }
+    }
+    // Going up selects the folder we came out of, however the move was triggered.
+    if (m_currentPath.startsWith('/') && clean.startsWith('/') && QFileInfo(m_currentPath).absolutePath() == clean)
+        m_lastSelected.insert(clean, m_currentPath);
+
+    if (m_pendingSelectPaths.isEmpty()) {
+        const QString remembered = m_lastSelected.value(clean);
+        if (!remembered.isEmpty()) m_pendingSelectPaths = { remembered };   // armed before the load, which may finish inside setDirectory()
     }
 
     // Only touch history/state once the model accepted the directory (missing or unreadable dirs emit directoryLoadError).

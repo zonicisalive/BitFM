@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QDeadlineTimer>
 #include <QTableView>
 #include <QListView>
 #include <QStackedWidget>
@@ -33,6 +34,7 @@ public:
 
     QStringList selectedPaths() const;
     void selectAll();
+    void selectAfterLoad(const QStringList &paths);   // apply once the model has reloaded
     void selectFile(const QString &filePath);
     void selectFiles(const QStringList &filePaths);
 
@@ -46,6 +48,7 @@ public:
 
 signals:
     void openPathRequested(const QString &path);
+    void openInNewTabRequested(const QString &path);
     void statusMessageRequested(const QString &message);
     void fileSelectionChanged(const QStringList &selectedPaths);
     void zoomChanged(int newSize);
@@ -92,6 +95,9 @@ private slots:
     void onGitLogAction();
 
 private:
+    QStringList m_selectAfterLoad;
+    QDeadlineTimer m_selectArmed;
+
     void setupTableView();
     void setupListView();
     void setupCompactView();

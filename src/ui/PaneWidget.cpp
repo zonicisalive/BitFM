@@ -309,6 +309,7 @@ void PaneWidget::connectTabSignals(DirectoryViewTab *tab) {
     connect(tab, &DirectoryViewTab::navStateChanged, this, [this, tab](bool b, bool f, bool u) {
         if (tab == currentTab()) m_header->setNavState(b, f, u);
     });
+    connect(tab, &DirectoryViewTab::openInNewTabRequested, this, [this](const QString &p) { addNewTab(p); });
     connect(tab, &DirectoryViewTab::searchOpenRequested, this, [this, tab]() {
         if (tab == currentTab()) setSearchVisible(true);
     });

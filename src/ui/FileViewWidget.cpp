@@ -1,4 +1,5 @@
 #include "FileViewWidget.h"
+#include <utility>
 #include "ThemeManager.h"
 #include "TagManager.h"
 #include "GitStatusProvider.h"
@@ -424,6 +425,9 @@ private:
     FileViewWidget *m_fileView = nullptr;
 };
 
+// Defined below; the context menu needs it before its definition.
+static QString askName(QWidget *parent, const QString &title, const QString &label, const QString &value, bool *ok);
+
 FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *proxyModel, QWidget *parent)
     : QWidget(parent), m_sourceModel(model), m_proxyModel(proxyModel)
 {
@@ -524,6 +528,17 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
     connect(m_proxyModel, &QAbstractItemModel::modelReset, this, &FileViewWidget::updateEmptyState);
     connect(m_proxyModel, &QAbstractItemModel::layoutChanged, this, &FileViewWidget::updateEmptyState);
     connect(m_sourceModel, &FileSystemModel::directoryLoaded, this, &FileViewWidget::updateEmptyState);
+    connect(m_sourceModel, &FileSystemModel::directoryLoaded, this, [this](const QString &path) {
+        if (m_selectAfterLoad.isEmpty()) return;
+        // The watcher usually reloads once more right after a create or rename, which would wipe the
+        // fresh selection, so stay armed for a moment and re-apply on every reload of that folder.
+        if (m_selectArmed.hasExpired() || QFileInfo(m_selectAfterLoad.first()).absolutePath() != path) {
+            m_selectAfterLoad.clear();
+            return;
+        }
+        const QStringList paths = m_selectAfterLoad;
+        QTimer::singleShot(0, this, [this, paths]() { selectFiles(paths); });   // after the reset unwinds
+    });
     connect(m_sourceModel, &FileSystemModel::filesDropped, this, &FileViewWidget::handleDroppedFiles);
 
     connect(&TagManager::instance(), &TagManager::tagsChanged, this, [this]() {
@@ -976,6 +991,11 @@ void FileViewWidget::selectFile(const QString &filePath) {
     selectFiles(QStringList{ filePath });
 }
 
+void FileViewWidget::selectAfterLoad(const QStringList &paths) {
+    m_selectAfterLoad = paths;
+    m_selectArmed.setRemainingTime(1500);
+}
+
 void FileViewWidget::selectFiles(const QStringList &filePaths) {
     if (filePaths.isEmpty()) return;
 
@@ -1287,14 +1307,15 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
 
         auto createDoc = [this](const QString &defaultName) {
             bool ok;
-            QString name = QInputDialog::getText(this, tr("New Document"), tr("File Name:"),
-                QLineEdit::Normal, defaultName, &ok);
+            QString name = askName(this, tr("New Document"), tr("File Name:"), defaultName, &ok);
             if (ok && !name.trimmed().isEmpty()) {
                 QString err;
                 if (!m_fileOps.createNewFile(m_sourceModel->currentDirectory(), name.trimmed(), &err))
                     QMessageBox::warning(this, tr("Error"), err.isEmpty() ? tr("Failed to create file.") : err);
-                else
+                else {
+                    selectAfterLoad({ QDir(m_sourceModel->currentDirectory()).filePath(name.trimmed()) });
                     m_sourceModel->refresh();
+                }
             }
         };
 
@@ -1385,29 +1406,47 @@ void FileViewWidget::contextMenuEvent(QContextMenuEvent *event) {
     onCustomContextMenuRequested(view ? view->viewport()->mapFrom(this, event->pos()) : event->pos());
 }
 
+// Name prompt that preselects the base name, so typing replaces it and keeps the extension.
+static QString askName(QWidget *parent, const QString &title, const QString &label, const QString &value, bool *ok) {
+    QInputDialog dlg(parent);
+    dlg.setWindowTitle(title);
+    dlg.setInputMode(QInputDialog::TextInput);
+    dlg.setLabelText(label);
+    dlg.setTextValue(value);
+    if (auto *edit = dlg.findChild<QLineEdit*>()) {
+        const int dot = value.lastIndexOf('.');
+        const int end = dot > 0 ? dot : value.size();
+        QTimer::singleShot(0, edit, [edit, end]() { edit->setSelection(0, end); });   // after the dialog's own selectAll()
+    }
+    *ok = dlg.exec() == QDialog::Accepted;
+    return dlg.textValue();
+}
+
 void FileViewWidget::onNewFolderAction() {
     bool ok;
-    QString name = QInputDialog::getText(this, tr("New Folder"), tr("Folder Name:"),
-        QLineEdit::Normal, tr("New Folder"), &ok);
+    QString name = askName(this, tr("New Folder"), tr("Folder Name:"), tr("New Folder"), &ok);
     if (ok && !name.trimmed().isEmpty()) {
         QString err;
         if (!m_fileOps.createNewFolder(m_sourceModel->currentDirectory(), name.trimmed(), &err))
             QMessageBox::warning(this, tr("Error"), err.isEmpty() ? tr("Failed to create folder.") : err);
-        else
+        else {
+            selectAfterLoad({ QDir(m_sourceModel->currentDirectory()).filePath(name.trimmed()) });
             m_sourceModel->refresh();
+        }
     }
 }
 
 void FileViewWidget::onNewFileAction() {
     bool ok;
-    QString name = QInputDialog::getText(this, tr("New File"), tr("File Name:"),
-        QLineEdit::Normal, "new_document.txt", &ok);
+    QString name = askName(this, tr("New File"), tr("File Name:"), "new_document.txt", &ok);
     if (ok && !name.trimmed().isEmpty()) {
         QString err;
         if (!m_fileOps.createNewFile(m_sourceModel->currentDirectory(), name.trimmed(), &err))
             QMessageBox::warning(this, tr("Error"), err.isEmpty() ? tr("Failed to create file.") : err);
-        else
+        else {
+            selectAfterLoad({ QDir(m_sourceModel->currentDirectory()).filePath(name.trimmed()) });
             m_sourceModel->refresh();
+        }
     }
 }
 
@@ -1420,14 +1459,15 @@ void FileViewWidget::onRenameAction() {
     }
     QFileInfo info(selected.first());
     bool ok;
-    QString newName = QInputDialog::getText(this, tr("Rename"), tr("New Name:"),
-        QLineEdit::Normal, info.fileName(), &ok);
+    QString newName = askName(this, tr("Rename"), tr("New Name:"), info.fileName(), &ok);
     if (ok && !newName.trimmed().isEmpty() && newName != info.fileName()) {
         QString err;
         if (!m_fileOps.renameFile(selected.first(), newName.trimmed(), &err))
             QMessageBox::warning(this, tr("Error"), err.isEmpty() ? tr("Failed to rename.") : err);
-        else
+        else {
+            selectAfterLoad({ info.dir().filePath(newName.trimmed()) });
             m_sourceModel->refresh();
+        }
     }
 }
 
@@ -1729,6 +1769,16 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
         watched == m_compactView || (m_compactView && watched == m_compactView->viewport()) ||
         watched == this || watched == m_stackedWidget)
     {
+        // Middle-click a folder opens it in a new tab, as in every tabbed file manager.
+        if (event->type() == QEvent::MouseButtonRelease && static_cast<QMouseEvent*>(event)->button() == Qt::MiddleButton) {
+            QAbstractItemView *v = currentActiveView();
+            if (v && watched == v->viewport()) {
+                const QModelIndex idx = v->indexAt(static_cast<QMouseEvent*>(event)->pos());
+                if (const FileItem *item = idx.isValid() ? m_sourceModel->itemForIndex(m_proxyModel->mapToSource(idx)) : nullptr) {
+                    if (item->isDirectory) { emit openInNewTabRequested(item->absolutePath); return true; }
+                }
+            }
+        }
         if (event->type() == QEvent::Wheel) {
             QWheelEvent *we = static_cast<QWheelEvent*>(event);
             if (we->modifiers() & Qt::ControlModifier) {
@@ -1772,6 +1822,10 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                 return true;
             } else if (ke->key() == Qt::Key_Space) {
                 emit previewRequested();
+                return true;
+            } else if (ke->key() == Qt::Key_Backspace) {
+                QDir dir(m_sourceModel->currentDirectory());
+                if (dir.path().startsWith('/') && dir.cdUp()) emit openPathRequested(dir.absolutePath());
                 return true;
             } else if (!isCtrl && !(ke->modifiers() & Qt::AltModifier)) {
                 if (ke->key() == Qt::Key_J) {
@@ -1883,6 +1937,11 @@ void FileViewWidget::keyPressEvent(QKeyEvent *event) {
         if (!selected.isEmpty()) {
             emit openPathRequested(selected.first());
         }
+        event->accept();
+        return;
+    } else if (event->key() == Qt::Key_Backspace) {
+        QDir dir(m_sourceModel->currentDirectory());
+        if (dir.path().startsWith('/') && dir.cdUp()) emit openPathRequested(dir.absolutePath());
         event->accept();
         return;
     } else if (event->key() == Qt::Key_Space) {
