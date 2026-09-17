@@ -1769,6 +1769,12 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
         watched == m_compactView || (m_compactView && watched == m_compactView->viewport()) ||
         watched == this || watched == m_stackedWidget)
     {
+        // The mouse's side buttons walk the history, like a browser.
+        if (event->type() == QEvent::MouseButtonPress) {
+            const Qt::MouseButton b = static_cast<QMouseEvent*>(event)->button();
+            if (b == Qt::BackButton)    { emit backRequested();    return true; }
+            if (b == Qt::ForwardButton) { emit forwardRequested(); return true; }
+        }
         // Middle-click a folder opens it in a new tab, as in every tabbed file manager.
         if (event->type() == QEvent::MouseButtonRelease && static_cast<QMouseEvent*>(event)->button() == Qt::MiddleButton) {
             QAbstractItemView *v = currentActiveView();
@@ -1822,6 +1828,9 @@ bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
                 return true;
             } else if (ke->key() == Qt::Key_Space) {
                 emit previewRequested();
+                return true;
+            } else if (ke->key() == Qt::Key_Escape) {
+                if (QAbstractItemView *v = currentActiveView()) v->clearSelection();
                 return true;
             } else if (ke->key() == Qt::Key_Backspace) {
                 QDir dir(m_sourceModel->currentDirectory());
@@ -1937,6 +1946,10 @@ void FileViewWidget::keyPressEvent(QKeyEvent *event) {
         if (!selected.isEmpty()) {
             emit openPathRequested(selected.first());
         }
+        event->accept();
+        return;
+    } else if (event->key() == Qt::Key_Escape) {
+        if (QAbstractItemView *v = currentActiveView()) v->clearSelection();
         event->accept();
         return;
     } else if (event->key() == Qt::Key_Backspace) {

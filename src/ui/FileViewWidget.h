@@ -49,6 +49,8 @@ public:
 signals:
     void openPathRequested(const QString &path);
     void openInNewTabRequested(const QString &path);
+    void backRequested();
+    void forwardRequested();
     void statusMessageRequested(const QString &message);
     void fileSelectionChanged(const QStringList &selectedPaths);
     void zoomChanged(int newSize);

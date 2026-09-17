@@ -62,6 +62,8 @@ void DirectoryViewTab::setupUi() {
 
     // Connections
     connect(m_fileView, &FileViewWidget::openInNewTabRequested, this, &DirectoryViewTab::openInNewTabRequested);
+    connect(m_fileView, &FileViewWidget::backRequested, this, &DirectoryViewTab::navigateBack);
+    connect(m_fileView, &FileViewWidget::forwardRequested, this, &DirectoryViewTab::navigateForward);
     connect(m_fileView, &FileViewWidget::openPathRequested, this, [this](const QString &path) {
         if (FileOperations::isTrashPath(m_currentPath)) {
             auto res = QMessageBox::question(this, tr("Restore Item"),
