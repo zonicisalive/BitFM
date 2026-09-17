@@ -216,6 +216,12 @@ void PaneWidget::setupUi() {
 
     layout->addWidget(m_tabWidget);
     m_tabWidget->installEventFilter(this);
+    m_tabWidget->tabBar()->installEventFilter(this);   // middle-click closes a tab
+
+    // Double-clicking the empty part of the tab bar opens a tab, as browsers do.
+    connect(m_tabWidget, &QTabWidget::tabBarDoubleClicked, this, [this](int index) {
+        if (index < 0) addNewTab();
+    });
 }
 
 void PaneWidget::updateTabButtons() {
@@ -402,5 +408,12 @@ void PaneWidget::mousePressEvent(QMouseEvent *event) {
 bool PaneWidget::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress)
         emit paneActivated(this);
+    if (watched == m_tabWidget->tabBar() && event->type() == QEvent::MouseButtonRelease) {
+        auto *me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::MiddleButton) {
+            const int index = m_tabWidget->tabBar()->tabAt(me->pos());
+            if (index >= 0) { onTabCloseRequested(index); return true; }
+        }
+    }
     return QWidget::eventFilter(watched, event);
 }
