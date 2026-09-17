@@ -71,6 +71,7 @@ protected:
     void applyZoom();
 
 public slots:
+    void onDuplicateAction();
     void onRenameAction();
     void onBatchRenameAction();
     void onTrashAction();

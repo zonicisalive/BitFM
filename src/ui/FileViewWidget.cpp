@@ -1212,6 +1212,8 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         if (selected.size() == 1) {
             auto *renameAct = menu.addAction(QIcon::fromTheme("edit-rename"), tr("Rename… (F2)"));
             connect(renameAct, &QAction::triggered, this, &FileViewWidget::onRenameAction);
+            auto *dupAct = menu.addAction(QIcon::fromTheme("edit-copy"), tr("Duplicate (Ctrl+Shift+D)"));
+            connect(dupAct, &QAction::triggered, this, &FileViewWidget::onDuplicateAction);
         } else {
             auto *batchRenameAct = menu.addAction(QIcon::fromTheme("edit-rename"), tr("Batch Rename (%1 items)… (F2)").arg(selected.size()));
             connect(batchRenameAct, &QAction::triggered, this, &FileViewWidget::onBatchRenameAction);
@@ -1447,6 +1449,19 @@ void FileViewWidget::onNewFileAction() {
             selectAfterLoad({ QDir(m_sourceModel->currentDirectory()).filePath(name.trimmed()) });
             m_sourceModel->refresh();
         }
+    }
+}
+
+// Copying into the same folder already yields "name (copy).ext", so duplication is just that.
+void FileViewWidget::onDuplicateAction() {
+    const QStringList selected = selectedPaths();
+    if (selected.isEmpty()) return;
+    const QString dir = m_sourceModel->currentDirectory();
+    if (!dir.startsWith('/')) return;   // virtual locations hold no real files
+    QWidget *dlgParent = window() ? window() : this;
+    if (m_fileOps.copyFiles(selected, dir, dlgParent)) {
+        m_sourceModel->refresh();
+        emit statusMessageRequested(tr("Duplicated %n item(s)", "", selected.size()));
     }
 }
 

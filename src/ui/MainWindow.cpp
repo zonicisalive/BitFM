@@ -414,6 +414,7 @@ void MainWindow::setupActions() {
     connect(A("file.copy"),         &QAction::triggered, this, withView([](FileViewWidget *v) { v->onCopyAction(); }));
     connect(A("file.paste"),        &QAction::triggered, this, withView([](FileViewWidget *v) { v->onPasteAction(); }));
     connect(A("file.select_all"),   &QAction::triggered, this, withView([](FileViewWidget *v) { v->selectAll(); }));
+    connect(A("file.duplicate"),    &QAction::triggered, this, withView([](FileViewWidget *v) { v->onDuplicateAction(); }));
     connect(A("file.rename"),       &QAction::triggered, this, withView([](FileViewWidget *v) { v->onRenameAction(); }));
     connect(A("file.batch_rename"), &QAction::triggered, this, withView([](FileViewWidget *v) { v->onBatchRenameAction(); }));
     connect(A("file.trash"),        &QAction::triggered, this, withView([](FileViewWidget *v) { v->onTrashAction(); }));
@@ -506,7 +507,7 @@ void MainWindow::buildMenus() {
     editMenu->addSeparator();
     editMenu->addAction(A("file.select_all"));
     editMenu->addSeparator();
-    for (const char *id : { "file.rename", "file.batch_rename", "file.trash", "file.delete" }) editMenu->addAction(A(id));
+    for (const char *id : { "file.duplicate", "file.rename", "file.batch_rename", "file.trash", "file.delete" }) editMenu->addAction(A(id));
     editMenu->addSeparator();
     editMenu->addAction(A("app.preferences"));
 
