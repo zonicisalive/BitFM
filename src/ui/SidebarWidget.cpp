@@ -1,4 +1,9 @@
 #include "SidebarWidget.h"
+#include <QUrl>
+#include <QMimeData>
+#include <QDropEvent>
+#include <QDragMoveEvent>
+#include <QMouseEvent>
 #include "FileOperations.h"
 #include "ThemeManager.h"
 #include "TagManager.h"
@@ -130,6 +135,10 @@ void SidebarWidget::setupUi() {
     m_treeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     m_treeWidget->setFrameShape(QFrame::NoFrame);
     m_treeWidget->setFocusPolicy(Qt::NoFocus);
+    // Middle-click opens a place in a new tab; dropping folders here bookmarks them.
+    m_treeWidget->setDragDropMode(QAbstractItemView::NoDragDrop);
+    m_treeWidget->viewport()->setAcceptDrops(true);
+    m_treeWidget->viewport()->installEventFilter(this);
 
     auto updateStyles = [header, appName, this]() {
         update();
@@ -367,6 +376,18 @@ void SidebarWidget::addTagItem(QTreeWidgetItem *parent, const QString &tagName, 
     item->setToolTip(0, tr("Files tagged with %1").arg(displayName));
 }
 
+int SidebarWidget::bookmarkFolders(const QList<QUrl> &urls) {
+    int added = 0;
+    for (const QUrl &u : urls) {
+        const QString p = u.toLocalFile();
+        if (!p.isEmpty() && QFileInfo(p).isDir() && !m_savedBookmarks.contains(QDir::cleanPath(p))) {
+            addBookmark(p);
+            ++added;
+        }
+    }
+    return added;
+}
+
 void SidebarWidget::addBookmark(const QString &path, const QString &) {
     QString clean = QDir::cleanPath(path);
     if (!m_savedBookmarks.contains(clean) && QDir(clean).exists()) {
@@ -374,6 +395,39 @@ void SidebarWidget::addBookmark(const QString &path, const QString &) {
         saveBookmarksToSettings();
         QTimer::singleShot(0, this, &SidebarWidget::populateAll);
     }
+}
+
+// Middle-click a place to open it in a new tab, and drop folders on the sidebar to bookmark them.
+bool SidebarWidget::eventFilter(QObject *watched, QEvent *event) {
+    if (watched != m_treeWidget->viewport()) return QWidget::eventFilter(watched, event);
+
+    switch (event->type()) {
+    case QEvent::MouseButtonRelease: {
+        auto *me = static_cast<QMouseEvent*>(event);
+        if (me->button() != Qt::MiddleButton) break;
+        QTreeWidgetItem *item = m_treeWidget->itemAt(me->pos());
+        const QString path = item ? item->data(0, Qt::UserRole).toString() : QString();
+        if (path.startsWith('/') || path.startsWith("recent:") || path.startsWith("tag")) {
+            emit locationInNewTabRequested(path);
+            return true;
+        }
+        break;
+    }
+    case QEvent::DragEnter:
+    case QEvent::DragMove: {
+        auto *de = static_cast<QDragMoveEvent*>(event);
+        if (de->mimeData()->hasUrls()) { de->acceptProposedAction(); return true; }
+        break;
+    }
+    case QEvent::Drop: {
+        auto *de = static_cast<QDropEvent*>(event);
+        if (!de->mimeData()->hasUrls()) break;
+        if (bookmarkFolders(de->mimeData()->urls())) de->acceptProposedAction();
+        return true;
+    }
+    default: break;
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void SidebarWidget::openConnectServerDialog() {

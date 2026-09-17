@@ -4,6 +4,7 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QStringList>
+#include <QUrl>
 
 class SidebarWidget : public QWidget {
     Q_OBJECT
@@ -13,15 +14,18 @@ public:
 
     void highlightPath(const QString &path);
     void addBookmark(const QString &path, const QString &customTitle = QString());
+    int bookmarkFolders(const QList<QUrl> &urls);   // returns how many were added
 
 public slots:
     void openConnectServerDialog();
 
 signals:
     void locationSelected(const QString &path);
+    void locationInNewTabRequested(const QString &path);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);

@@ -303,6 +303,9 @@ void MainWindow::setupUi() {
     connect(m_sidebar, &SidebarWidget::locationSelected, this, [this](const QString &path) {
         navigateActivePane(path);
     });
+    connect(m_sidebar, &SidebarWidget::locationInNewTabRequested, this, [this](const QString &path) {
+        if (activePane()) activePane()->addNewTab(path);
+    });
 
     connect(m_primaryPane, &PaneWidget::paneActivated, this, &MainWindow::onPaneActivated);
     connect(m_secondaryPane, &PaneWidget::paneActivated, this, &MainWindow::onPaneActivated);
