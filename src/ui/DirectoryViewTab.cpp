@@ -155,6 +155,12 @@ bool DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
         closeSearch();
     }
 
+    // Remember how this folder was being viewed, so it looks the same next time.
+    if (!m_currentPath.isEmpty() && m_currentPath != clean) {
+        AppSettings &st = AppSettings::instance();
+        st.rememberFolderView(m_currentPath, { st.viewMode(), st.sortColumn(), st.sortOrder() });
+    }
+
     // Remember where the cursor was, so coming back here later lands on the same item.
     if (!m_currentPath.isEmpty() && m_currentPath != clean && m_fileView) {
         const QStringList sel = m_fileView->selectedPaths();
@@ -184,6 +190,13 @@ bool DirectoryViewTab::navigateTo(const QString &path, bool recordHistory) {
     }
 
     m_currentPath = clean;
+    // Restore the folder's own view mode and sort, if it has one.
+    if (const AppSettings::FolderView v = AppSettings::instance().folderView(clean); v.isValid()) {
+        AppSettings &st = AppSettings::instance();
+        st.setViewMode(v.mode);
+        st.setSortColumn(v.sortColumn);
+        st.setSortOrder(v.sortOrder);
+    }
     updateNavigationButtons();
     updateTrashBar();
     emit pathChanged(m_currentPath);

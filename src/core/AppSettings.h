@@ -27,6 +27,12 @@ public:
     void setZoomLevel(int level);
 
     // Sorting state
+    // Per-folder view memory: mode + sort as the user left that folder.
+    struct FolderView { int mode = -1; int sortColumn = 0; Qt::SortOrder sortOrder = Qt::AscendingOrder;
+                        bool isValid() const { return mode >= 0; } };
+    FolderView folderView(const QString &path) const;
+    void rememberFolderView(const QString &path, const FolderView &view);
+
     int sortColumn() const;
     void setSortColumn(int col);
 
@@ -118,6 +124,8 @@ private:
     int m_viewMode = 0;
     bool m_showHidden = false;
     int m_zoomLevel = 56;
+    mutable QVariantMap m_folderViews;   // path -> "mode,col,order"
+    mutable bool m_folderViewsLoaded = false;
     int m_sortColumn = 0;
     Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
     QString m_lastDir;

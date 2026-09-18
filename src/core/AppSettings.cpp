@@ -56,6 +56,27 @@ void AppSettings::setZoomLevel(int level) {
     }
 }
 
+// Folders are keyed by path inside one settings value, so no key escaping is needed.
+AppSettings::FolderView AppSettings::folderView(const QString &path) const {
+    if (!m_folderViewsLoaded) {
+        m_folderViews = QSettings().value("view/folders").toMap();
+        m_folderViewsLoaded = true;
+    }
+    const QStringList parts = m_folderViews.value(path).toString().split(',');
+    if (parts.size() != 3) return {};
+    return { parts[0].toInt(), parts[1].toInt(), static_cast<Qt::SortOrder>(parts[2].toInt()) };
+}
+
+void AppSettings::rememberFolderView(const QString &path, const FolderView &view) {
+    if (path.isEmpty() || !path.startsWith('/') || !view.isValid()) return;
+    folderView(path);   // makes sure the map is loaded before it is written to
+    const QString packed = QString("%1,%2,%3").arg(view.mode).arg(view.sortColumn).arg(static_cast<int>(view.sortOrder));
+    if (m_folderViews.value(path).toString() == packed) return;
+    if (m_folderViews.size() > 400) m_folderViews.clear();   // ponytail: plain cap, an LRU buys nothing here
+    m_folderViews.insert(path, packed);
+    QSettings().setValue("view/folders", m_folderViews);
+}
+
 int AppSettings::sortColumn() const {
     return m_sortColumn;
 }
