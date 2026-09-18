@@ -2,6 +2,7 @@
 
 #include <QWidget>
 #include <QDeadlineTimer>
+#include <QTimer>
 #include <QTableView>
 #include <QListView>
 #include <QStackedWidget>
@@ -35,6 +36,7 @@ public:
     QStringList selectedPaths() const;
     void selectAll();
     void selectAfterLoad(const QStringList &paths);   // apply once the model has reloaded
+    void setSpringTarget(const QString &folder);      // folder hovered mid-drag, empty to cancel
     void selectFile(const QString &filePath);
     void selectFiles(const QStringList &filePaths);
 
@@ -99,6 +101,9 @@ private slots:
 
 private:
     QStringList m_selectAfterLoad;
+    QTimer m_springTimer;                 // spring-loaded folders: hover while dragging to enter
+    QString m_springPath;
+    QString folderAtViewportPos(QObject *viewport, const QPoint &pos) const;
     QDeadlineTimer m_selectArmed;
 
     void setupTableView();

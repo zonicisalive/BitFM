@@ -541,6 +541,13 @@ FileViewWidget::FileViewWidget(FileSystemModel *model, FileFilterProxyModel *pro
     });
     connect(m_sourceModel, &FileSystemModel::filesDropped, this, &FileViewWidget::handleDroppedFiles);
 
+    // Spring-loaded folders: resting on a folder mid-drag opens it, as in Finder and Nautilus.
+    m_springTimer.setSingleShot(true);
+    m_springTimer.setInterval(900);
+    connect(&m_springTimer, &QTimer::timeout, this, [this]() {
+        if (!m_springPath.isEmpty()) emit openPathRequested(m_springPath);
+    });
+
     connect(&TagManager::instance(), &TagManager::tagsChanged, this, [this]() {
         m_tableView->viewport()->update();
         m_listView->viewport()->update();
@@ -1778,12 +1785,41 @@ void FileViewWidget::handleDroppedFiles(const QStringList &sourcePaths, const QS
     });
 }
 
+// The folder under a viewport position, or empty when that is not a folder row.
+// Restarts the dwell timer when the hovered folder changes; an empty folder cancels it.
+void FileViewWidget::setSpringTarget(const QString &folder) {
+    if (folder == m_springPath) return;
+    m_springPath = folder;
+    if (folder.isEmpty()) m_springTimer.stop();
+    else m_springTimer.start();
+}
+
+QString FileViewWidget::folderAtViewportPos(QObject *viewport, const QPoint &pos) const {
+    QAbstractItemView *v = currentActiveView();
+    if (!v || viewport != v->viewport()) return {};
+    const QModelIndex idx = v->indexAt(pos);
+    if (!idx.isValid()) return {};
+    const FileItem *item = m_sourceModel->itemForIndex(m_proxyModel->mapToSource(idx));
+    return (item && item->isDirectory) ? item->absolutePath : QString();
+}
+
 bool FileViewWidget::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_tableView || watched == m_tableView->viewport() ||
         watched == m_listView || watched == m_listView->viewport() ||
         watched == m_compactView || (m_compactView && watched == m_compactView->viewport()) ||
         watched == this || watched == m_stackedWidget)
     {
+        switch (event->type()) {
+        case QEvent::DragMove:
+            setSpringTarget(folderAtViewportPos(watched, static_cast<QDragMoveEvent*>(event)->position().toPoint()));
+            break;
+        case QEvent::DragLeave:
+        case QEvent::Drop:
+            setSpringTarget(QString());
+            break;
+        default: break;
+        }
+
         // The mouse's side buttons walk the history, like a browser.
         if (event->type() == QEvent::MouseButtonPress) {
             const Qt::MouseButton b = static_cast<QMouseEvent*>(event)->button();
