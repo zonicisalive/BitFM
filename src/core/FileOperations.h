@@ -49,7 +49,7 @@ signals:
     void operationFinished(bool success, const QString &message);
 
 private:
-    bool moveSingleFileToTrash(const QString &filePath, QString *err = nullptr);
+    bool moveSingleFileToTrash(const QString &filePath, QString *err = nullptr, QString *trashedPath = nullptr);
     FileStats calculateStats(const QStringList &paths, bool *canceled = nullptr, FileOperationProgressDialog *progressDialog = nullptr);
     bool copySingleFile(const QString &srcFilePath, const QString &tgtFilePath, bool overwrite,
                         qint64 *bytesCopied, qint64 totalBytes, int *itemsCopied, int totalItems,

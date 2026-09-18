@@ -1,4 +1,5 @@
 #include "FileOperations.h"
+#include "UndoManager.h"
 #include "FileOperationProgressDialog.h"
 #include "VfsTypes.h"
 #include <QDir>
@@ -197,9 +198,10 @@ bool FileOperations::moveToTrash(const QStringList &filePaths, QWidget *parentWi
     int current = 0;
     int successCount = 0;
 
+    QStringList trashed;
     for (const QString &path : filePaths) {
-        QString err;
-        if (!moveSingleFileToTrash(path, &err)) {
+        QString err, landed;
+        if (!moveSingleFileToTrash(path, &err, &landed)) {
             // Ask user for permanent deletion fallback
             if (parentWidget) {
                 QMessageBox::StandardButton reply = QMessageBox::question(
@@ -218,12 +220,15 @@ bool FileOperations::moveToTrash(const QStringList &filePaths, QWidget *parentWi
             }
         } else {
             successCount++;
+            if (!landed.isEmpty()) trashed << landed;
         }
 
         current++;
         emit operationProgress(current, total);
         QApplication::processEvents();
     }
+
+    if (!trashed.isEmpty()) UndoManager::instance().recordTrash(trashed, trashed.size());
 
     bool allSuccess = (successCount == total);
     emit operationFinished(
@@ -233,7 +238,7 @@ bool FileOperations::moveToTrash(const QStringList &filePaths, QWidget *parentWi
     return allSuccess;
 }
 
-bool FileOperations::moveSingleFileToTrash(const QString &filePath, QString *err) {
+bool FileOperations::moveSingleFileToTrash(const QString &filePath, QString *err, QString *trashedPath) {
     QFileInfo info(filePath);
     if (!entryExists(info)) {
         if (err) *err = tr("Item does not exist.");
@@ -259,6 +264,8 @@ bool FileOperations::moveSingleFileToTrash(const QString &filePath, QString *err
         targetFilePath = filesDir + "/" + info.completeBaseName() + suffix + (info.suffix().isEmpty() ? "" : "." + info.suffix());
         targetInfoPath = infoDir + "/" + info.completeBaseName() + suffix + (info.suffix().isEmpty() ? "" : "." + info.suffix()) + ".trashinfo";
     }
+
+    if (trashedPath) *trashedPath = targetFilePath;
 
     QFile trashInfoFile(targetInfoPath);
     if (!trashInfoFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -901,6 +908,7 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
     }
 
     bool allSuccess = (!isCanceled && successTopLevel == sourcePaths.size());
+    if (successTopLevel > 0) UndoManager::instance().recordMove(sourcePaths, destinationDir);
     emit operationFinished(
         allSuccess,
         isCanceled ? tr("Move operation was canceled.") :
@@ -954,6 +962,7 @@ bool FileOperations::renameFile(const QString &oldPath, const QString &newName, 
         if (errorMessage) *errorMessage = getDetailedErrorMessage(oldPath, "rename");
         return false;
     }
+    UndoManager::instance().recordRename(oldPath, targetPath);
     return true;
 }
 

@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "ThemeManager.h"
+#include "UndoManager.h"
 #include "TagManager.h"
 #include "AppSettings.h"
 #include <QMenuBar>
@@ -414,6 +415,28 @@ void MainWindow::setupActions() {
     connect(A("file.copy"),         &QAction::triggered, this, withView([](FileViewWidget *v) { v->onCopyAction(); }));
     connect(A("file.paste"),        &QAction::triggered, this, withView([](FileViewWidget *v) { v->onPasteAction(); }));
     connect(A("file.select_all"),   &QAction::triggered, this, withView([](FileViewWidget *v) { v->selectAll(); }));
+    // Undo puts the last move, rename or trashing back; the action follows the stack.
+    {
+        QAction *undoAct = A("file.undo");
+        auto syncUndo = [undoAct]() {
+            UndoManager &mgr = UndoManager::instance();
+            undoAct->setEnabled(mgr.canUndo());
+            undoAct->setToolTip(mgr.canUndo() ? tr("Undo the %1").arg(mgr.nextDescription()) : tr("Nothing to undo"));
+        };
+        syncUndo();
+        connect(&UndoManager::instance(), &UndoManager::changed, this, syncUndo);
+        connect(undoAct, &QAction::triggered, this, [this, syncUndo]() {
+            QString err;
+            const QStringList touched = UndoManager::instance().undo(this, &err);
+            if (touched.isEmpty()) {
+                statusBar()->showMessage(err.isEmpty() ? tr("Nothing to undo") : err, 4000);
+            } else {
+                for (DirectoryViewTab *tab : findChildren<DirectoryViewTab*>()) tab->refresh();
+                statusBar()->showMessage(tr("Undone"), 3000);
+            }
+            syncUndo();
+        });
+    }
     connect(A("file.duplicate"),    &QAction::triggered, this, withView([](FileViewWidget *v) { v->onDuplicateAction(); }));
     connect(A("file.rename"),       &QAction::triggered, this, withView([](FileViewWidget *v) { v->onRenameAction(); }));
     connect(A("file.batch_rename"), &QAction::triggered, this, withView([](FileViewWidget *v) { v->onBatchRenameAction(); }));
@@ -506,6 +529,8 @@ void MainWindow::buildMenus() {
     for (const char *id : { "file.cut", "file.copy", "file.paste" }) editMenu->addAction(A(id));
     editMenu->addSeparator();
     editMenu->addAction(A("file.select_all"));
+    editMenu->addSeparator();
+    editMenu->addAction(A("file.undo"));
     editMenu->addSeparator();
     for (const char *id : { "file.duplicate", "file.rename", "file.batch_rename", "file.trash", "file.delete" }) editMenu->addAction(A(id));
     editMenu->addSeparator();

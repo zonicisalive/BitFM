@@ -24,6 +24,7 @@ static const ActionRegistry::Spec kSpecs[] = {
 
     { "file.new_folder",   QT_TR_NOOP("New Folder"),               "folder-new",           "Ctrl+Shift+N",    QT_TR_NOOP("Files"), false },
     { "file.new_file",     QT_TR_NOOP("New Empty File"),           "document-new",         "",                QT_TR_NOOP("Files"), false },
+    { "file.undo",         QT_TR_NOOP("Undo"),                     "edit-undo",            "Ctrl+Z",          QT_TR_NOOP("Files"), false },
     { "file.cut",          QT_TR_NOOP("Cut"),                      "edit-cut",             "Ctrl+X",          QT_TR_NOOP("Files"), false },
     { "file.copy",         QT_TR_NOOP("Copy"),                     "edit-copy",            "Ctrl+C",          QT_TR_NOOP("Files"), false },
     { "file.paste",        QT_TR_NOOP("Paste"),                    "edit-paste",           "Ctrl+V",          QT_TR_NOOP("Files"), false },

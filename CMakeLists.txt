@@ -33,6 +33,7 @@ set(CORE_SOURCES
     src/core/FileSystemModel.cpp
     src/core/FileOperations.h
     src/core/FileOperations.cpp
+    src/core/UndoManager.cpp
     src/core/ThumbnailProvider.h
     src/core/ThumbnailProvider.cpp
     src/core/FileFilterProxyModel.h
