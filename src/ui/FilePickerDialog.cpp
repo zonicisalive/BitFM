@@ -628,6 +628,32 @@ bool FilePickerDialog::isMultipleSelection() const {
     return m_multiple;
 }
 
+// The portal hands us the caller's own filters, so they replace the generic list entirely:
+// a page asking for images must not offer "All Files".
+void FilePickerDialog::setNameFilters(const QList<QPair<QString, QStringList>> &filters, int currentIndex) {
+    if (!m_filterCombo || filters.isEmpty()) return;
+    m_filterCombo->blockSignals(true);
+    m_filterCombo->clear();
+    for (const auto &[name, globs] : filters) {
+        // A MIME wildcard such as image/* expands to hundreds of globs, so only short
+        // lists are spelled out; the rest show the caller's own name for the filter.
+        const bool spellOut = !globs.isEmpty() && globs.size() <= 6 && !name.contains('(');
+        const QString label = spellOut ? QString("%1 (%2)").arg(name, globs.join(' ')) : name;
+        m_filterCombo->addItem(label, globs.isEmpty() ? "*" : globs.join(';'));
+        m_filterCombo->setItemData(m_filterCombo->count() - 1, globs.join(' '), Qt::ToolTipRole);
+    }
+    m_filterCombo->setCurrentIndex(qBound(0, currentIndex, m_filterCombo->count() - 1));
+    m_filterCombo->show();
+    m_filterCombo->blockSignals(false);
+    m_proxyModel->setFileTypeFilter(m_filterCombo->currentData().toString());
+}
+
+void FilePickerDialog::setAcceptLabel(const QString &label) {
+    QString text = label;
+    text.remove('_');   // GTK mnemonics mean nothing here
+    if (!text.isEmpty() && m_acceptBtn) m_acceptBtn->setText(text);
+}
+
 void FilePickerDialog::setFilter(const QString &filter) {
     if (!filter.isEmpty() && m_filterCombo) {
         int found = m_filterCombo->findData(filter);

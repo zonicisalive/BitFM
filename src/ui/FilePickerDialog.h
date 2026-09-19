@@ -35,6 +35,9 @@ public:
     void setMultipleSelection(bool multiple);
     bool isMultipleSelection() const;
     void setFilter(const QString &filter);
+    // Replaces the built-in filter list with the ones the calling application asked for.
+    void setNameFilters(const QList<QPair<QString, QStringList>> &filters, int currentIndex = 0);
+    void setAcceptLabel(const QString &label);
 
 public slots:
     void navigateTo(const QString &path, bool recordHistory = true);

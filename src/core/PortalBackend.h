@@ -8,21 +8,24 @@
 class PortalFileChooserAdaptor : public QDBusAbstractAdaptor {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.impl.portal.FileChooser")
+    // xdg-desktop-portal reads this to decide which options it may send.
+    Q_PROPERTY(uint version READ version CONSTANT)
 
 public:
     explicit PortalFileChooserAdaptor(QObject *parent);
+    uint version() const { return 3; }
 
 public slots:
     uint OpenFile(const QDBusObjectPath &handle,
                   const QString &app_id,
-                  const QString &parent_window,
+                  const QString &parentWindow,
                   const QString &title,
                   const QVariantMap &options,
                   QVariantMap &results);
 
     uint SaveFile(const QDBusObjectPath &handle,
                   const QString &app_id,
-                  const QString &parent_window,
+                  const QString &parentWindow,
                   const QString &title,
                   const QVariantMap &options,
                   QVariantMap &results);
