@@ -1,5 +1,7 @@
 [Unit]
 Description=Portal service (BitFM implementation)
+# The portal draws dialogs, so it must not start before the compositor is up.
+After=graphical-session.target
 PartOf=graphical-session.target
 
 [Service]
@@ -8,6 +10,7 @@ BusName=org.freedesktop.impl.portal.desktop.bitfm
 Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin"
 ExecStart=/usr/bin/env bitfm --portal
 Restart=on-failure
+RestartSec=2
 
 [Install]
 WantedBy=graphical-session.target

@@ -10,6 +10,10 @@
 #include <QToolButton>
 #include <QContextMenuEvent>
 #include <QUrl>
+#include <QFile>
+#include <thread>
+#include <chrono>
+#include <algorithm>
 #include <iostream>
 #include <sys/prctl.h>
 #include <QDBusInterface>
@@ -24,9 +28,37 @@
 #include "FileManager1Service.h"
 #include "UserEnvironment.h"
 
+// Qt calls qFatal() when it cannot reach a display, which dumps core. The portal service is
+// started at login and can win the race against the compositor, so check first and step aside
+// quietly: D-Bus starts us again on the first real request, by which time the session is up.
+static bool displayReady() {
+    if (!qEnvironmentVariableIsEmpty("DISPLAY")) return true;
+    const QByteArray wayland = qgetenv("WAYLAND_DISPLAY");
+    if (wayland.isEmpty()) return false;
+    if (wayland.startsWith('/')) return QFile::exists(QString::fromLocal8Bit(wayland));
+    const QByteArray runtimeDir = qgetenv("XDG_RUNTIME_DIR");
+    return !runtimeDir.isEmpty() && QFile::exists(QString::fromLocal8Bit(runtimeDir + '/' + wayland));
+}
+
+// With a display named but its socket not there yet, the compositor is still starting: wait.
+// With nothing named at all the environment can never change, so do not bother waiting.
+static bool waitForDisplay(int seconds) {
+    if (qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") && qEnvironmentVariableIsEmpty("DISPLAY")) return false;
+    for (int i = 0; i < seconds * 4 && !displayReady(); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    return displayReady();
+}
+
 int main(int argc, char *argv[]) {
     // Set Linux kernel process name
     prctl(PR_SET_NAME, "bitfm", 0, 0, 0);
+
+    const bool portalMode = std::any_of(argv + 1, argv + argc,
+                                        [](const char *arg) { return qstrcmp(arg, "--portal") == 0; });
+    if (portalMode && !displayReady() && !waitForDisplay(20)) {
+        std::cerr << "bitfm: no display yet, leaving the portal service to D-Bus activation\n";
+        return 0;
+    }
 
     // Prefer native Wayland client, fallback gracefully to X11/XWayland if needed
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
