@@ -1700,7 +1700,8 @@ void FileViewWidget::onGitDiffAction() {
 
     QProcess proc;
     proc.setWorkingDirectory(m_sourceModel->currentDirectory());
-    proc.start("git", { "diff", target });
+    proc.start("git", { "--no-optional-locks", "-c", "core.fsmonitor=", "-c", "core.hooksPath=/dev/null",
+                        "diff", "--no-ext-diff", "--no-textconv", "--", target });
     proc.waitForFinished(2000);
     QString diff = QString::fromUtf8(proc.readAllStandardOutput());
 

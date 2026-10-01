@@ -13,6 +13,37 @@ public:
         setAutoDelete(true);
     }
 
+    // Belt and braces for the config keys that name a command, in case a new one appears.
+    static QStringList gitArgs(const QString &repoRoot) {
+        return { "-C", repoRoot, "--no-optional-locks",
+                 "-c", "core.fsmonitor=", "-c", "core.hooksPath=/dev/null",
+                 "-c", "core.quotePath=false" };
+    }
+
+    // git runs commands named in the repository's OWN config, so browsing a folder someone
+    // else prepared is enough to execute them: core.fsmonitor is run by `status`, and a
+    // filter.<n>.clean driver is run for any path with a `filter` attribute. A repository that
+    // asks for any of these gets no git integration at all, rather than a shell.
+    static bool repoConfigIsSafe(const QString &repoRoot) {
+        static const QStringList dangerous = {
+            "core.fsmonitor", "core.hookspath", "core.sshcommand", "core.pager", "core.editor",
+            "core.askpass", "credential.helper", "diff.external", "init.templatedir",
+            "uploadpack.packobjectshook", "sequence.editor",
+        };
+        QProcess cfg;
+        cfg.start("git", { "-C", repoRoot, "config", "--local", "--name-only", "--list" });
+        if (!cfg.waitForFinished(1500)) return false;          // unreadable config: assume unsafe
+        const QStringList keys = QString::fromUtf8(cfg.readAllStandardOutput())
+                                     .toLower().split('\n', Qt::SkipEmptyParts);
+        for (QString key : keys) {
+            key = key.trimmed();
+            if (dangerous.contains(key)) return false;
+            // filter.<driver>.clean/.smudge and diff.<driver>.textconv name commands too.
+            if (key.startsWith("filter.") || (key.startsWith("diff.") && key.endsWith(".textconv"))) return false;
+        }
+        return true;
+    }
+
     void run() override {
         // Always drop the pending marker, on every exit path, or the dir is never re-scanned.
         struct PendingGuard {
@@ -29,10 +60,11 @@ public:
 
         QString repoRoot = QString::fromUtf8(rootProc.readAllStandardOutput()).trimmed();
         if (repoRoot.isEmpty()) return;
+        if (!repoConfigIsSafe(repoRoot)) return;   // hostile repository: show no badges, run nothing
 
         // 2. Get current branch
         QProcess branchProc;
-        branchProc.start("git", { "-C", repoRoot, "branch", "--show-current" });
+        branchProc.start("git", gitArgs(repoRoot) << "branch" << "--show-current");
         QString branch = "HEAD";
         if (branchProc.waitForFinished(1500) && branchProc.exitCode() == 0) {
             QString b = QString::fromUtf8(branchProc.readAllStandardOutput()).trimmed();
@@ -41,7 +73,7 @@ public:
 
         // 3. Get status --porcelain
         QProcess statusProc;
-        statusProc.start("git", { "-C", repoRoot, "-c", "core.quotePath=false", "status", "--porcelain", "-uall" });
+        statusProc.start("git", gitArgs(repoRoot) << "status" << "--porcelain" << "-uall");
         QHash<QString, GitFileState> statuses;
         bool isClean = true;
 
