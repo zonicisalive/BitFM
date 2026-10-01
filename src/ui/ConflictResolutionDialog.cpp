@@ -45,7 +45,7 @@ void ConflictResolutionDialog::setupUi(const QString &sourcePath, const QString 
     QLabel *destIcon = new QLabel(destBox);
     destIcon->setPixmap(QIcon::fromTheme(mimeDb.mimeTypeForFile(destInfo).iconName(), QIcon::fromTheme("text-x-generic")).pixmap(32, 32));
     destLayout->addWidget(destIcon, 0, Qt::AlignCenter);
-    QLabel *destName = new QLabel(QString("<b>%1</b>").arg(destInfo.fileName()), destBox);
+    QLabel *destName = new QLabel(QString("<b>%1</b>").arg(destInfo.fileName().toHtmlEscaped()), destBox);
     destName->setAlignment(Qt::AlignCenter);
     destLayout->addWidget(destName);
     QLabel *destDetails = new QLabel(
@@ -65,7 +65,7 @@ void ConflictResolutionDialog::setupUi(const QString &sourcePath, const QString 
     QLabel *srcIcon = new QLabel(srcBox);
     srcIcon->setPixmap(QIcon::fromTheme(mimeDb.mimeTypeForFile(srcInfo).iconName(), QIcon::fromTheme("text-x-generic")).pixmap(32, 32));
     srcLayout->addWidget(srcIcon, 0, Qt::AlignCenter);
-    QLabel *srcName = new QLabel(QString("<b>%1</b>").arg(srcInfo.fileName()), srcBox);
+    QLabel *srcName = new QLabel(QString("<b>%1</b>").arg(srcInfo.fileName().toHtmlEscaped()), srcBox);
     srcName->setAlignment(Qt::AlignCenter);
     srcLayout->addWidget(srcName);
     QLabel *srcDetails = new QLabel(

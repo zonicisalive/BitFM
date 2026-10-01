@@ -374,7 +374,7 @@ void QuickPreviewDialog::updatePreview() {
             QTemporaryDir tmpDir;
             QString tmpPrefix = tmpDir.filePath("page");
             QProcess proc;
-            proc.start("pdftoppm", { "-png", "-r", "150", "-f", "1", "-l", "1", "-singlefile", filePath, tmpPrefix });
+            proc.start("pdftoppm", { "-png", "-scale-to", "2048", "-f", "1", "-l", "1", "-singlefile", filePath, tmpPrefix });
             if (proc.waitForFinished(4000) && QFile::exists(tmpPrefix + ".png")) {
                 QImage pdfImg(tmpPrefix + ".png");
                 QFile::remove(tmpPrefix + ".png");

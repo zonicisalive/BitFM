@@ -1264,40 +1264,48 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
     QString cmd;
     QStringList args;
 
+    // An archive must never silently replace files that are already there, and when BitFM runs
+    // elevated it must not let an archive choose ownership or setuid bits either.
+    const bool elevated = UserEnvironment::isElevated();
+
     if (ext == "zip") {
         if (!QStandardPaths::findExecutable("unzip").isEmpty()) {
             cmd = "unzip";
-            args << "-o" << archivePath << "-d" << destinationDir;
+            args << "-n" << archivePath << "-d" << destinationDir;
         } else if (!QStandardPaths::findExecutable("bsdtar").isEmpty()) {
             cmd = "bsdtar";
-            args << "-xvf" << archivePath << "-C" << destinationDir;
+            args << "-xvkf" << archivePath << "-C" << destinationDir;
+            if (elevated) args << "--no-same-owner" << "--no-same-permissions";
         } else if (!QStandardPaths::findExecutable("7z").isEmpty()) {
             cmd = "7z";
-            args << "x" << "-y" << QString("-o%1").arg(destinationDir) << archivePath;
+            args << "x" << "-aos" << QString("-o%1").arg(destinationDir) << archivePath;
         }
     } else if (ext == "7z") {
         if (!QStandardPaths::findExecutable("7z").isEmpty()) {
             cmd = "7z";
-            args << "x" << "-y" << QString("-o%1").arg(destinationDir) << archivePath;
+            args << "x" << "-aos" << QString("-o%1").arg(destinationDir) << archivePath;
         } else if (!QStandardPaths::findExecutable("7za").isEmpty()) {
             cmd = "7za";
-            args << "x" << "-y" << QString("-o%1").arg(destinationDir) << archivePath;
+            args << "x" << "-aos" << QString("-o%1").arg(destinationDir) << archivePath;
         } else if (!QStandardPaths::findExecutable("bsdtar").isEmpty()) {
             cmd = "bsdtar";
-            args << "-xvf" << archivePath << "-C" << destinationDir;
+            args << "-xvkf" << archivePath << "-C" << destinationDir;
+            if (elevated) args << "--no-same-owner" << "--no-same-permissions";
         }
     } else if (ext == "rar") {
         if (!QStandardPaths::findExecutable("unrar").isEmpty()) {
             cmd = "unrar";
-            args << "x" << "-o+" << archivePath << (destinationDir.endsWith('/') ? destinationDir : destinationDir + "/");
+            args << "x" << "-o-" << archivePath << (destinationDir.endsWith('/') ? destinationDir : destinationDir + "/");
         } else if (!QStandardPaths::findExecutable("bsdtar").isEmpty()) {
             cmd = "bsdtar";
-            args << "-xvf" << archivePath << "-C" << destinationDir;
+            args << "-xvkf" << archivePath << "-C" << destinationDir;
+            if (elevated) args << "--no-same-owner" << "--no-same-permissions";
         }
     } else {
         // tar, tar.gz, tar.xz, tar.bz2, tar.zst, tgz, txz, tbz2, etc.
         cmd = "tar";
-        args << "-xvf" << archivePath << "-C" << destinationDir;
+        args << "-xvkf" << archivePath << "-C" << destinationDir;
+        if (elevated) args << "--no-same-owner" << "--no-same-permissions";
     }
 
     if (cmd.isEmpty()) {

@@ -60,8 +60,10 @@ void UnlockDeviceDialog::setupUi() {
     // Description
     QString name = m_deviceName.isEmpty() ? QFileInfo(m_deviceNode).fileName() : m_deviceName;
     QString descText = m_isEncrypted
-        ? tr("The drive <b>%1</b> (%2) is encrypted. Enter the passphrase to unlock and mount it.").arg(name, m_deviceNode)
-        : tr("Administrator privileges are required to mount <b>%1</b> (%2). Enter your password.").arg(name, m_deviceNode);
+        ? tr("The drive <b>%1</b> (%2) is encrypted. Enter the passphrase to unlock and mount it.")
+              .arg(name.toHtmlEscaped(), m_deviceNode.toHtmlEscaped())
+        : tr("Administrator privileges are required to mount <b>%1</b> (%2). Enter your password.")
+              .arg(name.toHtmlEscaped(), m_deviceNode.toHtmlEscaped());
 
     QLabel *descLabel = new QLabel(descText, card);
     descLabel->setWordWrap(true);

@@ -84,7 +84,7 @@ public:
         } else if (isPdf) {
             QString tmpPrefix = tmpDir.filePath("pdf_thumb");
             QProcess proc;
-            proc.start("pdftoppm", { "-png", "-r", "100", "-f", "1", "-l", "1", "-singlefile", m_filePath, tmpPrefix });
+            proc.start("pdftoppm", { "-png", "-scale-to", "512", "-f", "1", "-l", "1", "-singlefile", m_filePath, tmpPrefix });
             if (proc.waitForFinished(4000)) {
                 QString outPng = tmpPrefix + ".png";
                 if (QFile::exists(outPng)) {

@@ -1,4 +1,5 @@
 #include "FileManager1Service.h"
+#include <QUrl>
 #include "MainWindow.h"
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -56,20 +57,35 @@ bool FileManager1Service::registerService() {
     return true;
 }
 
-void FileManager1Service::onShowItems(const QStringList &uris, const QString &) {
-    if (m_window) {
-        m_window->showItems(uris);
+// Anything on the session bus can call these, so keep only real local paths and cap the list:
+// a caller must not be able to hand us thousands of entries or a non-file scheme.
+static QStringList acceptedUris(const QStringList &uris) {
+    QStringList accepted;
+    for (const QString &uri : uris) {
+        if (accepted.size() >= 256) break;
+        const QUrl url(uri);
+        if (url.isLocalFile()) {
+            accepted << url.toLocalFile();
+        } else if (!url.scheme().isEmpty() && url.scheme() != "file") {
+            continue;                                  // sftp:, http: and friends are not ours to open
+        } else if (uri.startsWith('/')) {
+            accepted << uri;                           // a plain absolute path is fine
+        }
     }
+    return accepted;
+}
+
+void FileManager1Service::onShowItems(const QStringList &uris, const QString &) {
+    const QStringList accepted = acceptedUris(uris);
+    if (m_window && !accepted.isEmpty()) m_window->showItems(accepted);
 }
 
 void FileManager1Service::onShowFolders(const QStringList &uris, const QString &) {
-    if (m_window) {
-        m_window->showFolders(uris);
-    }
+    const QStringList accepted = acceptedUris(uris);
+    if (m_window && !accepted.isEmpty()) m_window->showFolders(accepted);
 }
 
 void FileManager1Service::onShowItemProperties(const QStringList &uris, const QString &) {
-    if (m_window) {
-        m_window->showItemProperties(uris);
-    }
+    const QStringList accepted = acceptedUris(uris);
+    if (m_window && !accepted.isEmpty()) m_window->showItemProperties(accepted);
 }

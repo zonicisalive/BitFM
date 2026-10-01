@@ -90,6 +90,7 @@ static QPair<QString, QStringList> readFilter(const QDBusArgument &arg) {
         arg.beginStructure();
         arg >> type >> value;
         arg.endStructure();
+        if (globs.size() >= 512) continue;   // a filter cannot usefully name more patterns than this
         globs << (type == 0 ? QStringList{ value } : globsForMime(value));
     }
     arg.endArray();
@@ -104,7 +105,9 @@ static QList<QPair<QString, QStringList>> extractFilters(const QVariantMap &opti
     if (!v.canConvert<QDBusArgument>()) return filters;
     QDBusArgument arg = v.value<QDBusArgument>();
     arg.beginArray();
-    while (!arg.atEnd()) filters.append(readFilter(arg));
+    // The caller may be a sandboxed app: a few hundred wildcard MIME filters would each expand
+    // to every glob the system knows, so stop reading well before that costs real memory.
+    while (!arg.atEnd() && filters.size() < 32) filters.append(readFilter(arg));
     arg.endArray();
     return filters;
 }
@@ -141,7 +144,10 @@ static void applyCallerOptions(FilePickerDialog &dlg, const QString &parentWindo
         if (ok && id) {
             dlg.winId();   // makes sure the dialog has a window handle to parent
             if (QWindow *self = dlg.windowHandle()) {
-                if (QWindow *caller = QWindow::fromWinId(id)) self->setTransientParent(caller);
+                if (QWindow *caller = QWindow::fromWinId(id)) {
+                    self->setTransientParent(caller);
+                    caller->setParent(self);   // tie its lifetime to the dialog instead of leaking it
+                }
             }
         }
     }
@@ -158,9 +164,11 @@ static void applyCallerOptions(FilePickerDialog &dlg, const QString &parentWindo
 class ScopedPortalRequest {
 public:
     ScopedPortalRequest(const QDBusObjectPath &handle, QDialog *dlg) : m_path(handle.path()) {
+        // Only ever export under the portal's own request tree, whatever the caller asked for.
+        if (!m_path.startsWith("/org/freedesktop/portal/desktop/request/")) { m_path.clear(); return; }
         auto *adaptor = new PortalRequestAdaptor(&m_obj);
         QObject::connect(adaptor, &PortalRequestAdaptor::closeRequested, dlg, &QDialog::reject);
-        m_registered = QDBusConnection::sessionBus().registerObject(m_path, &m_obj);
+        m_registered = !m_path.isEmpty() && QDBusConnection::sessionBus().registerObject(m_path, &m_obj);
     }
     ~ScopedPortalRequest() { if (m_registered) QDBusConnection::sessionBus().unregisterObject(m_path); }
 private:
