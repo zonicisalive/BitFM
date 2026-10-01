@@ -46,6 +46,8 @@ public:
 
     static QString getDetailedErrorMessage(const QString &filePath, const QString &action);
     static void relaunchAsRoot(const QString &targetPath = QString());
+    // False when the binary, or any directory above it, could be replaced without root.
+    static bool isSafeToElevate(const QString &appPath, QString *reason = nullptr);
 
 signals:
     void operationStarted(const QString &description);

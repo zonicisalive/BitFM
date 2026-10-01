@@ -334,9 +334,17 @@ bool DeviceManager::mountDevice(const QString &deviceNode, QString *outMountPath
             QString cleanLabel = QFileInfo(deviceNode).fileName();
             QString targetDir = QString("/media/%1/%2").arg(userName, cleanLabel);
 
+            // A device node is always /dev/<name>; anything else is not ours to mount.
+            static const QRegularExpression kDeviceNode("^/dev/[A-Za-z0-9._/-]+$");
+            if (!kDeviceNode.match(deviceNode).hasMatch()) {
+                if (error) *error = tr("Refusing to mount '%1': not a device node.").arg(deviceNode);
+                return false;
+            }
+
             QProcess sudoProc;
-            QString script = QString("mkdir -p '%1' && mount -o user,rw '%2' '%1'").arg(targetDir, deviceNode);
-            sudoProc.start("sudo", { "-S", "sh", "-c", script });
+            sudoProc.start("sudo", { "-S", "--", "sh", "-c",
+                                     "mkdir -p -- \"$1\" && mount -o user,rw -- \"$2\" \"$1\"",
+                                     "sh", targetDir, deviceNode });
             sudoProc.write(pass.toUtf8() + "\n");
             sudoProc.closeWriteChannel();
 

@@ -1373,9 +1373,38 @@ bool FileOperations::extractArchive(const QString &archivePath, const QString &d
     return success;
 }
 
+// Only a binary that the user cannot rewrite is safe to run as root: otherwise anything already
+// running as them can swap it out and wait for the next "Open as Root" click.
+bool FileOperations::isSafeToElevate(const QString &appPath, QString *why) {
+    QString ignored;
+    if (!why) why = &ignored;
+    for (QFileInfo info(appPath); ; info = QFileInfo(info.absolutePath())) {
+        const QFileInfo resolved(info.canonicalFilePath().isEmpty() ? info.absoluteFilePath()
+                                                                    : info.canonicalFilePath());
+        if (resolved.ownerId() != 0) {
+            *why = QObject::tr("%1 is not owned by root.").arg(resolved.absoluteFilePath());
+            return false;
+        }
+        if (resolved.permissions() & (QFileDevice::WriteGroup | QFileDevice::WriteOther)) {
+            *why = QObject::tr("%1 is writable by other users.").arg(resolved.absoluteFilePath());
+            return false;
+        }
+        if (resolved.absoluteFilePath() == "/") return true;
+    }
+}
+
 void FileOperations::relaunchAsRoot(const QString &targetPath) {
     QString appPath = QCoreApplication::applicationFilePath();
     QString target = targetPath.isEmpty() ? QDir::homePath() : targetPath;
+
+    QString why;
+    if (!isSafeToElevate(appPath, &why)) {
+        QMessageBox::warning(nullptr, QObject::tr("Cannot Open as Root"),
+            QObject::tr("This copy of BitFM is installed where it can be modified without root, "
+                        "so running it as root would be unsafe.\n\n%1\n\n"
+                        "Reinstall with ./install.sh --system to use this feature.").arg(why));
+        return;
+    }
 
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     QString wayland = env.value("WAYLAND_DISPLAY");
@@ -1392,12 +1421,12 @@ void FileOperations::relaunchAsRoot(const QString &targetPath) {
     } else {
         args << "DISPLAY=" + display << "XAUTHORITY=" + xauth;
     }
-    args << "XDG_DATA_DIRS=" + xdgDataDirs << "SUDO_USER=" + currentUser << appPath << target;
+    args << "XDG_DATA_DIRS=" + xdgDataDirs << "SUDO_USER=" + currentUser << appPath << "--" << target;
 
     if (!QProcess::startDetached("pkexec", args)) {
         QStringList terms = { "foot", "kitty", "ptyxis", "alacritty", "gnome-terminal", "konsole", "xterm" };
         for (const QString &t : terms) {
-            if (QProcess::startDetached(t, { "-e", "sudo", "-E", appPath, target })) return;
+            if (QProcess::startDetached(t, { "-e", "sudo", "--", appPath, target })) return;
         }
     }
 }
