@@ -7,6 +7,8 @@
 #include <QStackedWidget>
 #include <QToolButton>
 #include <QTimer>
+#include <QCompleter>
+#include <QFileSystemModel>
 
 // Location capsule: leading place icon, crumbs that fold into a "…" menu when the path is
 // too long, a git badge and a ⋮ menu. Crumbs accept file drops (move/copy into that folder)
@@ -66,6 +68,7 @@ private:
     QWidget *m_editContainer;
     QLabel *m_editIcon;
     QLineEdit *m_pathEdit;
+    QFileSystemModel *m_completerModel = nullptr;   // folders only, feeds the path completer
     QToolButton *m_dropTarget = nullptr;
     QPoint m_dragStart;
     QToolButton *m_dragCrumb = nullptr;

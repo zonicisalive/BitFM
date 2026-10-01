@@ -52,6 +52,15 @@ BreadcrumbBar::BreadcrumbBar(QWidget *parent)
     m_pathEdit->setObjectName("PathEdit");
     m_pathEdit->setPlaceholderText(tr("Type a path and press Enter"));
     m_pathEdit->setFrame(false);
+
+    // Completing path components as they are typed is standard in every location bar.
+    m_completerModel = new QFileSystemModel(this);
+    m_completerModel->setFilter(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
+    m_completerModel->setRootPath(QDir::rootPath());
+    auto *completer = new QCompleter(m_completerModel, this);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    m_pathEdit->setCompleter(completer);
     editLayout->addWidget(m_editIcon);
     editLayout->addWidget(m_pathEdit, 1);
 
