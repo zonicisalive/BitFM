@@ -47,6 +47,18 @@ static bool removeEntry(const QString &path) {
 
 #include "UserEnvironment.h"
 
+// Closing a visible QDialog goes through reject(), which FileOperationProgressDialog maps to
+// Cancel, so the cancel connection has to be dropped first or every completed operation
+// reports itself as cancelled.
+static void closeProgress(FileOperationProgressDialog *&dialog) {
+    if (!dialog) return;
+    dialog->disconnect();
+    dialog->close();
+    dialog->deleteLater();
+    dialog = nullptr;
+}
+
+
 QString FileOperations::trashPath() {
     return UserEnvironment::userTrashPath();
 }
@@ -283,8 +295,14 @@ bool FileOperations::moveSingleFileToTrash(const QString &filePath, QString *err
     if (!QFile::rename(filePath, targetFilePath)) {
         // Cross-device: copy into trash then remove the original.
         // ponytail: spec wants $topdir/.Trash-$uid on other volumes; copy+delete is the simple fallback.
-        if (errno == EXDEV && copyRecursively(filePath, targetFilePath, false) && removeEntry(filePath)) {
-            return true;
+        const bool copied = copyRecursively(filePath, targetFilePath, false);
+        if (copied && removeEntry(filePath)) return true;
+
+        // Once the copy exists it is the only remaining copy of anything removeEntry already
+        // deleted, so it must be kept. Only a failed copy may be rolled back.
+        if (copied) {
+            if (err) *err = tr("Moved to Trash, but part of the original could not be removed.");
+            return false;
         }
         QDir(targetFilePath).removeRecursively();
         QFile::remove(targetFilePath);
@@ -344,10 +362,7 @@ bool FileOperations::deletePermanently(const QStringList &filePaths, QWidget *pa
         QApplication::processEvents();
     }
 
-    if (progressDialog) {
-        progressDialog->close();
-        progressDialog->deleteLater();
-    }
+    closeProgress(progressDialog);
 
     bool allSuccess = (!isCanceled && successCount == filePaths.size());
     emit operationFinished(
@@ -488,14 +503,18 @@ bool FileOperations::copySingleFile(const QString &srcFilePath, const QString &t
     }
 
     if (QFile::exists(tgtFilePath)) {
-        if (overwrite) {
-            QFile::remove(tgtFilePath);
-        } else {
-            return false;
-        }
+        if (!overwrite) return false;
     }
 
-    QFile tgtFile(tgtFilePath);
+    // Write beside the target and rename over it, so an interrupted copy never leaves the
+    // destination deleted with nothing in its place.
+    const bool replacing = entryExists(QFileInfo(tgtFilePath));
+    const QString writePath = replacing
+        ? tgtFilePath + QString(".bitfm-part-%1").arg(QCoreApplication::applicationPid())
+        : tgtFilePath;
+    QFile::remove(writePath);
+
+    QFile tgtFile(writePath);
     if (!tgtFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         return false;
     }
@@ -551,6 +570,13 @@ bool FileOperations::copySingleFile(const QString &srcFilePath, const QString &t
     srcFile.close();
     tgtFile.setPermissions(srcInfo.permissions());
     tgtFile.setFileTime(srcInfo.lastModified(), QFileDevice::FileModificationTime);
+
+    // Swap the finished copy over the old file in one step; ::rename replaces, QFile::rename does not.
+    if (replacing && ::rename(QFile::encodeName(writePath).constData(),
+                              QFile::encodeName(tgtFilePath).constData()) != 0) {
+        QFile::remove(writePath);
+        return false;
+    }
 
     if (itemsCopied) (*itemsCopied)++;
     if (progressDialog) {
@@ -640,10 +666,7 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
 
     FileStats stats = calculateStats(sourcePaths, &isCanceled, progressDialog);
     if (isCanceled) {
-        if (progressDialog) {
-            progressDialog->close();
-            progressDialog->deleteLater();
-        }
+        closeProgress(progressDialog);
         emit operationFinished(false, tr("Copy operation was canceled."));
         return false;
     }
@@ -651,14 +674,8 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
     int totalItems = stats.fileCount + stats.dirCount;
     qint64 totalBytes = stats.totalBytes;
 
-    if (!checkFreeSpace(destinationDir, totalBytes, sourcePaths, true, parentWidget)) {
-        if (progressDialog) { progressDialog->close(); progressDialog->deleteLater(); }
-        emit operationFinished(false, tr("Move cancelled: not enough space."));
-        return false;
-    }
-
     if (!checkFreeSpace(destinationDir, totalBytes, sourcePaths, false, parentWidget)) {
-        if (progressDialog) { progressDialog->close(); progressDialog->deleteLater(); }
+        closeProgress(progressDialog);
         emit operationFinished(false, tr("Copy cancelled: not enough space."));
         return false;
     }
@@ -752,10 +769,7 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
         QApplication::processEvents();
     }
 
-    if (progressDialog) {
-        progressDialog->close();
-        progressDialog->deleteLater();
-    }
+    closeProgress(progressDialog);
 
     bool allSuccess = (!isCanceled && successTopLevel == sourcePaths.size());
     emit operationFinished(
@@ -803,16 +817,19 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
 
     FileStats stats = calculateStats(sourcePaths, &isCanceled, progressDialog);
     if (isCanceled) {
-        if (progressDialog) {
-            progressDialog->close();
-            progressDialog->deleteLater();
-        }
+        closeProgress(progressDialog);
         emit operationFinished(false, tr("Move operation was canceled."));
         return false;
     }
 
     int totalItems = stats.fileCount + stats.dirCount;
     qint64 totalBytes = stats.totalBytes;
+
+    if (!checkFreeSpace(destinationDir, totalBytes, sourcePaths, true, parentWidget)) {
+        closeProgress(progressDialog);
+        emit operationFinished(false, tr("Move cancelled: not enough space."));
+        return false;
+    }
 
     if (!progressDialog && parentWidget && (totalItems > 1 || totalBytes > 5 * 1024 * 1024 || stats.dirCount > 0)) {
         progressDialog = new FileOperationProgressDialog(tr("Moving Files"), parentWidget);
@@ -944,10 +961,7 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         QApplication::processEvents();
     }
 
-    if (progressDialog) {
-        progressDialog->close();
-        progressDialog->deleteLater();
-    }
+    closeProgress(progressDialog);
 
     bool allSuccess = (!isCanceled && successTopLevel == sourcePaths.size());
     if (successTopLevel > 0) UndoManager::instance().recordMove(sourcePaths, destinationDir);
@@ -1010,6 +1024,10 @@ QStringList FileOperations::createSymlinks(const QStringList &targetPaths, const
 }
 
 bool FileOperations::renameFile(const QString &oldPath, const QString &newName, QString *errorMessage) {
+    if (newName.isEmpty() || newName.contains('/') || newName == "." || newName == "..") {
+        if (errorMessage) *errorMessage = tr("'%1' is not a valid name.").arg(newName);
+        return false;
+    }
     QFileInfo info(oldPath);
     QString targetPath = info.dir().absoluteFilePath(newName);
 
