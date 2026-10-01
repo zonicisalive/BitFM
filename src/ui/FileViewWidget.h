@@ -36,6 +36,7 @@ public:
     QStringList selectedPaths() const;
     void selectAll();
     void invertSelection();
+    void showColumnMenu(const QPoint &pos);
     void selectAfterLoad(const QStringList &paths);   // apply once the model has reloaded
     void setSpringTarget(const QString &folder);      // folder hovered mid-drag, empty to cancel
     void selectFile(const QString &filePath);
@@ -75,6 +76,10 @@ protected:
 
 public slots:
     void onDuplicateAction();
+    void onCreateLinkAction();
+    void onPasteAsLinkAction();
+    void onCopyPathAction();
+    void onCopyUriAction();
     void onRenameAction();
     void onBatchRenameAction();
     void onTrashAction();

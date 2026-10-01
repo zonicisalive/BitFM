@@ -671,6 +671,33 @@ void FileViewWidget::updateViews() {
     if (m_compactView && m_compactView->viewport()) m_compactView->viewport()->update();
 }
 
+// Right-click the header to pick columns; Name always stays, since hiding it empties the view.
+void FileViewWidget::showColumnMenu(const QPoint &pos) {
+    QHeaderView *header = m_tableView->horizontalHeader();
+    QMenu menu(this);
+    menu.addAction(tr("Columns"))->setEnabled(false);
+    menu.addSeparator();
+    for (int col = 0; col < m_proxyModel->columnCount(); ++col) {
+        QAction *act = menu.addAction(m_proxyModel->headerData(col, Qt::Horizontal).toString());
+        act->setCheckable(true);
+        act->setChecked(!header->isSectionHidden(col));
+        act->setEnabled(col != FileSystemModel::ColName);
+        connect(act, &QAction::toggled, this, [this, header, col](bool on) {
+            header->setSectionHidden(col, !on);
+            AppSettings::instance().setHeaderState(header->saveState());
+            fitNameColumn();
+        });
+    }
+    menu.addSeparator();
+    connect(menu.addAction(tr("Reset Columns")), &QAction::triggered, this, [this, header]() {
+        for (int col = 0; col < m_proxyModel->columnCount(); ++col) header->setSectionHidden(col, false);
+        for (int visual = 0; visual < header->count(); ++visual) header->moveSection(header->visualIndex(visual), visual);
+        AppSettings::instance().setHeaderState(header->saveState());
+        fitNameColumn();
+    });
+    menu.exec(header->mapToGlobal(pos));
+}
+
 void FileViewWidget::setupTableView() {
     m_tableView = new QTableView(this);
     m_tableView->setModel(m_proxyModel);
@@ -701,6 +728,10 @@ void FileViewWidget::setupTableView() {
     m_tableView->horizontalHeader()->setSectionResizeMode(FileSystemModel::ColPermissions, QHeaderView::Interactive);
     m_tableView->horizontalHeader()->resizeSection(FileSystemModel::ColPermissions, 100);
     m_tableView->horizontalHeader()->setStretchLastSection(false);
+    m_tableView->horizontalHeader()->setSectionsMovable(true);
+    m_tableView->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tableView->horizontalHeader(), &QHeaderView::customContextMenuRequested,
+            this, &FileViewWidget::showColumnMenu);
 
     QByteArray savedHeaderState = AppSettings::instance().headerState();
     if (!savedHeaderState.isEmpty()) {
@@ -1231,6 +1262,10 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         menu.addSeparator();
         auto *cutAct  = menu.addAction(QIcon::fromTheme("edit-cut"),   tr("Cut (Ctrl+X)"));
         auto *copyAct = menu.addAction(QIcon::fromTheme("edit-copy"),  tr("Copy (Ctrl+C)"));
+        auto *copyPathAct = menu.addAction(QIcon::fromTheme("edit-copy"), tr("Copy Path (Ctrl+Shift+C)"));
+        connect(copyPathAct, &QAction::triggered, this, &FileViewWidget::onCopyPathAction);
+        auto *copyUriAct = menu.addAction(QIcon::fromTheme("edit-copy"), tr("Copy as URI"));
+        connect(copyUriAct, &QAction::triggered, this, &FileViewWidget::onCopyUriAction);
         connect(cutAct,  &QAction::triggered, this, &FileViewWidget::onCutAction);
         connect(copyAct, &QAction::triggered, this, &FileViewWidget::onCopyAction);
 
@@ -1248,6 +1283,8 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
         if (selected.size() == 1) {
             auto *renameAct = menu.addAction(QIcon::fromTheme("edit-rename"), tr("Rename… (F2)"));
             connect(renameAct, &QAction::triggered, this, &FileViewWidget::onRenameAction);
+            auto *linkAct = menu.addAction(QIcon::fromTheme("emblem-symbolic-link", QIcon::fromTheme("insert-link")), tr("Create Link"));
+            connect(linkAct, &QAction::triggered, this, &FileViewWidget::onCreateLinkAction);
             auto *dupAct = menu.addAction(QIcon::fromTheme("edit-copy"), tr("Duplicate (Ctrl+Shift+D)"));
             connect(dupAct, &QAction::triggered, this, &FileViewWidget::onDuplicateAction);
         } else {
@@ -1369,6 +1406,9 @@ void FileViewWidget::onCustomContextMenuRequested(const QPoint &pos) {
                 isCut ? tr("Paste / Move (%1 items) (Ctrl+V)").arg(clipPaths.size())
                       : tr("Paste (%1 items) (Ctrl+V)").arg(clipPaths.size()));
             connect(pasteAct, &QAction::triggered, this, &FileViewWidget::onPasteAction);
+            auto *pasteLinkAct = menu.addAction(QIcon::fromTheme("emblem-symbolic-link", QIcon::fromTheme("insert-link")),
+                                                tr("Paste as Link"));
+            connect(pasteLinkAct, &QAction::triggered, this, &FileViewWidget::onPasteAsLinkAction);
         }
 
         menu.addSeparator();
@@ -1486,6 +1526,46 @@ void FileViewWidget::onNewFileAction() {
             m_sourceModel->refresh();
         }
     }
+}
+
+// "Make Link" in Nautilus, "Paste as link" in Dolphin: a symlink beside the original.
+void FileViewWidget::onCreateLinkAction() {
+    const QStringList selected = selectedPaths();
+    const QString dir = m_sourceModel->currentDirectory();
+    if (selected.isEmpty() || !dir.startsWith('/')) return;
+    const QStringList made = m_fileOps.createSymlinks(selected, dir, window() ? window() : this);
+    if (made.isEmpty()) return;
+    selectAfterLoad(made);
+    m_sourceModel->refresh();
+    emit statusMessageRequested(tr("Created %n link(s)", "", made.size()));
+}
+
+void FileViewWidget::onPasteAsLinkAction() {
+    const QStringList sources = getClipboardPaths();
+    const QString dir = m_sourceModel->currentDirectory();
+    if (sources.isEmpty() || !dir.startsWith('/')) return;
+    const QStringList made = m_fileOps.createSymlinks(sources, dir, window() ? window() : this);
+    if (made.isEmpty()) return;
+    selectAfterLoad(made);
+    m_sourceModel->refresh();
+    emit statusMessageRequested(tr("Linked %n item(s) here", "", made.size()));
+}
+
+// The path as text, one per line, which is what every other file manager's Copy Path gives.
+void FileViewWidget::onCopyPathAction() {
+    const QStringList selected = selectedPaths();
+    if (selected.isEmpty()) return;
+    QGuiApplication::clipboard()->setText(selected.join('\n'));
+    emit statusMessageRequested(tr("Copied %n path(s)", "", selected.size()));
+}
+
+void FileViewWidget::onCopyUriAction() {
+    const QStringList selected = selectedPaths();
+    if (selected.isEmpty()) return;
+    QStringList uris;
+    for (const QString &p : selected) uris << QUrl::fromLocalFile(p).toString();
+    QGuiApplication::clipboard()->setText(uris.join('\n'));
+    emit statusMessageRequested(tr("Copied %n URI(s)", "", uris.size()));
 }
 
 // Copying into the same folder already yields "name (copy).ext", so duplication is just that.

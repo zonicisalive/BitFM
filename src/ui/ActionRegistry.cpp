@@ -30,6 +30,7 @@ static const ActionRegistry::Spec kSpecs[] = {
     { "file.copy",         QT_TR_NOOP("Copy"),                     "edit-copy",            "Ctrl+C",          QT_TR_NOOP("Files"), false },
     { "file.paste",        QT_TR_NOOP("Paste"),                    "edit-paste",           "Ctrl+V",          QT_TR_NOOP("Files"), false },
     { "file.select_all",   QT_TR_NOOP("Select All"),               "edit-select-all",      "Ctrl+A",          QT_TR_NOOP("Files"), false },
+    { "file.copy_path",    QT_TR_NOOP("Copy Path"),                "edit-copy",            "Ctrl+Shift+C",    QT_TR_NOOP("Files"), false },
     { "file.duplicate",    QT_TR_NOOP("Duplicate"),                "edit-copy",            "Ctrl+Shift+D",    QT_TR_NOOP("Files"), false },
     { "file.invert",       QT_TR_NOOP("Invert Selection"),         "edit-select-invert",   "Ctrl+I",          QT_TR_NOOP("Files"), false },
     { "file.rename",       QT_TR_NOOP("Rename"),                   "edit-rename",          "F2",              QT_TR_NOOP("Files"), false },

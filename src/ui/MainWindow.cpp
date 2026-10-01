@@ -446,6 +446,7 @@ void MainWindow::setupActions() {
         });
     }
     connect(A("file.invert"),       &QAction::triggered, this, withView([](FileViewWidget *v) { v->invertSelection(); }));
+    connect(A("file.copy_path"),    &QAction::triggered, this, withView([](FileViewWidget *v) { v->onCopyPathAction(); }));
     connect(A("file.duplicate"),    &QAction::triggered, this, withView([](FileViewWidget *v) { v->onDuplicateAction(); }));
     connect(A("file.rename"),       &QAction::triggered, this, withView([](FileViewWidget *v) { v->onRenameAction(); }));
     connect(A("file.batch_rename"), &QAction::triggered, this, withView([](FileViewWidget *v) { v->onBatchRenameAction(); }));
@@ -543,6 +544,7 @@ void MainWindow::buildMenus() {
     editMenu->addSeparator();
     editMenu->addAction(A("file.undo"));
     editMenu->addSeparator();
+    editMenu->addAction(A("file.copy_path"));
     for (const char *id : { "file.duplicate", "file.rename", "file.batch_rename", "file.trash", "file.delete" }) editMenu->addAction(A(id));
     editMenu->addSeparator();
     editMenu->addAction(A("app.preferences"));
@@ -573,6 +575,11 @@ void MainWindow::buildMenus() {
     (AppSettings::instance().sortOrder() == Qt::DescendingOrder ? orderDesc : orderAsc)->setChecked(true);
     connect(orderAsc,  &QAction::triggered, this, []() { AppSettings::instance().setSortOrder(Qt::AscendingOrder); });
     connect(orderDesc, &QAction::triggered, this, []() { AppSettings::instance().setSortOrder(Qt::DescendingOrder); });
+    arrangeMenu->addSeparator();
+    QAction *foldersFirst = arrangeMenu->addAction(tr("Folders First"));
+    foldersFirst->setCheckable(true);
+    foldersFirst->setChecked(AppSettings::instance().foldersFirst());
+    connect(foldersFirst, &QAction::toggled, this, [](bool on) { AppSettings::instance().setFoldersFirst(on); });
 
     viewMenu->addAction(A("view.hidden"));
     viewMenu->addSeparator();
