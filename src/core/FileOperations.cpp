@@ -1,4 +1,5 @@
 #include "FileOperations.h"
+#include <QStorageInfo>
 #include "UndoManager.h"
 #include "FileOperationProgressDialog.h"
 #include "VfsTypes.h"
@@ -357,6 +358,35 @@ bool FileOperations::deletePermanently(const QStringList &filePaths, QWidget *pa
     return allSuccess;
 }
 
+// Running out of room halfway through leaves a half-copied tree, so ask before starting.
+// A move within one device frees as much as it uses, so only cross-device moves are checked.
+bool FileOperations::checkFreeSpace(const QString &destinationDir, qint64 neededBytes, const QStringList &sourcePaths,
+                                    bool isMove, QWidget *parentWidget) {
+    if (neededBytes <= 0) return true;
+    const QStorageInfo target(destinationDir);
+    if (!target.isValid() || !target.isReady()) return true;
+
+    if (isMove && !sourcePaths.isEmpty()) {
+        const QStorageInfo source(QFileInfo(sourcePaths.first()).absolutePath());
+        if (source.isValid() && source.device() == target.device()) return true;
+    }
+
+    const qint64 available = target.bytesAvailable();
+    if (available < 0 || available >= neededBytes) return true;
+
+    const QString message = tr("This needs %1 but only %2 is free on %3.")
+        .arg(FileItem::formatFileSize(neededBytes),
+             FileItem::formatFileSize(available),
+             target.displayName().isEmpty() ? destinationDir : target.displayName());
+    if (!parentWidget) {
+        emit operationFinished(false, message);
+        return false;
+    }
+    return QMessageBox::warning(parentWidget, tr("Not Enough Space"),
+                                message + "\n\n" + tr("Continue anyway?"),
+                                QMessageBox::Yes | QMessageBox::No, QMessageBox::No) == QMessageBox::Yes;
+}
+
 FileStats FileOperations::calculateStats(const QStringList &paths, bool *canceled, FileOperationProgressDialog *progressDialog) {
     FileStats stats;
     QElapsedTimer uiTimer;
@@ -620,6 +650,18 @@ bool FileOperations::copyFiles(const QStringList &sourcePaths, const QString &de
 
     int totalItems = stats.fileCount + stats.dirCount;
     qint64 totalBytes = stats.totalBytes;
+
+    if (!checkFreeSpace(destinationDir, totalBytes, sourcePaths, true, parentWidget)) {
+        if (progressDialog) { progressDialog->close(); progressDialog->deleteLater(); }
+        emit operationFinished(false, tr("Move cancelled: not enough space."));
+        return false;
+    }
+
+    if (!checkFreeSpace(destinationDir, totalBytes, sourcePaths, false, parentWidget)) {
+        if (progressDialog) { progressDialog->close(); progressDialog->deleteLater(); }
+        emit operationFinished(false, tr("Copy cancelled: not enough space."));
+        return false;
+    }
 
     if (!progressDialog && parentWidget && (totalItems > 1 || totalBytes > 5 * 1024 * 1024 || stats.dirCount > 0)) {
         progressDialog = new FileOperationProgressDialog(tr("Copying Files"), parentWidget);
@@ -947,6 +989,24 @@ bool FileOperations::createNewFile(const QString &parentDir, const QString &file
     }
     file.close();
     return true;
+}
+
+QStringList FileOperations::createSymlinks(const QStringList &targetPaths, const QString &destinationDir, QWidget *parentWidget) {
+    QStringList made;
+    QStringList failed;
+    const QDir dir(destinationDir);
+    for (const QString &target : targetPaths) {
+        const QFileInfo info(target);
+        QString linkPath = dir.filePath(info.fileName());
+        for (int n = 2; QFileInfo::exists(linkPath); ++n)          // never clobber an existing entry
+            linkPath = dir.filePath(tr("%1 (link %2)").arg(info.fileName()).arg(n));
+        if (QFile::link(info.absoluteFilePath(), linkPath)) made << linkPath;
+        else failed << info.fileName();
+    }
+    if (!failed.isEmpty() && parentWidget)
+        QMessageBox::warning(parentWidget, tr("Link Error"),
+                             tr("Could not create a link for: %1").arg(failed.join(", ")));
+    return made;
 }
 
 bool FileOperations::renameFile(const QString &oldPath, const QString &newName, QString *errorMessage) {

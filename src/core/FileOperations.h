@@ -34,6 +34,8 @@ public:
     bool createNewFolder(const QString &parentDir, const QString &folderName, QString *errorMessage = nullptr);
     bool createNewFile(const QString &parentDir, const QString &fileName, QString *errorMessage = nullptr);
     bool renameFile(const QString &oldPath, const QString &newName, QString *errorMessage = nullptr);
+    // Symbolic links to each target inside destinationDir; returns the links it made.
+    QStringList createSymlinks(const QStringList &targetPaths, const QString &destinationDir, QWidget *parentWidget = nullptr);
 
     // Archive operations
     bool compressFiles(const QStringList &sourcePaths, const QString &destinationArchive, const QString &format = "zip", QWidget *parentWidget = nullptr);
@@ -50,6 +52,9 @@ signals:
 
 private:
     bool moveSingleFileToTrash(const QString &filePath, QString *err = nullptr, QString *trashedPath = nullptr);
+    // Warns when the destination cannot hold the payload. Returns false to abort.
+    bool checkFreeSpace(const QString &destinationDir, qint64 neededBytes, const QStringList &sourcePaths,
+                        bool isMove, QWidget *parentWidget);
     FileStats calculateStats(const QStringList &paths, bool *canceled = nullptr, FileOperationProgressDialog *progressDialog = nullptr);
     bool copySingleFile(const QString &srcFilePath, const QString &tgtFilePath, bool overwrite,
                         qint64 *bytesCopied, qint64 totalBytes, int *itemsCopied, int totalItems,
