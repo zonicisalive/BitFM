@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QCollator>
+
 #include <QAbstractTableModel>
 #include <QFileSystemWatcher>
 #include <QMimeDatabase>
@@ -63,6 +65,7 @@ public:
     bool showHidden() const;
 
     void setFoldersFirst(bool foldersFirst);
+    static const QCollator& naturalOrder();   // case-insensitive, number-aware name ordering
     bool foldersFirst() const;
 
     const FileItem* itemAt(int row) const;

@@ -1,4 +1,5 @@
 #include "FileFilterProxyModel.h"
+#include "AppSettings.h"
 #include "FileSystemModel.h"
 #include <QFileInfo>
 #include <QDir>
@@ -8,6 +9,7 @@ FileFilterProxyModel::FileFilterProxyModel(QObject *parent)
 {
     setDynamicSortFilter(true);
     setSortCaseSensitivity(Qt::CaseInsensitive);
+    connect(&AppSettings::instance(), &AppSettings::sortingChanged, this, [this]() { invalidate(); });
 }
 
 void FileFilterProxyModel::setSearchPattern(const QString &pattern, bool isRegex) {
@@ -152,7 +154,7 @@ bool FileFilterProxyModel::lessThan(const QModelIndex &source_left, const QModel
     bool leftIsDir = source_left.data(FileSystemModel::IsDirectoryRole).toBool();
     bool rightIsDir = source_right.data(FileSystemModel::IsDirectoryRole).toBool();
 
-    if (leftIsDir != rightIsDir) {
+    if (leftIsDir != rightIsDir && AppSettings::instance().foldersFirst()) {
         return (sortOrder() == Qt::AscendingOrder) ? leftIsDir : !leftIsDir;
     }
 
@@ -167,5 +169,6 @@ bool FileFilterProxyModel::lessThan(const QModelIndex &source_left, const QModel
         return dtLeft < dtRight;
     }
 
-    return QSortFilterProxyModel::lessThan(source_left, source_right);
+    return FileSystemModel::naturalOrder().compare(source_left.data().toString(),
+                                                  source_right.data().toString()) < 0;
 }

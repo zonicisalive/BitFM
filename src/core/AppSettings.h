@@ -33,6 +33,9 @@ public:
     FolderView folderView(const QString &path) const;
     void rememberFolderView(const QString &path, const FolderView &view);
 
+    bool foldersFirst() const;
+    void setFoldersFirst(bool on);
+
     int sortColumn() const;
     void setSortColumn(int col);
 

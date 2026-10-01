@@ -193,18 +193,29 @@ void FileSystemModel::resortKeepingIndexes() {
     emit layoutChanged();
 }
 
+// Case-insensitive and number-aware, so "file2" comes before "file10".
+const QCollator& FileSystemModel::naturalOrder() {
+    static const QCollator collator = []() {
+        QCollator c;
+        c.setNumericMode(true);
+        c.setCaseSensitivity(Qt::CaseInsensitive);
+        return c;
+    }();
+    return collator;
+}
+
 void FileSystemModel::sortInternal() {
     auto comparator = [this](const FileItem &a, const FileItem &b) -> bool {
         bool result = false;
         switch (m_sortColumn) {
             case ColName:
-                result = QString::compare(a.name, b.name, Qt::CaseInsensitive) < 0;
+                result = naturalOrder().compare(a.name, b.name) < 0;
                 break;
             case ColSize:
                 result = a.sizeBytes < b.sizeBytes;
                 break;
             case ColType:
-                result = QString::compare(a.mimeComment, b.mimeComment, Qt::CaseInsensitive) < 0;
+                result = naturalOrder().compare(a.mimeComment, b.mimeComment) < 0;
                 break;
             case ColModified:
                 result = a.lastModified < b.lastModified;

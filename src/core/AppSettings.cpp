@@ -77,6 +77,16 @@ void AppSettings::rememberFolderView(const QString &path, const FolderView &view
     QSettings().setValue("view/folders", m_folderViews);
 }
 
+bool AppSettings::foldersFirst() const {
+    return QSettings().value("view/foldersFirst", true).toBool();
+}
+
+void AppSettings::setFoldersFirst(bool on) {
+    if (foldersFirst() == on) return;
+    QSettings().setValue("view/foldersFirst", on);
+    emit sortingChanged(sortColumn(), sortOrder());
+}
+
 int AppSettings::sortColumn() const {
     return m_sortColumn;
 }
