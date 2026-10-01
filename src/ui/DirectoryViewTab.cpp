@@ -4,6 +4,7 @@
 #include "AppSettings.h"
 #include "AppLauncher.h"
 #include <QVBoxLayout>
+#include <QUrl>
 #include <QDir>
 #include <QFileInfo>
 #include <QIcon>
@@ -287,6 +288,27 @@ void DirectoryViewTab::applySearch(const QString &pattern, bool isRegex) {
         // 2. Debounced background recursive search across subfolders
         m_searchDebounceTimer.start(180);
     }
+}
+
+// A path typed or pasted into the filter box is a destination, not a pattern: go there and put
+// the cursor on the item, rather than filtering the current folder by its text. Only acted on
+// when the user presses Enter, since every keystroke of a path is itself a valid path.
+bool DirectoryViewTab::revealPath(const QString &text) {
+    QString candidate = text.trimmed();
+    if (candidate.isEmpty()) return false;
+    if (candidate.startsWith("file://")) candidate = QUrl(candidate).toLocalFile();
+    if (candidate.startsWith('~')) candidate.replace(0, 1, UserEnvironment::realUserHome());
+    if (!candidate.startsWith('/')) {
+        if (!candidate.contains('/')) return false;   // a bare word is a search term, not a path
+        candidate = QDir(m_currentPath).absoluteFilePath(candidate);
+    }
+    candidate = QDir::cleanPath(candidate);
+
+    const QFileInfo info(candidate);
+    if (!info.exists()) return false;
+    if (info.isDir()) navigateTo(candidate);
+    else navigateToAndSelect(candidate);
+    return true;
 }
 
 void DirectoryViewTab::closeSearch() {

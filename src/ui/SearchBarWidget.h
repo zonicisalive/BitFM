@@ -22,6 +22,7 @@ public:
 
 signals:
     void searchChanged(const QString &query, bool isRegex);
+    void searchSubmitted(const QString &text);   // Enter: the text may be a path to jump to
     void searchClosed();
 
 protected:

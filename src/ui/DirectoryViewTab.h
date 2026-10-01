@@ -47,7 +47,8 @@ public slots:
     void toggleViewMode();
     void openSearch();                                   // asks the header to show the search bar
     void applySearch(const QString &pattern, bool isRegex); // from the header's search bar
-    void closeSearch();                                  // resets search state (no UI)
+    void closeSearch();
+    bool revealPath(const QString &text);   // true when the text was a real path and we jumped to it                                  // resets search state (no UI)
     void showErrorMessage(const QString &title, const QString &message);
 
 signals:

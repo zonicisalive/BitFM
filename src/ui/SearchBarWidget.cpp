@@ -77,6 +77,7 @@ SearchBarWidget::SearchBarWidget(QWidget *parent)
     connect(&ThemeManager::instance(), &ThemeManager::themeChanged, this, updateStyles);
 
     connect(m_lineEdit, &QLineEdit::textChanged, this, &SearchBarWidget::onTextChanged);
+    connect(m_lineEdit, &QLineEdit::returnPressed, this, [this]() { emit searchSubmitted(m_lineEdit->text().trimmed()); });
     connect(m_regexBtn, &QToolButton::toggled, this, &SearchBarWidget::onRegexToggled);
     connect(m_closeBtn, &QToolButton::clicked, this, &SearchBarWidget::onCloseClicked);
     m_lineEdit->installEventFilter(this);

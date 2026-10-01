@@ -133,6 +133,9 @@ void PaneWidget::setupUi() {
     connect(m_header->searchBar(), &SearchBarWidget::searchChanged, this, [this](const QString &q, bool rx) {
         if (auto *t = currentTab()) t->applySearch(q, rx);
     });
+    connect(m_header->searchBar(), &SearchBarWidget::searchSubmitted, this, [this](const QString &text) {
+        if (DirectoryViewTab *t = currentTab(); t && t->revealPath(text)) setSearchVisible(false);
+    });
     connect(m_header->searchBar(), &SearchBarWidget::searchClosed, this, [this]() { setSearchVisible(false); });
 
     m_tabWidget = new CustomTabWidget(this);
