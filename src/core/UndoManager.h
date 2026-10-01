@@ -21,8 +21,9 @@ public:
         QString description;
     };
 
-    void recordMove(const QStringList &sourcePaths, const QString &destinationDir);
+    void recordMove(const QVector<QPair<QString, QString>> &movedPairs);
     void recordRename(const QString &oldPath, const QString &newPath);
+    void recordRenameBatch(const QVector<QPair<QString, QString>> &pairs);   // one entry for the whole batch
     void recordTrash(const QStringList &trashedPaths, int itemCount);
 
     bool canUndo() const { return !m_stack.isEmpty(); }

@@ -228,7 +228,7 @@ void AppSettings::setTranslucencyEnabled(bool enabled) {
 
 double AppSettings::windowOpacity() const {
     QSettings settings;
-    return settings.value("appearance/windowOpacity", 0.90).toDouble();
+    return qBound(0.4, settings.value("appearance/windowOpacity", 0.90).toDouble(), 1.0);
 }
 
 void AppSettings::setWindowOpacity(double opacity) {

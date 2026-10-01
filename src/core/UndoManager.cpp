@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QScopeGuard>
 
 UndoManager& UndoManager::instance() {
@@ -18,12 +19,12 @@ void UndoManager::push(Entry entry) {
     emit changed();
 }
 
-void UndoManager::recordMove(const QStringList &sourcePaths, const QString &destinationDir) {
+// The pairs are where each item really ended up, so a skipped or renamed item cannot make undo
+// drag an unrelated file back.
+void UndoManager::recordMove(const QVector<QPair<QString, QString>> &movedPairs) {
     Entry e;
     e.kind = Entry::Move;
-    for (const QString &src : sourcePaths) {
-        const QFileInfo info(src);
-        const QString landed = QDir(destinationDir).filePath(info.fileName());
+    for (const auto &[src, landed] : movedPairs) {
         if (QDir::cleanPath(landed) == QDir::cleanPath(src)) continue;
         e.pairs.append({ src, landed });
     }
@@ -36,6 +37,16 @@ void UndoManager::recordRename(const QString &oldPath, const QString &newPath) {
     e.kind = Entry::Rename;
     e.pairs.append({ oldPath, newPath });
     e.description = tr("Rename of \"%1\"").arg(QFileInfo(oldPath).fileName());
+    push(std::move(e));
+}
+
+void UndoManager::recordRenameBatch(const QVector<QPair<QString, QString>> &pairs) {
+    if (pairs.isEmpty()) return;
+    if (pairs.size() == 1) { recordRename(pairs.first().first, pairs.first().second); return; }
+    Entry e;
+    e.kind = Entry::Rename;
+    e.pairs = pairs;
+    e.description = tr("Rename of %n item(s)", "", pairs.size());
     push(std::move(e));
 }
 
@@ -58,14 +69,25 @@ QStringList UndoManager::undo(QWidget *parentWidget, QString *errorMessage) {
     FileOperations ops;
 
     switch (e.kind) {
-    case Entry::Rename:
+    case Entry::Rename: {
+        const QString stamp = QString::number(QDateTime::currentMSecsSinceEpoch());
+        QVector<QPair<QString, QString>> parked;   // temp path -> wanted original name
+        int idx = 0;
         for (const auto &[oldPath, newPath] : e.pairs) {
             if (!QFileInfo::exists(newPath)) continue;
+            const QString tmpName = QString(".bitfm-undo-%1-%2").arg(stamp).arg(idx++);
             QString err;
-            if (ops.renameFile(newPath, QFileInfo(oldPath).fileName(), &err)) touched << QFileInfo(oldPath).absolutePath();
+            if (ops.renameFile(newPath, tmpName, &err, false))
+                parked.append({ QFileInfo(newPath).dir().filePath(tmpName), QFileInfo(oldPath).fileName() });
+            else if (errorMessage) *errorMessage = err;
+        }
+        for (const auto &[tmpPath, wantedName] : parked) {
+            QString err;
+            if (ops.renameFile(tmpPath, wantedName, &err, false)) touched << QFileInfo(tmpPath).absolutePath();
             else if (errorMessage) *errorMessage = err;
         }
         break;
+    }
 
     case Entry::Move: {
         // Group by original folder so each batch is one move back.

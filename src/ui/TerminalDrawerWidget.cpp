@@ -170,6 +170,8 @@ void TerminalDrawerWidget::setupUi() {
     // Console output text area
     m_console = new QTextEdit(this);
     m_console->setReadOnly(true);
+    m_console->setUndoRedoEnabled(false);
+    m_console->document()->setMaximumBlockCount(5000);   // a command like `yes` must not eat memory
     m_console->setFontFamily("monospace");
     m_console->setStyleSheet(ThemeManager::css(QString(
         "QTextEdit {"

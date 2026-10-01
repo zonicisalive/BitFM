@@ -33,7 +33,9 @@ public:
     bool moveFiles(const QStringList &sourcePaths, const QString &destinationDir, QWidget *parentWidget = nullptr);
     bool createNewFolder(const QString &parentDir, const QString &folderName, QString *errorMessage = nullptr);
     bool createNewFile(const QString &parentDir, const QString &fileName, QString *errorMessage = nullptr);
-    bool renameFile(const QString &oldPath, const QString &newName, QString *errorMessage = nullptr);
+    // recordUndo=false for the internal steps of a multi-file rename, which records itself.
+    bool renameFile(const QString &oldPath, const QString &newName, QString *errorMessage = nullptr,
+                    bool recordUndo = true);
     // Symbolic links to each target inside destinationDir; returns the links it made.
     QStringList createSymlinks(const QStringList &targetPaths, const QString &destinationDir, QWidget *parentWidget = nullptr);
 

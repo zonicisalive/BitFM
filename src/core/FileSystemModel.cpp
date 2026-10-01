@@ -310,6 +310,9 @@ bool FileSystemModel::dropMimeData(const QMimeData *data, Qt::DropAction action,
 }
 
 bool FileSystemModel::setDirectory(const QString &path) {
+    // Any pending search belongs to the folder being left.
+    m_isSearching = false;
+    ++m_currentSearchId;
     if (path == "recent:" || path == "recent://" || path.startsWith("tag:") || path.startsWith("tags:") || path == "tags" || path == "tag") {
         if (!m_currentPath.isEmpty()) {
             m_watcher.removePath(m_currentPath);

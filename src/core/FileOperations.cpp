@@ -106,6 +106,14 @@ bool FileOperations::restoreFromTrash(const QStringList &filePaths, QWidget *par
                     if (line.startsWith("Path=")) {
                         QString rawPath = line.mid(5).trimmed();
                         originalPath = QUrl::fromPercentEncoding(rawPath.toUtf8());
+                        // Anyone able to drop a file in the trash can choose this path, so a
+                        // relative path or one climbing out with .. is refused and the item
+                        // lands in the home directory instead.
+                        const QString cleaned = QDir::cleanPath(originalPath);
+                        if (!cleaned.startsWith('/') || cleaned.split('/').contains(".."))
+                            originalPath.clear();
+                        else
+                            originalPath = cleaned;
                         break;
                     }
                 }
@@ -141,7 +149,9 @@ bool FileOperations::restoreFromTrash(const QStringList &filePaths, QWidget *par
             QFile::remove(infoFile);
             successCount++;
         }
-        QApplication::processEvents();
+        // No progress dialog here, so nothing is modal: dispatching user input would let the
+        // user start a second operation, or close the tab that owns this one, mid-flight.
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     }
 
     bool allSuccess = (successCount == total);
@@ -222,7 +232,7 @@ bool FileOperations::moveToTrash(const QStringList &filePaths, QWidget *parentWi
                     tr("Trash Failed"),
                     tr("Could not move '%1' to Trash.\n%2\n\nWould you like to permanently delete it instead?")
                     .arg(QFileInfo(path).fileName(), err),
-                    QMessageBox::Yes | QMessageBox::No
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No
                 );
 
                 if (reply == QMessageBox::Yes) {
@@ -238,7 +248,7 @@ bool FileOperations::moveToTrash(const QStringList &filePaths, QWidget *parentWi
 
         current++;
         emit operationProgress(current, total);
-        QApplication::processEvents();
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     }
 
     if (!trashed.isEmpty()) UndoManager::instance().recordTrash(trashed, trashed.size());
@@ -436,7 +446,8 @@ FileStats FileOperations::calculateStats(const QStringList &paths, bool *cancele
                             0, 0
                         );
                     }
-                    QApplication::processEvents(QEventLoop::AllEvents, 5);
+                    QApplication::processEvents(progressDialog ? QEventLoop::AllEvents
+                                                               : QEventLoop::ExcludeUserInputEvents, 5);
                     lastUiUpdate = uiTimer.elapsed();
                 }
             }
@@ -454,7 +465,8 @@ FileStats FileOperations::calculateStats(const QStringList &paths, bool *cancele
                     0, 0
                 );
             }
-            QApplication::processEvents(QEventLoop::AllEvents, 5);
+            QApplication::processEvents(progressDialog ? QEventLoop::AllEvents
+                                                               : QEventLoop::ExcludeUserInputEvents, 5);
             lastUiUpdate = uiTimer.elapsed();
         }
     }
@@ -556,7 +568,8 @@ bool FileOperations::copySingleFile(const QString &srcFilePath, const QString &t
                 progressDialog->setDetailedProgress(srcFilePath, bytesCopied ? *bytesCopied : 0, totalBytes,
                                                     itemsCopied ? *itemsCopied : 0, totalItems);
             }
-            QApplication::processEvents(QEventLoop::AllEvents, 5);
+            QApplication::processEvents(progressDialog ? QEventLoop::AllEvents
+                                                               : QEventLoop::ExcludeUserInputEvents, 5);
             lastUiUpdate = uiTimer.elapsed();
         }
     }
@@ -791,6 +804,8 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
         return false;
     }
 
+    QVector<QPair<QString, QString>> movedPairs;   // real source -> real destination, for undo
+
     emit operationStarted(tr("Moving files..."));
 
     bool isCanceled = false;
@@ -953,6 +968,7 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
 
         if (moved) {
             successTopLevel++;
+            movedPairs.append({ src, targetPath });
         } else if (!isCanceled && parentWidget) {
             QMessageBox::warning(parentWidget, tr("Move Error"), getDetailedErrorMessage(src, "move"));
         }
@@ -964,7 +980,7 @@ bool FileOperations::moveFiles(const QStringList &sourcePaths, const QString &de
     closeProgress(progressDialog);
 
     bool allSuccess = (!isCanceled && successTopLevel == sourcePaths.size());
-    if (successTopLevel > 0) UndoManager::instance().recordMove(sourcePaths, destinationDir);
+    if (!movedPairs.isEmpty()) UndoManager::instance().recordMove(movedPairs);
     emit operationFinished(
         allSuccess,
         isCanceled ? tr("Move operation was canceled.") :
@@ -1023,7 +1039,7 @@ QStringList FileOperations::createSymlinks(const QStringList &targetPaths, const
     return made;
 }
 
-bool FileOperations::renameFile(const QString &oldPath, const QString &newName, QString *errorMessage) {
+bool FileOperations::renameFile(const QString &oldPath, const QString &newName, QString *errorMessage, bool recordUndo) {
     if (newName.isEmpty() || newName.contains('/') || newName == "." || newName == "..") {
         if (errorMessage) *errorMessage = tr("'%1' is not a valid name.").arg(newName);
         return false;
@@ -1040,7 +1056,7 @@ bool FileOperations::renameFile(const QString &oldPath, const QString &newName, 
         if (errorMessage) *errorMessage = getDetailedErrorMessage(oldPath, "rename");
         return false;
     }
-    UndoManager::instance().recordRename(oldPath, targetPath);
+    if (recordUndo) UndoManager::instance().recordRename(oldPath, targetPath);
     return true;
 }
 

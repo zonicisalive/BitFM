@@ -36,7 +36,7 @@ TagManager::TagManager(QObject *parent)
 
 void TagManager::loadFromSettings() {
     QSettings settings;
-    int size = settings.beginReadArray("file_tags");
+    int size = qMin(settings.beginReadArray("file_tags"), 100000);   // the stored count is not trusted
     m_fileTags.clear();
     for (int i = 0; i < size; ++i) {
         settings.setArrayIndex(i);

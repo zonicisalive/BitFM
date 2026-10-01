@@ -1,4 +1,5 @@
 #include "BatchRenameDialog.h"
+#include "UndoManager.h"
 #include <QDateTime>
 #include <QDir>
 #include "ThemeManager.h"
@@ -289,22 +290,27 @@ void BatchRenameDialog::applyRename() {
         }
         QString tmpName = QString(".bitfm-rename-%1-%2").arg(stamp).arg(idx++);
         QString err;
-        if (m_fileOps.renameFile(oldPath, tmpName, &err)) {
+        if (m_fileOps.renameFile(oldPath, tmpName, &err, false)) {
             pending.append({ QFileInfo(oldPath).dir().filePath(tmpName), newName, QFileInfo(oldPath).fileName() });
         } else if (firstError.isEmpty()) {
             firstError = err;
         }
     }
+    QVector<QPair<QString, QString>> renamed;   // original path -> final path, for one undo entry
     for (const Step &st : pending) {
         QString err;
-        if (m_fileOps.renameFile(st.tmpPath, st.newName, &err)) {
+        const QDir dir = QFileInfo(st.tmpPath).dir();
+        if (m_fileOps.renameFile(st.tmpPath, st.newName, &err, false)) {
             successCount++;
+            renamed.append({ dir.filePath(st.origName), dir.filePath(st.newName) });
         } else {
             if (firstError.isEmpty()) firstError = err;
             // Leave nothing parked under a temp name: put the original name back
-            m_fileOps.renameFile(st.tmpPath, st.origName, nullptr);
+            if (!m_fileOps.renameFile(st.tmpPath, st.origName, nullptr, false) && firstError.isEmpty())
+                firstError = tr("'%1' is still named '%2'.").arg(st.origName, QFileInfo(st.tmpPath).fileName());
         }
     }
+    UndoManager::instance().recordRenameBatch(renamed);
 
     emit filesRenamed();
 

@@ -1012,7 +1012,7 @@ QStringList FileViewWidget::selectedPaths() const {
 
         QModelIndex srcIdx = m_proxyModel->mapToSource(proxyIdx);
         const FileItem *item = m_sourceModel->itemForIndex(srcIdx);
-        if (item && !item->absolutePath.isEmpty() && !paths.contains(item->absolutePath)) {
+        if (item && !item->absolutePath.isEmpty()) {   // seenRows above already removes duplicates
             paths.append(item->absolutePath);
         }
     }
@@ -1756,7 +1756,7 @@ void FileViewWidget::onDeletePermanentlyAction() {
     if (selected.isEmpty()) return;
     auto reply = QMessageBox::question(this, tr("Permanent Deletion"),
         tr("Permanently delete %1 item(s)? This cannot be undone.").arg(selected.size()),
-        QMessageBox::Yes | QMessageBox::No);
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (reply == QMessageBox::Yes) m_fileOps.deletePermanently(selected, this);
 }
 

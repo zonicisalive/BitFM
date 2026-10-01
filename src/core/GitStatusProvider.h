@@ -42,7 +42,6 @@ private:
     explicit GitStatusProvider(QObject *parent = nullptr);
     ~GitStatusProvider() override = default;
 
-    QThreadPool m_threadPool;
     mutable QMutex m_mutex;
 
     QHash<QString, QString> m_dirToRepoRoot;
@@ -50,4 +49,7 @@ private:
     QHash<QString, bool> m_repoClean;
     QHash<QString, GitFileState> m_fileStatuses; // absolute path -> GitFileState
     QSet<QString> m_pendingDirs;
+
+    // Last member on purpose: its destructor waits for the workers, which touch everything above.
+    QThreadPool m_threadPool;
 };

@@ -276,6 +276,7 @@ DesktopApp AppLauncher::getAppByDesktopFile(const QString &desktopFile) {
         "/var/lib/snapd/desktop/applications"
     };
 
+    if (target.contains(QLatin1Char('/'))) return {};   // a desktop id names a file, never a path
     for (const QString &dirPath : appDirs) {
         QString fullPath = dirPath + "/" + target;
         if (QFile::exists(fullPath)) {
@@ -496,6 +497,7 @@ bool AppLauncher::launchApp(const DesktopApp &app, const QStringList &filePaths)
         }
     }
     if (!consumedFiles) out += filePaths;
+    if (out.isEmpty()) return false;   // an Exec line of nothing but field codes
     QString program = out.takeFirst();
     return QProcess::startDetached(program, out);
 }

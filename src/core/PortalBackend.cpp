@@ -212,7 +212,10 @@ uint PortalFileChooserAdaptor::SaveFile(const QDBusObjectPath &handle,
                                         QVariantMap &results)
 {
     ensureThemeLoaded();
-    QString currentName = options.value("current_name").toString();
+    // current_name comes from the calling application, which may be sandboxed: keep only the
+    // file name so it cannot point the save somewhere else entirely.
+    QString currentName = QFileInfo(options.value("current_name").toString()).fileName();
+    if (currentName == "." || currentName == "..") currentName.clear();
     QString folder = extractFolder(options);
 
     FilePickerDialog dlg(PickerMode::SaveFile, folder, currentName);
@@ -264,7 +267,7 @@ uint PortalFileChooserAdaptor::SaveFiles(const QDBusObjectPath &handle,
     for (QByteArray name : names) {
         if (name.endsWith('\0')) name.chop(1);
         QString fn = QFileInfo(QString::fromUtf8(name)).fileName();
-        if (fn.isEmpty()) continue;
+        if (fn.isEmpty() || fn == "." || fn == "..") continue;
         uris << QUrl::fromLocalFile(QDir(dir).filePath(fn)).toString();
     }
     results["uris"] = uris;
