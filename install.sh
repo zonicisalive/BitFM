@@ -18,6 +18,7 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_PREFIX="$HOME/.local"
+SUDO=""            # set to "sudo" by install_files() for a system-wide install
 SYSTEM_INSTALL=false
 INSTALL_DEPS=false
 
@@ -183,18 +184,33 @@ install_files() {
     local dbus_dir="$INSTALL_PREFIX/share/dbus-1/services"
     local systemd_dir
 
+    # Only the install step needs root; the build stays as the user so nothing in the source
+    # tree ends up root-owned.
+    if [ "$SYSTEM_INSTALL" = true ] && [ "$(id -u)" -ne 0 ]; then
+        if ! command -v sudo >/dev/null 2>&1; then
+            echo -e "${RED}!!${NC} A system-wide install needs root, and sudo was not found."
+            echo -e "   Re-run as root, or use ${CYAN}./install.sh --user${NC}."
+            exit 1
+        fi
+        echo -e "${BLUE}==>${NC} Installing to ${CYAN}$INSTALL_PREFIX${NC} needs administrator rights."
+        if ! sudo -v; then
+            echo -e "${RED}!!${NC} Password required for a system-wide install. Nothing was changed."
+            exit 1
+        fi
+        SUDO="sudo"
+    fi
+
     if [ "$SYSTEM_INSTALL" = true ]; then
         systemd_dir="/usr/lib/systemd/user"
-        mkdir -p "$bin_dir" "$app_dir" "$icon_dir" "$man_dir" "$portal_dir" "$dbus_dir" "$systemd_dir"
-        cp -f "$SCRIPT_DIR/build/bitfm" "$bin_dir/bitfm"
-        chmod +x "$bin_dir/bitfm"
-        cp -f "$SCRIPT_DIR/bitfm.desktop" "$app_dir/bitfm.desktop"
-        cp -f "$SCRIPT_DIR/src/resources/bitfm.png" "$icon_dir/bitfm.png"
-        cp -f "$SCRIPT_DIR/data/bitfm.1" "$man_dir/bitfm.1"
-        cp -f "$SCRIPT_DIR/data/bitfm.portal" "$portal_dir/bitfm.portal"
-        cp -f "$SCRIPT_DIR/data/org.freedesktop.impl.portal.desktop.bitfm.service" "$dbus_dir/"
-        cp -f "$SCRIPT_DIR/data/org.freedesktop.FileManager1.service" "$dbus_dir/"
-        cp -f "$SCRIPT_DIR/data/xdg-desktop-portal-bitfm.service" "$systemd_dir/"
+        $SUDO mkdir -p "$bin_dir" "$app_dir" "$icon_dir" "$man_dir" "$portal_dir" "$dbus_dir" "$systemd_dir"
+        $SUDO install -Dm755 "$SCRIPT_DIR/build/bitfm" "$bin_dir/bitfm"
+        $SUDO install -Dm644 "$SCRIPT_DIR/bitfm.desktop" "$app_dir/bitfm.desktop"
+        $SUDO install -Dm644 "$SCRIPT_DIR/src/resources/bitfm.png" "$icon_dir/bitfm.png"
+        $SUDO install -Dm644 "$SCRIPT_DIR/data/bitfm.1" "$man_dir/bitfm.1"
+        $SUDO install -Dm644 "$SCRIPT_DIR/data/bitfm.portal" "$portal_dir/bitfm.portal"
+        $SUDO install -Dm644 "$SCRIPT_DIR/data/org.freedesktop.impl.portal.desktop.bitfm.service" "$dbus_dir/"
+        $SUDO install -Dm644 "$SCRIPT_DIR/data/org.freedesktop.FileManager1.service" "$dbus_dir/"
+        $SUDO install -Dm644 "$SCRIPT_DIR/data/xdg-desktop-portal-bitfm.service" "$systemd_dir/"
     else
         systemd_dir="$HOME/.config/systemd/user"
         mkdir -p "$bin_dir" "$app_dir" "$icon_dir" "$man_dir" "$portal_dir" "$dbus_dir" "$systemd_dir"
@@ -210,7 +226,7 @@ install_files() {
     fi
 
     # D-Bus/systemd activation does not inherit the shell PATH: pin the absolute binary path
-    sed -i "s|/usr/bin/env bitfm|$bin_dir/bitfm|" \
+    $SUDO sed -i "s|/usr/bin/env bitfm|$bin_dir/bitfm|" \
         "$dbus_dir/org.freedesktop.impl.portal.desktop.bitfm.service" \
         "$dbus_dir/org.freedesktop.FileManager1.service" \
         "$systemd_dir/xdg-desktop-portal-bitfm.service"
@@ -252,12 +268,12 @@ configure_desktop_defaults() {
 
     # Update desktop database
     if command -v update-desktop-database &>/dev/null; then
-        update-desktop-database "$INSTALL_PREFIX/share/applications" 2>/dev/null || true
+        $SUDO update-desktop-database "$INSTALL_PREFIX/share/applications" 2>/dev/null || true
     fi
 
     # Update icon cache
     if command -v gtk-update-icon-cache &>/dev/null; then
-        gtk-update-icon-cache -f -t "$INSTALL_PREFIX/share/icons/hicolor" 2>/dev/null || true
+        $SUDO gtk-update-icon-cache -f -t "$INSTALL_PREFIX/share/icons/hicolor" 2>/dev/null || true
     fi
 
     # Set as default file manager for directories & file URIs
